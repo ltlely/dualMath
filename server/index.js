@@ -8,7 +8,12 @@ app.use(cors());
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: {
+    origin: [
+      "http://localhost:5173",
+      "https://YOUR-FRONTEND.vercel.app"
+    ],
+    methods: ["GET", "POST"] },
 });
 
 const rooms = new Map(); // roomCode -> { hostId, players: Map(socketId -> player), state }

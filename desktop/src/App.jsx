@@ -5,7 +5,9 @@ import Room from "./ui/Room.jsx";
 import Game from "./ui/Game.jsx";
 import { userManager } from "./userManager.js";
 
-const socket = io("http://127.0.0.1:5050", { autoConnect: true });
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL;
+export const socket = io(SOCKET_URL, { autoConnect: true });
+
 
 export default function App() {
   const [view, setView] = useState("lobby"); // lobby | room | game
