@@ -6,13 +6,29 @@ import cors from "cors";
 const app = express();
 app.use(cors());
 
-// Health check and root route
+// Simple request logger to help debug deployed routes
+app.use((req, res, next) => {
+  console.log(`➡️  ${new Date().toISOString()} ${req.method} ${req.path} from ${req.headers.origin || req.ip}`);
+  next();
+});
+
+// Root route: respond with a friendly HTML page to prevent 'Cannot GET /' in browsers
 app.get("/", (req, res) => {
-  res.json({ 
-    status: "ok",
-    message: "Math Game Server is running",
-    timestamp: new Date().toISOString()
-  });
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`
+    <!doctype html>
+    <html>
+      <head><meta charset="utf-8"><title>Math Game API</title></head>
+      <body style="font-family:system-ui,Arial,sans-serif;margin:36px;color:#222">
+        <h1>Math Game Server</h1>
+        <p>The server is running. For WebSocket connections use Socket.IO endpoint.</p>
+        <ul>
+          <li><a href="/health">/health</a> — health check</li>
+          <li>Socket endpoint: <code>/socket.io/</code></li>
+        </ul>
+      </body>
+    </html>
+  `);
 });
 
 // Health check endpoint
@@ -45,12 +61,25 @@ const getAllowedOrigins = () => {
 const allowedOrigins = getAllowedOrigins();
 console.log("✅ Socket.IO CORS allowed origins:", allowedOrigins);
 
+const isAllowed = (origin) => {
+  if (!origin) return true; // allow curl/postman/no-origin
+  if (allowedOrigins.includes(origin)) return true;
+
+  // allow any vercel preview + onrender subdomains
+  if (/^https:\/\/.*\.vercel\.app$/.test(origin)) return true;
+  if (/^https:\/\/.*\.onrender\.com$/.test(origin)) return true;
+
+  return false;
+};
+
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST", "OPTIONS"],
+    origin: (origin, cb) => {
+      if (isAllowed(origin)) return cb(null, true);
+      return cb(new Error(`CORS blocked origin: ${origin}`), false);
+    },
+    methods: ["GET", "POST"],
     credentials: true,
-    allowEIO3: true,
   },
 });
 
@@ -595,6 +624,11 @@ io.on("connection", (socket) => {
 });
 
 const PORT = process.env.PORT || 5050;
+// Fallback 404 handler (return JSON) - helps detect unexpected routing
+app.use((req, res) => {
+  res.status(404).json({ error: "not_found", path: req.path });
+});
+
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`listening on ${PORT}`);
 });

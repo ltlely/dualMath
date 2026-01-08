@@ -4,7 +4,7 @@
 
 ### Prerequisites
 - Frontend deployed on Vercel: `https://dual-math.vercel.app`
-- Backend deployed on Render: `https://your-render-service.onrender.com` (replace with your actual Render URL)
+- Backend deployed on Render: `https://dualmath.onrender.com` (replace with your actual Render URL)
 
 ---
 

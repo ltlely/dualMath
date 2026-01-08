@@ -5,8 +5,14 @@ import Room from "./ui/Room.jsx";
 import Game from "./ui/Game.jsx";
 import { userManager } from "./userManager.js";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL;
-export const socket = io(SOCKET_URL, { autoConnect: true });
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "https://dualmath.onrender.com";
+console.log("SOCKET_URL =", SOCKET_URL);
+
+export const socket = io(SOCKET_URL, {
+  autoConnect: true,
+  transports: ["websocket", "polling"],
+});
+
 
 
 export default function App() {
@@ -102,7 +108,8 @@ export default function App() {
   const actions = useMemo(
     () => ({
       sit: ({ team, slot }) => { console.log('emit team:sit', { roomCode, team, slot }); socket.emit("team:sit", { roomCode, team, slot }); },
-      createRoom: ({ name }) => socket.emit("room:create", { name, playerName: currentUser?.username || 'Guest' }),
+createRoom: ({ name }) =>
+  socket.emit("room:create", { name: currentUser?.username || name || "Guest" }),
       joinRoom: ({ roomCode }) => {
         console.log("➡️ joining room", roomCode, "as", currentUser?.username || 'Guest');
         socket.emit("room:join", { roomCode, name: currentUser?.username || 'Guest' });
