@@ -6,6 +6,24 @@ import cors from "cors";
 const app = express();
 app.use(cors());
 
+// Health check and root route
+app.get("/", (req, res) => {
+  res.json({ 
+    status: "ok",
+    message: "Math Game Server is running",
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.json({ 
+    status: "healthy",
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
+
 const server = http.createServer(app);
 
 // Get allowed origins from environment or use defaults
