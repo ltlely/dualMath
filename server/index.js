@@ -36,15 +36,21 @@ const getAllowedOrigins = () => {
     "http://localhost:5173",
     "http://localhost:3000",
     "https://dual-math.vercel.app",
-    "https://your-render-service.onrender.com",
+    "https://dualmath.onrender.com",
+    "https://*.vercel.app",
+    "https://*.onrender.com",
   ];
 };
 
+const allowedOrigins = getAllowedOrigins();
+console.log("✅ Socket.IO CORS allowed origins:", allowedOrigins);
+
 const io = new Server(server, {
   cors: {
-    origin: getAllowedOrigins(),
-    methods: ["GET", "POST"],
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "OPTIONS"],
     credentials: true,
+    allowEIO3: true,
   },
 });
 
