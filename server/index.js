@@ -7,13 +7,27 @@ const app = express();
 app.use(cors());
 
 const server = http.createServer(app);
+
+// Get allowed origins from environment or use defaults
+const getAllowedOrigins = () => {
+  const env = process.env.ALLOWED_ORIGINS;
+  if (env) {
+    return env.split(',').map(o => o.trim());
+  }
+  return [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://dual-math.vercel.app",
+    "https://your-render-service.onrender.com",
+  ];
+};
+
 const io = new Server(server, {
   cors: {
-    origin: [
-      "http://localhost:5173",
-      "https://YOUR-FRONTEND.vercel.app"
-    ],
-    methods: ["GET", "POST"] },
+    origin: getAllowedOrigins(),
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
 });
 
 const rooms = new Map(); // roomCode -> { hostId, players: Map(socketId -> player), state }
