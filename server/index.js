@@ -556,6 +556,7 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(5050, "127.0.0.1", () =>
-  console.log("Server running on http://127.0.0.1:5050")
-);
+const PORT = process.env.PORT || 5050;
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`listening on ${PORT}`);
+});
