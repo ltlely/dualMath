@@ -1,0 +1,24 @@
+{
+  "name": "ameba-pico-math-desktop",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+"electron": "cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron electron/main.js",
+    "start": "concurrently -k \"npm:dev\" \"npm:electron\"",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "socket.io-client": "^4.7.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^9.0.0",
+    "cross-env": "^7.0.3",
+    "electron": "^31.4.0",
+    "vite": "^5.4.6",
+    "wait-on": "^9.0.3"
+  }
+}

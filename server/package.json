@@ -1,0 +1,7 @@
+{
+  "name": "ameba-pico-math-server",
+  "type": "module",
+  "private": true,
+  "scripts": { "dev": "node index.js" },
+  "dependencies": { "cors": "^2.8.5", "express": "^4.19.2", "socket.io": "^4.7.5" }
+}
