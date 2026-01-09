@@ -33,6 +33,7 @@ export default function Game({
   currentUser,
   onLeaveRoom,
   onUserUpdate,
+  onForfeit,
 }) {
 
   const [chatText, setChatText] = useState("");
@@ -81,6 +82,23 @@ export default function Game({
   const targetCorrect = room?.state?.targetCorrect ?? 10;
 
   const isGameEnded = room?.state?.phase === "ended";
+  const isForfeit = !!lastRound?.forfeit;
+const forfeitedBy = lastRound?.forfeitedBy; // "A" or "B"
+
+useEffect(() => {
+  const handler = () => {
+    if (room?.state?.phase === "playing" && room?.roomCode) {
+      localStorage.setItem("pending_forfeit", JSON.stringify({
+        roomCode: room.roomCode,
+        at: Date.now()
+      }));
+    }
+  };
+
+  window.addEventListener("beforeunload", handler);
+  return () => window.removeEventListener("beforeunload", handler);
+}, [room?.state?.phase, room?.roomCode]);
+
 
   // Update stats when game ends (only once)
   useEffect(() => {
@@ -236,6 +254,23 @@ export default function Game({
           </div>
         </div>
 
+        {!isGameEnded && (
+  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+    <Button
+      onClick={() => {
+        if (!room?.roomCode) return;
+        if (window.confirm("Forfeit the match? Your team will lose immediately.")) {
+          if (typeof onForfeit === "function") onForfeit();
+        }
+      }}
+      style={{ background: "#fb7185", color: "#0b0b12" }}
+    >
+      Forfeit
+    </Button>
+  </div>
+)}
+
+
         {currentUser && (
           <div className="userQuick">
             <div className="quickAvatar">
@@ -263,11 +298,14 @@ export default function Game({
               {lastRound.winner === 'tie' ? '🤝 Match Tied!' : 
                lastRound.winner === myTeam ? '🎉 Victory!' : '💔 Defeat'}
             </h1>
-            <div className="gameOverSubtitle">
-              {lastRound.winner === 'tie' 
-                ? 'Both teams finished at the same time!' 
-                : `Team ${lastRound.winner} finished first!`}
-            </div>
+<div className="gameOverSubtitle">
+  {lastRound.winner === "tie"
+    ? "Both teams finished at the same time!"
+    : isForfeit
+      ? `Forfeit — Team ${forfeitedBy ?? "?"} left. Team ${lastRound.winner} wins!`
+      : `Team ${lastRound.winner} finished first!`}
+</div>
+
             <div className="gameOverStats">
               <div className="statBox">
                 <div className="statLabel">Team A</div>

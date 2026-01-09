@@ -499,7 +499,36 @@ function endRound(roomCode) {
   console.log("⚠️ Legacy endRound called - should not happen in race mode");
 }
 
+
+
 io.on("connection", (socket) => {
+  socket.on("game:forfeit", ({ roomCode }) => {
+  const code = String(roomCode || "").trim().toUpperCase();
+  forfeitGame(code, socket.id, "manual_forfeit");
+});
+
+socket.on("disconnect", () => {
+  for (const [roomCode, room] of rooms.entries()) {
+    if (room.players.has(socket.id)) {
+      // ✅ Refresh/tab close = disconnect = forfeit (if match live)
+      if (room.state.phase === "playing") {
+        forfeitGame(roomCode, socket.id, "disconnect");
+      }
+
+      room.players.delete(socket.id);
+
+      if (room.hostId === socket.id) {
+        const next = room.players.keys().next().value;
+        if (next) room.hostId = next;
+        else rooms.delete(roomCode);
+      }
+
+      broadcast(roomCode);
+    }
+  }
+});
+
+
   socket.on("team:digit", ({ roomCode, place, digit }) => {
     const code = String(roomCode || "").trim().toUpperCase();
     const room = rooms.get(code);
@@ -818,27 +847,33 @@ io.on("connection", (socket) => {
   });
 
   socket.on("room:leave", ({ roomCode }) => {
-    const code = String(roomCode || "").trim().toUpperCase();
-    const room = rooms.get(code);
-    if (!room) return;
+  const code = String(roomCode || "").trim().toUpperCase();
+  const room = rooms.get(code);
+  if (!room) return;
 
-    room.players.delete(socket.id);
-    socket.leave(code);
+  // ✅ If match is live, leaving = forfeit
+  if (room.state.phase === "playing") {
+    forfeitGame(code, socket.id, "left_room");
+  }
 
-    // If host left, assign new host or delete room
-    if (room.hostId === socket.id) {
-      const next = room.players.keys().next().value;
-      if (next) {
-        room.hostId = next;
-      } else {
-        rooms.delete(code);
-        return;
-      }
+  room.players.delete(socket.id);
+  socket.leave(code);
+
+  // If host left, assign new host or delete room
+  if (room.hostId === socket.id) {
+    const next = room.players.keys().next().value;
+    if (next) {
+      room.hostId = next;
+    } else {
+      rooms.delete(code);
+      return;
     }
+  }
 
-    broadcast(code);
-    console.log(`👋 Player left room ${code}`);
-  });
+  broadcast(code);
+  console.log(`👋 Player left room ${code}`);
+});
+
 
   socket.on("chat:send", ({ roomCode, text }) => {
     const code = String(roomCode || "").trim().toUpperCase();
@@ -855,18 +890,84 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("disconnect", () => {
-    for (const [roomCode, room] of rooms.entries()) {
-      if (room.players.delete(socket.id)) {
-        if (room.hostId === socket.id) {
-          const next = room.players.keys().next().value;
-          if (next) room.hostId = next;
-          else rooms.delete(roomCode);
-        }
-        broadcast(roomCode);
-      }
-    }
+  function endGame(roomCode, payload) {
+  const room = rooms.get(roomCode);
+  if (!room) return;
+
+  // prevent double-ending
+  if (room.state.phase === "ended") return;
+
+  room.state.phase = "ended";
+
+  const playersArray = Array.from(room.players.values());
+  const results = playersArray.map((p) => ({
+    id: p.id,
+    name: p.name,
+    score: p.score,
+    team: p.team,
+  }));
+
+  broadcast(roomCode);
+
+  io.to(roomCode).emit("game:ended", {
+    results,
+    teamStats: room.state.teamStats,
+    teamRounds: room.state.teamRounds,
+    ...payload, // winner, forfeit, forfeitedBy, reason
   });
+}
+
+function forfeitGame(roomCode, leaverSocketId, reason = "disconnect") {
+  const room = rooms.get(roomCode);
+  if (!room) return;
+  if (room.state.phase !== "playing") return; // only forfeit during active match
+
+  const leaver = room.players.get(leaverSocketId);
+  const forfeitedBy = leaver?.team ?? null;
+
+  // winner is the opposite team
+  let winner = "tie";
+  if (forfeitedBy === "A") winner = "B";
+  else if (forfeitedBy === "B") winner = "A";
+
+  console.log("🏳️ FORFEIT", { roomCode, forfeitedBy, winner, reason });
+
+  endGame(roomCode, {
+    winner,
+    forfeit: true,
+    forfeitedBy,
+    reason,
+  });
+}
+
+
+
+//   socket.on("room:leave", ({ roomCode }) => {
+//   const code = String(roomCode || "").trim().toUpperCase();
+//   const room = rooms.get(code);
+//   if (!room) return;
+
+//   // ✅ Forfeit if someone leaves mid-game
+//   forfeitIfInGame(code, socket.id);
+
+//   room.players.delete(socket.id);
+//   socket.leave(code);
+
+//   // If host left, assign new host or delete room
+//   if (room.hostId === socket.id) {
+//     const next = room.players.keys().next().value;
+//     if (next) {
+//       room.hostId = next;
+//     } else {
+//       rooms.delete(code);
+//       return;
+//     }
+//   }
+
+//   broadcast(code);
+//   console.log(`👋 Player left room ${code}`);
+// });
+
 });
 
 const PORT = process.env.PORT || 5050;

@@ -4,6 +4,8 @@ import Lobby from "./ui/Lobby.jsx";
 import Room from "./ui/Room.jsx";
 import Game from "./ui/Game.jsx";
 import { userManager } from "./userManager.js";
+import { updatePoints } from "./rankingSystem.js";
+
 
 const isDev = window.location.hostname === 'localhost';
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 
@@ -17,6 +19,43 @@ export const socket = io(SOCKET_URL, {
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
 });
+
+function applyLocalMatchResult(currentUser, didWin) {
+  if (!currentUser) return currentUser;
+
+  const currentPoints = currentUser.rankPoints ?? 0;
+  const newPoints = updatePoints(currentPoints, didWin);
+
+  const updatedUser = {
+    ...currentUser,
+    wins: (currentUser.wins ?? 0) + (didWin ? 1 : 0),
+    losses: (currentUser.losses ?? 0) + (didWin ? 0 : 1),
+    totalGames: (currentUser.totalGames ?? 0) + 1,
+    rankPoints: newPoints,
+  };
+
+  userManager.saveUser(updatedUser);
+  return updatedUser;
+}
+
+
+function applyLocalForfeitLoss(currentUser) {
+  if (!currentUser) return currentUser;
+
+  const currentPoints = currentUser.rankPoints ?? 0;
+  const newPoints = updatePoints(currentPoints, false); // false = loss
+
+  const updatedUser = {
+    ...currentUser,
+    losses: (currentUser.losses ?? 0) + 1,
+    totalGames: (currentUser.totalGames ?? 0) + 1,
+    rankPoints: newPoints,
+  };
+
+  userManager.saveUser(updatedUser);
+  return updatedUser;
+}
+
 
 // Create a tiny thumbnail (32x32) for sharing via socket - keeps payload small
 const createTinyThumbnail = (avatarData) => {
@@ -57,6 +96,17 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [pendingAction, setPendingAction] = useState(null);
+
+  useEffect(() => {
+  const raw = localStorage.getItem("pending_forfeit");
+  if (!raw) return;
+
+  localStorage.removeItem("pending_forfeit");
+
+  // user refreshed while in a live match -> count as loss
+  setCurrentUser((prev) => applyLocalForfeitLoss(prev));
+}, []);
+
 
   // Initialize user from session on mount
   useEffect(() => {
@@ -145,19 +195,22 @@ export default function App() {
     });
     
     socket.on("game:ended", (payload) => {
-      console.log("🎮 GAME ENDED - Full payload:", payload);
-      setLastRound(payload);
-      
-      if (payload?.winner) {
-        if (payload.winner === 'tie') {
-          setError("Match ended in a tie.");
-        } else {
-          setError(`Match ended. Winner: Team ${payload.winner}`);
-        }
-      }
-      
-      setView("game");
-    });
+  console.log("🎮 GAME ENDED - Full payload:", payload);
+  setLastRound(payload);
+
+  // ✅ apply local stats here (wins OR losses)
+  // figure out my team from the latest room state
+  const me = (room?.players ?? []).find(p => p.id === selfId);
+  const myTeam = me?.team;
+
+  if (payload?.winner && payload.winner !== "tie" && myTeam) {
+    const didWin = payload.winner === myTeam;
+    setCurrentUser(prev => applyLocalMatchResult(prev, didWin));
+  }
+
+  setView("game");
+});
+
 
     socket.on("chat:new", (m) => setChat((prev) => [...prev, m]));
 
@@ -244,23 +297,30 @@ export default function App() {
       settings: (s) => socket.emit("room:settings", { roomCode, ...s }),
       start: () => socket.emit("game:start", { roomCode }),
       chatSend: (text) => socket.emit("chat:send", { roomCode, text }),
-      leaveRoom: () => {
-        console.log("➡️ leaving room", roomCode);
-        socket.emit("room:leave", { roomCode });
-        
-        // Don't re-read from storage here - the currentUser state already has the latest data
-        // from onUserUpdate callback. Re-reading could get stale data due to timing.
-        // The currentUser state is already up-to-date from Game.jsx's onUserUpdate call.
-        
-        setView("lobby");
-        setRoomCode(null);
-        setSelfId(null);
-        setRoom(null);
-        setError("");
-        setRoundInfo(null);
-        setLastRound(null);
-        setChat([]);
-      },
+     leaveRoom: () => {
+  console.log("➡️ leaving room", roomCode);
+
+  const isInLiveMatch = room?.state?.phase === "playing";
+
+  // If leaving mid-game => forfeit locally (so stats ALWAYS update)
+  if (isInLiveMatch) {
+    socket.emit("game:forfeit", { roomCode: room?.roomCode });
+
+    setCurrentUser((prev) => applyLocalForfeitLoss(prev));
+  }
+
+  socket.emit("room:leave", { roomCode });
+
+  setView("lobby");
+  setRoomCode(null);
+  setSelfId(null);
+  setRoom(null);
+  setError("");
+  setRoundInfo(null);
+  setLastRound(null);
+  setChat([]);
+},
+
     }),
     [roomCode, currentUser]
   );
@@ -329,6 +389,12 @@ export default function App() {
       currentUser={currentUser}
       onLeaveRoom={actions.leaveRoom}
       onUserUpdate={handleUserUpdate}
+      onForfeit={() => {
+  socket.emit("game:forfeit", { roomCode: room?.roomCode });
+  setCurrentUser((prev) => applyLocalForfeitLoss(prev));
+}}
+
+
     />
   );
 }
