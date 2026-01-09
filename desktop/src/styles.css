@@ -94,6 +94,13 @@ body{
   color: var(--muted);
   background: rgba(255,255,255,.02);
 }
+
+.pill.code{
+  border-color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(45,212,191,.08);
+}
+
 .pill.good{
   border-color: rgba(45,212,191,.45);
   color: rgba(45,212,191,.9);
@@ -347,6 +354,7 @@ body{
 .linkBtn:hover{ opacity:0.8; }
 
 .roomName {
-  font-weight: bold;
+  font-weight: 800;
   margin-right: 8px;
+  color: var(--accent);
 }

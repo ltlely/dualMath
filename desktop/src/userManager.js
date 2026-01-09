@@ -1,4 +1,7 @@
 // User data management with localStorage persistence
+// Uses sessionStorage for current session to prevent cross-tab login conflicts
+import { getRank, getRankProgress, updatePoints, getWinPoints, getLossPoints } from './rankingSystem.js';
+
 // Simple password hashing (for client-side, not production secure)
 const simpleHash = (str) => {
   let hash = 0;
@@ -10,45 +13,54 @@ const simpleHash = (str) => {
   return Math.abs(hash).toString(16);
 };
 
-const STORAGE_KEY = "mathGame_user";
-const USERS_KEY = "mathGame_users";
+const SESSION_KEY = "mathGame_session"; // Current session (sessionStorage - per tab)
+const USERS_KEY = "mathGame_users";     // All users data (localStorage - persistent)
 
 // Helper function to safely set localStorage with error handling
-const safeSetItem = (key, value) => {
+const safeSetItem = (storage, key, value) => {
   try {
-    localStorage.setItem(key, value);
+    storage.setItem(key, value);
     return true;
   } catch (e) {
     if (e.name === 'QuotaExceededError') {
-      console.error('localStorage quota exceeded. Clearing old data...');
-      // Try to clear current user and retry
-      localStorage.removeItem(STORAGE_KEY);
+      console.error('Storage quota exceeded. Clearing old data...');
+      storage.removeItem(key);
       try {
-        localStorage.setItem(key, value);
+        storage.setItem(key, value);
         return true;
       } catch (e2) {
         console.error('Still exceeded after clearing. Data too large.');
         return false;
       }
     }
-    console.error('Error saving to localStorage:', e);
+    console.error('Error saving to storage:', e);
     return false;
   }
 };
 
 export const userManager = {
-  // Get current logged-in user
+  // Get current logged-in user for THIS session/tab
   getCurrentUser() {
     try {
-      const current = localStorage.getItem(STORAGE_KEY);
-      return current ? JSON.parse(current) : null;
+      // Use sessionStorage for current session (tab-specific)
+      const session = sessionStorage.getItem(SESSION_KEY);
+      if (!session) return null;
+      
+      const sessionData = JSON.parse(session);
+      const userId = sessionData?.userId;
+      
+      if (!userId) return null;
+      
+      // Get the latest user data from localStorage (shared storage)
+      const users = this.getAllUsers();
+      return users[userId] || null;
     } catch (e) {
       console.error('Error reading current user:', e);
       return null;
     }
   },
 
-  // Get all users
+  // Get all users from shared storage
   getAllUsers() {
     try {
       const users = localStorage.getItem(USERS_KEY);
@@ -56,6 +68,32 @@ export const userManager = {
     } catch (e) {
       console.error('Error reading users:', e);
       return {};
+    }
+  },
+
+  // Save/update a user
+  saveUser(user) {
+    if (!user || !user.id) {
+      console.error('Cannot save user: invalid user object');
+      return false;
+    }
+
+    try {
+      // Update in users collection (localStorage)
+      const users = this.getAllUsers();
+      users[user.id] = user;
+      const usersSuccess = safeSetItem(localStorage, USERS_KEY, JSON.stringify(users));
+      
+      // Update session if it's the current user
+      const currentUser = this.getCurrentUser();
+      if (currentUser && currentUser.id === user.id) {
+        // Session already points to this user, data will be fresh on next getCurrentUser()
+      }
+      
+      return usersSuccess;
+    } catch (e) {
+      console.error('Error saving user:', e);
+      return false;
     }
   },
 
@@ -144,16 +182,22 @@ export const userManager = {
       displayName: normalizedUsername,
       avatarData: null,
       points: 0,
+      rankPoints: 0,
       wins: 0,
+      losses: 0,
+      totalGames: 0,
       createdAt: Date.now(),
     };
 
     users[userId] = user;
     
-    const usersSuccess = safeSetItem(USERS_KEY, JSON.stringify(users));
-    const userSuccess = safeSetItem(STORAGE_KEY, JSON.stringify(user));
+    // Save to shared storage
+    const usersSuccess = safeSetItem(localStorage, USERS_KEY, JSON.stringify(users));
     
-    if (!usersSuccess || !userSuccess) {
+    // Set session for this tab only
+    const sessionSuccess = safeSetItem(sessionStorage, SESSION_KEY, JSON.stringify({ userId: user.id }));
+    
+    if (!usersSuccess || !sessionSuccess) {
       return { success: false, message: "Failed to save user data. Storage quota exceeded." };
     }
 
@@ -179,7 +223,9 @@ export const userManager = {
     }
 
     const user = result.user;
-    const success = safeSetItem(STORAGE_KEY, JSON.stringify(user));
+    
+    // Set session for this tab only (not shared across tabs)
+    const success = safeSetItem(sessionStorage, SESSION_KEY, JSON.stringify({ userId: user.id }));
     
     if (!success) {
       return { success: false, message: "Failed to save login session. Try clearing your browser data." };
@@ -188,12 +234,12 @@ export const userManager = {
     return { success: true, user };
   },
 
-  // Logout current user
+  // Logout current user (this tab only)
   logoutUser() {
-    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
   },
 
-  // Add points to current user
+  // Add points to current user (legacy method for backward compatibility)
   addPoints(points) {
     const user = this.getCurrentUser();
     if (!user) return null;
@@ -204,10 +250,121 @@ export const userManager = {
     const users = this.getAllUsers();
     users[user.id] = user;
 
-    safeSetItem(USERS_KEY, JSON.stringify(users));
-    safeSetItem(STORAGE_KEY, JSON.stringify(user));
+    safeSetItem(localStorage, USERS_KEY, JSON.stringify(users));
 
     return user;
+  },
+
+  // Get current rank based on rank points
+  getUserRank(user = null) {
+    const currentUser = user || this.getCurrentUser();
+    if (!currentUser) return 'Novice';
+    const rankPoints = currentUser.rankPoints ?? 0;
+    return getRank(rankPoints);
+  },
+
+  // Get rank progress percentage
+  getUserRankProgress(user = null) {
+    const currentUser = user || this.getCurrentUser();
+    if (!currentUser) return 0;
+    const rankPoints = currentUser.rankPoints ?? 0;
+    return getRankProgress(rankPoints);
+  },
+
+  // Get user stats (wins, losses, win rate, etc.)
+  getUserStats(user = null) {
+    const currentUser = user || this.getCurrentUser();
+    if (!currentUser) return null;
+    
+    const wins = currentUser.wins || 0;
+    const losses = currentUser.losses || 0;
+    const totalGames = currentUser.totalGames || (wins + losses) || 0;
+    const winRate = totalGames > 0 ? ((wins / totalGames) * 100).toFixed(1) : 0;
+
+    return {
+      wins,
+      losses,
+      totalGames,
+      winRate,
+      rankPoints: currentUser.rankPoints || 0,
+      rank: this.getUserRank(currentUser)
+    };
+  },
+
+  // Handle game win with ranking system
+  handleGameWin() {
+    const user = this.getCurrentUser();
+    if (!user) return null;
+
+    // Initialize rankPoints if it doesn't exist (for existing users)
+    if (user.rankPoints === undefined) {
+      user.rankPoints = 0;
+    }
+
+    const oldPoints = user.rankPoints;
+    const oldRank = getRank(oldPoints);
+    const pointsGained = getWinPoints(oldPoints);
+    
+    // Update rank points based on current rank
+    user.rankPoints = updatePoints(oldPoints, true);
+    user.wins = (user.wins || 0) + 1;
+    user.totalGames = (user.totalGames || 0) + 1;
+    
+    const newRank = getRank(user.rankPoints);
+    const rankUp = oldRank !== newRank;
+
+    const users = this.getAllUsers();
+    users[user.id] = user;
+
+    safeSetItem(localStorage, USERS_KEY, JSON.stringify(users));
+
+    return { 
+      user, 
+      rankUp, 
+      oldRank, 
+      newRank,
+      pointsGained,
+      oldPoints,
+      newPoints: user.rankPoints
+    };
+  },
+
+  // Handle game loss with ranking system
+  handleGameLoss() {
+    const user = this.getCurrentUser();
+    if (!user) return null;
+
+    // Initialize rankPoints if it doesn't exist (for existing users)
+    if (user.rankPoints === undefined) {
+      user.rankPoints = 0;
+    }
+
+    const oldPoints = user.rankPoints;
+    const oldRank = getRank(oldPoints);
+    const pointsLost = getLossPoints(oldPoints);
+    
+    // Update rank points based on current rank
+    user.rankPoints = updatePoints(oldPoints, false);
+    user.losses = (user.losses || 0) + 1;
+    user.totalGames = (user.totalGames || 0) + 1;
+    
+    const newRank = getRank(user.rankPoints);
+    const rankDown = oldRank !== newRank;
+
+    const users = this.getAllUsers();
+    users[user.id] = user;
+
+    safeSetItem(localStorage, USERS_KEY, JSON.stringify(users));
+
+    return { 
+      user, 
+      rankDown, 
+      oldRank, 
+      newRank,
+      pointsLost,
+      oldPoints,
+      newPoints: user.rankPoints
+    };
   },
 
   // Update user avatar
@@ -219,16 +376,10 @@ export const userManager = {
       const users = this.getAllUsers();
       users[user.id] = user;
       
-      const usersSuccess = safeSetItem(USERS_KEY, JSON.stringify(users));
+      const usersSuccess = safeSetItem(localStorage, USERS_KEY, JSON.stringify(users));
       
-      const current = this.getCurrentUser();
-      if (current && current.id === user.id) {
-        current.avatarData = avatarData;
-        const userSuccess = safeSetItem(STORAGE_KEY, JSON.stringify(current));
-        
-        if (!usersSuccess || !userSuccess) {
-          return null;
-        }
+      if (!usersSuccess) {
+        return null;
       }
 
       return user;
@@ -244,13 +395,7 @@ export const userManager = {
       user.displayName = displayName;
       const users = this.getAllUsers();
       users[user.id] = user;
-      safeSetItem(USERS_KEY, JSON.stringify(users));
-
-      const current = this.getCurrentUser();
-      if (current && current.id === user.id) {
-        current.displayName = displayName;
-        safeSetItem(STORAGE_KEY, JSON.stringify(current));
-      }
+      safeSetItem(localStorage, USERS_KEY, JSON.stringify(users));
 
       return user;
     }
@@ -260,12 +405,12 @@ export const userManager = {
   // Get leaderboard
   getLeaderboard() {
     const users = Object.values(this.getAllUsers());
-    return users.sort((a, b) => b.points - a.points);
+    return users.sort((a, b) => (b.rankPoints ?? 0) - (a.rankPoints ?? 0));
   },
 
   // Clear all storage (useful for debugging)
   clearAllData() {
-    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(USERS_KEY);
   }
 };

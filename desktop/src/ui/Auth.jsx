@@ -12,21 +12,24 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [avatarData, setAvatarData] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState(""); // For showing upload progress
   const fileInputRef = useRef(null);
 
   // Update avatar state when currentUser changes
   useEffect(() => {
     if (currentUser?.avatarData) {
       setAvatarData(currentUser.avatarData);
+    } else {
+      setAvatarData(null);
     }
-  }, [currentUser?.avatarData]);
+  }, [currentUser?.avatarData, currentUser?.id]);
 
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
   };
 
-const handleLogin = () => {
+  const handleLogin = () => {
     const trimmed = emailOrUsername.trim();
 
     if (!trimmed) {
@@ -130,20 +133,137 @@ const handleLogin = () => {
     if (onClose) onClose();
   };
 
-  const handleAvatarUpload = (e) => {
+  // Compress image to reduce size
+  const compressImage = (file, maxWidth = 200, quality = 0.7) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      img.onload = () => {
+        // Calculate new dimensions
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to base64 with compression
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedDataUrl);
+      };
+      
+      img.onerror = () => {
+        reject(new Error('Failed to load image'));
+      };
+      
+      // Read the file as data URL
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        img.src = e.target.result;
+      };
+      reader.onerror = () => {
+        reject(new Error('Failed to read file'));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const avatarDataUrl = event.target.result;
-      setAvatarData(avatarDataUrl);
-      userManager.updateAvatar(currentUser.username, avatarDataUrl);
-      if (onLoginSuccess) {
-        onLoginSuccess(userManager.getCurrentUser());
+    // Clear previous states
+    setError('');
+    setUploadStatus('Processing image...');
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file (JPG, PNG, GIF, etc.)');
+      setUploadStatus('');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
       }
-    };
-    reader.readAsDataURL(file);
+      return;
+    }
+
+    try {
+      let avatarDataUrl;
+      
+      // If file is larger than 100KB, compress it
+      if (file.size > 100000) {
+        setUploadStatus('Compressing image...');
+        avatarDataUrl = await compressImage(file, 200, 0.7);
+      } else {
+        // Small file, read directly
+        avatarDataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => resolve(event.target.result);
+          reader.onerror = () => reject(new Error('Failed to read file'));
+          reader.readAsDataURL(file);
+        });
+      }
+      
+      // Check final size (localStorage has ~5MB limit, but we want to be conservative)
+      const dataSize = avatarDataUrl.length;
+      if (dataSize > 500000) { // 500KB after compression
+        setError('Image is still too large after compression. Please use a smaller image.');
+        setUploadStatus('');
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+      
+      setUploadStatus('Saving...');
+      setAvatarData(avatarDataUrl);
+      
+      // Update avatar in userManager
+      const updated = userManager.updateAvatar(currentUser.username, avatarDataUrl);
+      
+      if (updated) {
+        // Get fresh user data and update parent state
+        const freshUser = userManager.getCurrentUser();
+        if (freshUser && onLoginSuccess) {
+          console.log('✅ Avatar updated successfully');
+          onLoginSuccess(freshUser);
+        }
+        setUploadStatus('');
+      } else {
+        setError('Failed to save avatar. Storage might be full. Try a smaller image.');
+        setAvatarData(currentUser?.avatarData || null); // Revert
+        setUploadStatus('');
+      }
+      
+    } catch (err) {
+      console.error('Avatar upload error:', err);
+      setError('Failed to process image. Please try again with a different image.');
+      setUploadStatus('');
+    }
+    
+    // Clear the file input for next upload
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAvatar = () => {
+    setAvatarData(null);
+    setError('');
+    setUploadStatus('');
+    userManager.updateAvatar(currentUser.username, null);
+    const freshUser = userManager.getCurrentUser();
+    if (freshUser && onLoginSuccess) {
+      onLoginSuccess(freshUser);
+    }
   };
 
   if (!isLoggedIn) {
@@ -288,16 +408,7 @@ const handleLogin = () => {
               <div className="userInfo">
                 <div className="username">@{currentUser?.username}</div>
                 <div className="displayNameSmall">{currentUser?.email}</div>
-                <div className="stats">
-                  <div className="statItem">
-                    <span className="statLabel">Points:</span>
-                    <span className="statValue">{currentUser?.points ?? 0}</span>
-                  </div>
-                  <div className="statItem">
-                    <span className="statLabel">Wins:</span>
-                    <span className="statValue">{currentUser?.wins ?? 0}</span>
-                  </div>
-                </div>
+                
               </div>
             </div>
 
@@ -306,23 +417,129 @@ const handleLogin = () => {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
                 onChange={handleAvatarUpload}
                 style={{ display: "none" }}
               />
-              <Button
-                variant="secondary"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                📸 Upload Photo
-              </Button>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setError('');
+                    setUploadStatus('');
+                    fileInputRef.current?.click();
+                  }}
+                  disabled={!!uploadStatus}
+                >
+                  {uploadStatus || "📸 Upload Photo"}
+                </Button>
+                {avatarData && !uploadStatus && (
+                  <Button
+                    variant="secondary"
+                    onClick={handleRemoveAvatar}
+                  >
+                    🗑️ Remove
+                  </Button>
+                )}
+              </div>
+              {error && (
+                <div className="error" style={{ 
+                  marginTop: "8px", 
+                  fontSize: "12px", 
+                  padding: "8px",
+                  background: "rgba(251,113,133,.08)",
+                  border: "1px solid rgba(251,113,133,.5)",
+                  borderRadius: "8px",
+                  color: "rgba(251,113,133,.9)"
+                }}>
+                  {error}
+                </div>
+              )}
               <p className="muted" style={{ fontSize: "12px", marginTop: "8px" }}>
-                Upload a profile picture (JPG, PNG, etc.)
+                Upload a profile picture (JPG, PNG). Large images will be automatically compressed.
               </p>
             </div>
           </div>
         </div>
       </Card>
+
+      <style>{`
+        .authPanel .largeAvatar {
+          width: 80px;
+          height: 80px;
+          border-radius: 16px;
+          overflow: hidden;
+          background: rgba(124,92,255,.18);
+          border: 2px solid rgba(124,92,255,.35);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        
+        .authPanel .largeAvatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        
+        .authPanel .avatarPlaceholder {
+          font-size: 32px;
+          font-weight: 900;
+          color: var(--accent);
+        }
+        
+        .authPanel .avatarSection {
+          display: flex;
+          gap: 16px;
+          align-items: flex-start;
+        }
+        
+        .authPanel .userInfo {
+          flex: 1;
+        }
+        
+        .authPanel .username {
+          font-size: 18px;
+          font-weight: 700;
+          margin-bottom: 4px;
+        }
+        
+        .authPanel .displayNameSmall {
+          font-size: 14px;
+          color: var(--muted);
+          margin-bottom: 12px;
+        }
+        
+        .authPanel .stats {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        
+        .authPanel .statItem {
+          font-size: 12px;
+          padding: 4px 8px;
+          background: rgba(255,255,255,.02);
+          border: 1px solid rgba(38,38,74,.6);
+          border-radius: 6px;
+        }
+        
+        .authPanel .statLabel {
+          color: var(--muted);
+          margin-right: 4px;
+        }
+        
+        .authPanel .statValue {
+          font-weight: 700;
+          color: var(--accent);
+        }
+        
+        .authPanel .uploadSection {
+          margin-top: 20px;
+          padding-top: 20px;
+          border-top: 1px solid rgba(38,38,74,.6);
+        }
+      `}</style>
     </div>
   );
 }

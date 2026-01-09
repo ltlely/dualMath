@@ -1,7 +1,11 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Card, Button, Select, Pill } from "./components.jsx";
 
-function Slot({ title, player, isYou, onSit, avatarData, username }) {
+function Slot({ title, player, isYou, onSit, currentUserAvatarData, username }) {
+  // For current user, use their full local avatar; for others, use thumbnail from server
+  const displayAvatar = isYou ? currentUserAvatarData : player?.avatarData;
+  const displayName = isYou ? username : player?.name;
+  
   return (
     <div className="slot">
       <div className="slotTop">
@@ -12,15 +16,15 @@ function Slot({ title, player, isYou, onSit, avatarData, username }) {
       {player ? (
         <div className="slotPlayer">
           <div className="avatar">
-            {avatarData && isYou ? (
-              <img src={avatarData} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+            {displayAvatar ? (
+              <img src={displayAvatar} alt="Avatar" />
             ) : (
-              player.name?.[0]?.toUpperCase() ?? "?"
+              displayName?.[0]?.toUpperCase() ?? "?"
             )}
           </div>
           <div className="slotMeta">
             <div className="slotName">
-              {isYou ? username : player.name}
+              {displayName}
               {isYou && <span className="muted"> (you)</span>}
             </div>
             <div className="muted">Score: {player.score}</div>
@@ -35,8 +39,6 @@ function Slot({ title, player, isYou, onSit, avatarData, username }) {
     </div>
   );
 }
-
-import { useEffect } from "react";
 
 export default function Room({ room, selfId, onReady, onSettings, onStart, onSit, error, onLeaveRoom, currentUser }) {
   const isHost = room?.hostId === selfId;
@@ -53,31 +55,54 @@ export default function Room({ room, selfId, onReady, onSettings, onStart, onSit
   });
 
   const handleSaveSettings = () => {
-  onSettings({ diff, roundMs, totalRounds });
-  setLastSaved({ diff, roundMs, totalRounds });
-};
+    onSettings({ diff, roundMs, totalRounds });
+    setLastSaved({ diff, roundMs, totalRounds });
+  };
 
-useEffect(() => {
-  const changed =
-    lastSaved.diff === diff &&
-    lastSaved.roundMs === roundMs &&
-    lastSaved.totalRounds === totalRounds;
+  useEffect(() => {
+    const changed =
+      lastSaved.diff === diff &&
+      lastSaved.roundMs === roundMs &&
+      lastSaved.totalRounds === totalRounds;
 
-  if (changed) {
-    setSaved(true);
-    const t = setTimeout(() => setSaved(false), 1500);
-    return () => clearTimeout(t);
-  }
-}, [diff, roundMs, totalRounds, lastSaved]);
-
-
+    if (changed) {
+      setSaved(true);
+      const t = setTimeout(() => setSaved(false), 1500);
+      return () => clearTimeout(t);
+    }
+  }, [diff, roundMs, totalRounds, lastSaved]);
 
   const teamA = room?.teams?.A?.members ?? [];
   const teamB = room?.teams?.B?.members ?? [];
 
-  const slot = (team, idx) => (team === "A" ? teamA : teamB).find(p => p.slot === idx) ?? null;
+  // Get player from team members, but also look up full player data from room.players
+  // in case avatarData is only stored there
+  const slot = (team, idx) => {
+    const teamMembers = team === "A" ? teamA : teamB;
+    const teamPlayer = teamMembers.find(p => p.slot === idx);
+    
+    if (!teamPlayer) return null;
+    
+    // Try to get full player data from room.players (might have avatarData)
+    const fullPlayer = room?.players?.find(p => p.id === teamPlayer.id);
+    
+    // Merge team player data with full player data
+    return {
+      ...teamPlayer,
+      avatarData: teamPlayer.avatarData || fullPlayer?.avatarData || null
+    };
+  };
 
   const seated = !!(self?.team && (self.slot === 0 || self.slot === 1));
+
+  // Debug: log room data to see where avatarData is
+  useEffect(() => {
+    console.log("Room data:", {
+      players: room?.players?.map(p => ({ id: p.id, name: p.name, hasAvatar: !!p.avatarData })),
+      teamA: teamA.map(p => ({ id: p.id, name: p.name, hasAvatar: !!p.avatarData })),
+      teamB: teamB.map(p => ({ id: p.id, name: p.name, hasAvatar: !!p.avatarData })),
+    });
+  }, [room, teamA, teamB]);
 
   useEffect(() => {
     console.log("Room state:", { self, seated, roomCode: room?.roomCode, players: room?.players });
@@ -87,8 +112,8 @@ useEffect(() => {
     <div className="page">
       <div className="topBar">
         <div className="roomTitle">
-          {room?.name && <span className="roomName">{room.name}</span>}
-          Room {self?.name} <span className="code">{room?.roomCode}</span>
+          Room <span className="roomName">{room?.name || "Unnamed"}</span> 
+          <Pill tone="code">{room?.roomCode}</Pill>
           <Pill tone="neutral">2v2</Pill>
           <Pill tone={isHost ? "good" : "neutral"}>{isHost ? "Host" : "Player"}</Pill>
         </div>
@@ -123,7 +148,7 @@ useEffect(() => {
               title="A1"
               player={slot("A", 0)}
               isYou={slot("A", 0)?.id === selfId}
-              avatarData={currentUser?.avatarData}
+              currentUserAvatarData={currentUser?.avatarData}
               username={currentUser?.username}
               onSit={() => { console.log('click sit', 'A', 0); onSit({ team: 'A', slot: 0 }); }}
             />
@@ -131,7 +156,8 @@ useEffect(() => {
               title="A2"
               player={slot("A", 1)}
               isYou={slot("A", 1)?.id === selfId}
-              avatarData={currentUser?.avatarData}
+              currentUserAvatarData={currentUser?.avatarData}
+              username={currentUser?.username}
               onSit={() => { console.log('click sit', 'A', 1); onSit({ team: 'A', slot: 1 }); }}
             />
           </div>
@@ -146,14 +172,16 @@ useEffect(() => {
               title="B1"
               player={slot("B", 0)}
               isYou={slot("B", 0)?.id === selfId}
-              avatarData={currentUser?.avatarData}
+              currentUserAvatarData={currentUser?.avatarData}
+              username={currentUser?.username}
               onSit={() => { console.log('click sit', 'B', 0); onSit({ team: 'B', slot: 0 }); }}
             />
             <Slot
               title="B2"
               player={slot("B", 1)}
               isYou={slot("B", 1)?.id === selfId}
-              avatarData={currentUser?.avatarData}
+              currentUserAvatarData={currentUser?.avatarData}
+              username={currentUser?.username}
               onSit={() => { console.log('click sit', 'B', 1); onSit({ team: 'B', slot: 1 }); }}
             />
           </div>
@@ -184,10 +212,10 @@ useEffect(() => {
             <div className="col">
               <div className="label">Rounds</div>
               <Select disabled={!isHost} value={totalRounds} onChange={(e) => setTotalRounds(Math.min(Number(e.target.value), 16))}>
-                  <option value={5}>5</option>
-                  <option value={10}>10</option>
-                  <option value={16}>16</option>
-                </Select>
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={16}>16</option>
+              </Select>
             </div>
           </div>
 
@@ -199,7 +227,6 @@ useEffect(() => {
               {saved && <Pill tone="good">Saved</Pill>}
             </div>
           )}
-
         </Card>
 
         <Card title="How to play">
@@ -213,6 +240,88 @@ useEffect(() => {
       </div>
 
       {error && <div className="toast bad">{error}</div>}
+
+      <style>{`
+        .slot .avatar {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(124,92,255,.18);
+          border: 2px solid rgba(124,92,255,.35);
+          font-weight: 800;
+          font-size: 16px;
+          overflow: hidden;
+          flex-shrink: 0;
+        }
+        
+        .slot .avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          border-radius: 50%;
+        }
+        
+        .slotPlayer {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+        }
+        
+        .slotMeta {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        
+        .slotName {
+          font-weight: 700;
+          font-size: 14px;
+        }
+        
+        .slot {
+          border: 1px solid rgba(38,38,74,.6);
+          border-radius: 14px;
+          background: rgba(255,255,255,.02);
+          padding: 14px;
+          min-height: 100px;
+        }
+        
+        .slotTop {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+        
+        .slotTitle {
+          font-weight: 900;
+          font-size: 14px;
+          letter-spacing: 0.5px;
+          color: var(--accent);
+        }
+        
+        .slotEmpty {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+        
+        .teamGrid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+        
+        @media (max-width: 600px) {
+          .teamGrid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
     </div>
   );
 }

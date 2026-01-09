@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { userManager } from "../userManager.js";
+import { updatePoints } from "../rankingSystem.js";
 
 // Simple UI Components
-function Card({ title, children }) {
+function Card({ title, children, className = "" }) {
   return (
-    <div className="card">
+    <div className={`card ${className}`}>
       <div className="cardTop">
         <div className="cardTitle">{title}</div>
       </div>
@@ -20,30 +22,23 @@ function Input(props) {
   return <input className="input" {...props} />;
 }
 
-function ProgressBar({ pct }) {
-  return (
-    <div className="bar">
-      <div className="barFill" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
-    </div>
-  );
-}
-
 export default function Game({
   room, selfId,
-  roundInfo, // { round, question, endsAt, roundMs }
-  lastRound, // { correct, results }
+  roundInfo,
+  lastRound,
   onDigit,
   onSubmit,
   onChatSend,
   chat,
   currentUser,
+  onLeaveRoom,
+  onUserUpdate,
 }) {
 
-  const [now, setNow] = useState(Date.now());
   const [chatText, setChatText] = useState("");
   const [localTens, setLocalTens] = useState(null);
   const [localOnes, setLocalOnes] = useState(null);
-  const tickRef = useRef(null);
+  const [statsUpdated, setStatsUpdated] = useState(false);
 
   const playersSorted = useMemo(() => {
     const ps = [...(room?.players ?? [])];
@@ -51,46 +46,140 @@ export default function Game({
     return ps;
   }, [room]);
 
-  useEffect(() => {
-    tickRef.current = setInterval(() => setNow(Date.now()), 100);
-    return () => clearInterval(tickRef.current);
-  }, []);
-
-  const pct = useMemo(() => {
-    if (!roundInfo?.endsAt || !roundInfo?.roundMs) return 0;
-    const remaining = roundInfo.endsAt - now;
-    return (remaining / roundInfo.roundMs) * 100;
-  }, [roundInfo, now]);
-
-  const qText = roundInfo?.question
-    ? `${roundInfo.question.a} ${roundInfo.question.op} ${roundInfo.question.b} = ?`
-    : "Waiting for round...";
-
   const me = (room?.players ?? []).find(p => p.id === selfId);
-  const myTeam = me?.team;          // "A" or "B"
-  const mySlot = me?.slot;          // 0 or 1
+  const myTeam = me?.team;
+  const mySlot = me?.slot;
   const teamDigits = room?.state?.teamDigits?.[myTeam] || null;
-
-  const getCorrectCount = (teamKey) => {
-    const padded = String(room?.state?.correct ?? '0').padStart(4, '0');
-    const expT = Number(padded[2]); const expO = Number(padded[3]);
-    const tDig = room?.state?.teamDigits?.[teamKey] || {};
-    return (tDig.tens === expT ? 1 : 0) + (tDig.ones === expO ? 1 : 0);
-  };
-
-  const getCorrectPct = (teamKey) => (getCorrectCount(teamKey) / 2) * 100;
-
   const otherTeam = myTeam ? (myTeam === 'A' ? 'B' : 'A') : 'B';
-  const otherDigits = room?.state?.teamDigits?.[otherTeam] || {}; 
+  const otherDigits = room?.state?.teamDigits?.[otherTeam] || {};
 
+  // Get answer length to determine how many digit slots to show
+  const answerLength = teamDigits?.answerLength || 2;
+  const otherAnswerLength = otherDigits?.answerLength || 2;
+  
+  // Determine which slots to show based on answer length
+  const showThousands = answerLength >= 4;
+  const showHundreds = answerLength >= 3;
+  const showOtherThousands = otherAnswerLength >= 4;
+  const showOtherHundreds = otherAnswerLength >= 3;
+
+  // Get team-specific question
+  const myQuestion = room?.state?.teamQuestions?.[myTeam];
+  const otherQuestion = room?.state?.teamQuestions?.[otherTeam];
+  
+  const qText = myQuestion
+    ? `${myQuestion.a} ${myQuestion.op} ${myQuestion.b} = ?`
+    : "Waiting for question...";
+
+  const otherQText = otherQuestion
+    ? `${otherQuestion.a} ${otherQuestion.op} ${otherQuestion.b} = ?`
+    : "Waiting...";
+
+  // Team progress
+  const myCorrect = room?.state?.teamStats?.[myTeam]?.correctCount ?? 0;
+  const otherCorrect = room?.state?.teamStats?.[otherTeam]?.correctCount ?? 0;
+  const targetCorrect = room?.state?.targetCorrect ?? 10;
+
+  const isGameEnded = room?.state?.phase === "ended";
+
+  // Update stats when game ends (only once)
   useEffect(() => {
-    // clear temporary inputs when round changes
+    console.log("🔍 Stats effect check:", { 
+      isGameEnded, 
+      winner: lastRound?.winner, 
+      hasCurrentUser: !!currentUser, 
+      statsUpdated,
+      myTeam 
+    });
+    
+    if (isGameEnded && lastRound?.winner && currentUser && !statsUpdated) {
+      console.log("🎮 Processing game end stats...");
+      console.log("   Winner:", lastRound.winner);
+      console.log("   My Team:", myTeam);
+      console.log("   Current User:", currentUser?.username);
+      console.log("   Current Stats - Wins:", currentUser?.wins, "Losses:", currentUser?.losses);
+      
+      // Make sure we have a valid team
+      if (!myTeam) {
+        console.log("⚠️ No team assigned, cannot update stats");
+        setStatsUpdated(true);
+        return;
+      }
+      
+      const isTie = lastRound.winner === 'tie';
+      const didWin = lastRound.winner === myTeam;
+      
+      console.log("   Is Tie:", isTie, "Did Win:", didWin);
+      
+      if (!isTie) {
+        try {
+          const currentPoints = currentUser.rankPoints ?? 0;
+          const newPoints = updatePoints(currentPoints, didWin);
+          
+          const newWins = (currentUser.wins ?? 0) + (didWin ? 1 : 0);
+          const newLosses = (currentUser.losses ?? 0) + (!didWin ? 1 : 0);
+          
+          console.log("   Updating stats:");
+          console.log("     didWin:", didWin);
+          console.log("     Wins:", currentUser.wins ?? 0, "→", newWins);
+          console.log("     Losses:", currentUser.losses ?? 0, "→", newLosses);
+          console.log("     Points:", currentPoints, "→", newPoints);
+          
+          const updatedUser = {
+            ...currentUser,
+            rankPoints: newPoints,
+            wins: newWins,
+            losses: newLosses,
+            totalGames: (currentUser.totalGames ?? 0) + 1
+          };
+          
+          console.log("   Updated user object:", { 
+            wins: updatedUser.wins, 
+            losses: updatedUser.losses, 
+            rankPoints: updatedUser.rankPoints 
+          });
+          
+          const saved = userManager.saveUser(updatedUser);
+          
+          if (saved) {
+            console.log(`✅ Stats saved successfully!`);
+            if (typeof onUserUpdate === 'function') {
+              onUserUpdate(updatedUser);
+            }
+          } else {
+            console.log("❌ Failed to save user stats");
+          }
+        } catch (error) {
+          console.error("❌ Error updating stats:", error);
+        }
+      } else {
+        console.log("   Game was a tie, no stats update");
+      }
+      
+      setStatsUpdated(true);
+    }
+  }, [isGameEnded, lastRound?.winner, currentUser, myTeam, statsUpdated, onUserUpdate]);
+
+  // Clear inputs when round changes (new question)
+  useEffect(() => {
     setLocalTens(null);
     setLocalOnes(null);
-  }, [roundInfo?.round]);
+  }, [myQuestion?.round, room?.state?.teamRounds?.[myTeam]]);
+
+  // Reset statsUpdated when game resets
+  useEffect(() => {
+    if (!isGameEnded) {
+      setStatsUpdated(false);
+    }
+  }, [isGameEnded]);
+
+  useEffect(() => {
+    return () => {
+      setStatsUpdated(false);
+    };
+  }, []);
 
   function submitDigits(tensVal, onesVal) {
-    // use onSubmit to send the combined answer to the server (player pressed Enter)
     const t = Number(tensVal);
     const o = Number(onesVal);
     if (!Number.isInteger(t) || !Number.isInteger(o)) return false;
@@ -105,19 +194,46 @@ export default function Game({
     return true;
   }
 
+  const getPointsChange = () => {
+    if (!lastRound?.winner || lastRound.winner === 'tie' || !currentUser) return null;
+    const didWin = lastRound.winner === myTeam;
+    const currentPoints = currentUser.rankPoints ?? 0;
+    const newPoints = updatePoints(currentPoints, didWin);
+    return newPoints - currentPoints;
+  };
+
+  const pointsChange = getPointsChange();
+
   return (
     <div className="page">
-      <div className="topBar">
-        <div className="roomTitle">
-            
-          
-            Round {roundInfo?.round ?? 0}/{room?.state?.totalRounds ?? 0}
-            <span className="code">{room?.roomCode}</span>
+      {/* Race Progress Header */}
+      <div className="raceHeader">
+        <div className="raceTitle">
+          <span className="raceIcon">🏁</span>
+          Race to {targetCorrect}!
+          <span className="code">{room?.roomCode}</span>
         </div>
-
-        <div className="row">
-            <span className="pill good">Team A: {room?.teams?.A?.score ?? 0} • {room?.state?.teamStats?.A?.correctCount ?? 0}/{room?.state?.targetCorrect ?? 10}{room?.state?.teamStats?.A?.timeToTarget ? ` • ${Math.round(room.state.teamStats.A.timeToTarget / 100)/10}s` : ''}</span>
-            <span className="pill neutral">Team B: {room?.teams?.B?.score ?? 0} • {room?.state?.teamStats?.B?.correctCount ?? 0}/{room?.state?.targetCorrect ?? 10}{room?.state?.teamStats?.B?.timeToTarget ? ` • ${Math.round(room.state.teamStats.B.timeToTarget / 100)/10}s` : ''}</span>
+        
+        <div className="raceProgress">
+          <div className="raceTeam">
+            <div className="raceTeamLabel">
+              <span className={`teamBadge ${myTeam === 'A' ? 'you' : ''}`}>Team A {myTeam === 'A' ? '(You)' : ''}</span>
+              <span className="raceCount">{room?.state?.teamStats?.A?.correctCount ?? 0}/{targetCorrect}</span>
+            </div>
+            <div className="raceBar">
+              <div className="raceBarFill teamA" style={{ width: `${(room?.state?.teamStats?.A?.correctCount ?? 0) / targetCorrect * 100}%` }}></div>
+            </div>
+          </div>
+          
+          <div className="raceTeam">
+            <div className="raceTeamLabel">
+              <span className={`teamBadge ${myTeam === 'B' ? 'you' : ''}`}>Team B {myTeam === 'B' ? '(You)' : ''}</span>
+              <span className="raceCount">{room?.state?.teamStats?.B?.correctCount ?? 0}/{targetCorrect}</span>
+            </div>
+            <div className="raceBar">
+              <div className="raceBarFill teamB" style={{ width: `${(room?.state?.teamStats?.B?.correctCount ?? 0) / targetCorrect * 100}%` }}></div>
+            </div>
+          </div>
         </div>
 
         {currentUser && (
@@ -126,54 +242,122 @@ export default function Game({
               {currentUser?.avatarData ? (
                 <img src={currentUser.avatarData} alt="Avatar" />
               ) : (
-                currentUser?.email?.[0]?.toUpperCase() ?? "?"
+                currentUser?.username?.[0]?.toUpperCase() ?? "?"
               )}
             </div>
             <div className="quickInfo">
               <div className="quickUsername">@{currentUser?.username}</div>
-              <div className="quickPoints">{currentUser?.points ?? 0} points</div>
+              <div className="quickPoints">
+                {userManager.getUserRank(currentUser)} • {currentUser?.rankPoints ?? 0} RP
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      <div className="grid2">
-        {/* CARD 1: Question */}
-        <Card title="Your Team">
-          <div className="question" style={{ position: 'relative' }}>{qText}
-            {/* stamp overlay for your team after round ends */}
-            {lastRound && myTeam && lastRound.built && typeof lastRound.built[myTeam] !== 'undefined' && (
-              <div className={`bigStamp ${lastRound.built[myTeam] === lastRound.correct ? 'correct' : 'incorrect'}`}>
-                <div className="stampInner">{lastRound.built[myTeam] === lastRound.correct ? 'Correct' : 'Incorrect'}</div>
+      {/* Game Over Banner */}
+      {isGameEnded && lastRound?.winner && (
+        <div className="gameOverBanner">
+          <div className="gameOverContent">
+            <h1 className="gameOverTitle">
+              {lastRound.winner === 'tie' ? '🤝 Match Tied!' : 
+               lastRound.winner === myTeam ? '🎉 Victory!' : '💔 Defeat'}
+            </h1>
+            <div className="gameOverSubtitle">
+              {lastRound.winner === 'tie' 
+                ? 'Both teams finished at the same time!' 
+                : `Team ${lastRound.winner} finished first!`}
+            </div>
+            <div className="gameOverStats">
+              <div className="statBox">
+                <div className="statLabel">Team A</div>
+                <div className="statValue">{room?.state?.teamStats?.A?.correctCount ?? 0}/{targetCorrect}</div>
+                {room?.state?.teamStats?.A?.timeToTarget && (
+                  <div className="statTime">{(room.state.teamStats.A.timeToTarget / 1000).toFixed(1)}s</div>
+                )}
+              </div>
+              <div className="statBox">
+                <div className="statLabel">Team B</div>
+                <div className="statValue">{room?.state?.teamStats?.B?.correctCount ?? 0}/{targetCorrect}</div>
+                {room?.state?.teamStats?.B?.timeToTarget && (
+                  <div className="statTime">{(room.state.teamStats.B.timeToTarget / 1000).toFixed(1)}s</div>
+                )}
+              </div>
+            </div>
+            
+            {statsUpdated && pointsChange !== null && lastRound.winner !== 'tie' && (
+              <div className="pointsUpdate">
+                {pointsChange >= 0 ? (
+                  <div className="pointsGained">+{pointsChange} RP</div>
+                ) : (
+                  <div className="pointsLost">{pointsChange} RP</div>
+                )}
               </div>
             )}
+            
+            <Button onClick={onLeaveRoom} style={{ marginTop: '20px', padding: '14px 28px', fontSize: '16px' }}>
+              Return to Lobby
+            </Button>
           </div>
-          <ProgressBar pct={pct} />
-          <div className="stack" style={{ gap: 6 }}>
-            <div className="muted">Digits {(String(room?.state?.correct ?? "")).length === 4 ? '(thousands+hundreds auto)' : (String(room?.state?.correct ?? "")).length === 3 ? '(hundreds auto)' : ''}</div>
+        </div>
+      )}
 
-            <div className="row" style={{ gap: 8 }}>
-              {String(room?.state?.correct ?? "").length === 4 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div className="label">Thousands (auto)</div>
-                  <Input value={(teamDigits?.thousands ?? "") + ""} disabled={true} />
+      <div className="grid2">
+        {/* Your Team's Question */}
+        <Card title={`Your Team (${myTeam}) - Q${room?.state?.teamRounds?.[myTeam] ?? 0}`} className="yourTeamCard">
+          <div className="questionSection">
+            <div className="question">{qText}</div>
+            <div className="correctCounter">
+              <span className="correctIcon">✓</span>
+              <span className="correctNum">{myCorrect}</span>
+              <span className="correctTotal">/ {targetCorrect}</span>
+            </div>
+          </div>
+
+          <div className="digitHint muted">
+            {answerLength === 1 && "1-digit answer"}
+            {answerLength === 2 && "2-digit answer"}
+            {answerLength === 3 && "3-digit answer (hundreds pre-filled)"}
+            {answerLength === 4 && "4-digit answer (thousands & hundreds pre-filled)"}
+          </div>
+
+          <div className="digitSlots">
+            {/* Thousands - only show for 4-digit answers */}
+            {showThousands && (
+              <div className="slot autoFilledSlot">
+                <div className="slotTop">
+                  <div className="slotTitle">1000s</div>
+                  <span className="pill good">auto</span>
                 </div>
-              )}
-
-              {(String(room?.state?.correct ?? "").length >= 3) && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div className="label">Hundreds (auto)</div>
-                  <Input value={(teamDigits?.hundreds ?? "") + ""} disabled={true} />
+                <div className="slotDigit">{teamDigits?.thousands ?? "?"}</div>
+              </div>
+            )}
+            
+            {/* Hundreds - show for 3+ digit answers */}
+            {showHundreds && (
+              <div className="slot autoFilledSlot">
+                <div className="slotTop">
+                  <div className="slotTitle">100s</div>
+                  <span className="pill good">auto</span>
                 </div>
-              )}
+                <div className="slotDigit">{teamDigits?.hundreds ?? "?"}</div>
+              </div>
+            )}
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div className="label">Tens {mySlot === 0 ? "(you)" : ""} {teamDigits?.lockedTens ? "🔒" : ""}</div>
+            {/* Tens - always show for 2+ digit answers */}
+            {answerLength >= 2 && (
+              <div className={`slot ${mySlot === 0 ? 'yourSlot' : ''}`}>
+                <div className="slotTop">
+                  <div className="slotTitle">10s {teamDigits?.lockedTens ? "🔒" : ""}</div>
+                  {mySlot === 0 && <span className="pill code">you</span>}
+                </div>
                 <Input
                   value={(localTens ?? teamDigits?.tens ?? "") + ""}
-                  disabled={!(myTeam && mySlot === 0) || !roundInfo?.endsAt || teamDigits?.lockedTens}
+                  disabled={!(myTeam && mySlot === 0) || teamDigits?.lockedTens || teamDigits?.overallLocked}
                   inputMode="numeric"
                   maxLength={1}
+                  placeholder="?"
+                  className="slotInput"
                   onChange={(e) => {
                     const v = e.target.value.replace(/[^0-9]/g, "").slice(0,1) || null;
                     setLocalTens(v);
@@ -190,115 +374,95 @@ export default function Game({
                   }}
                 />
               </div>
+            )}
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div className="label">Ones {mySlot === 1 ? "(you)" : ""} {teamDigits?.lockedOnes ? "🔒" : ""}</div>
-                <Input
-                  value={(localOnes ?? teamDigits?.ones ?? "") + ""}
-                  disabled={!(myTeam && mySlot === 1) || !roundInfo?.endsAt || teamDigits?.lockedOnes}
-                  inputMode="numeric"
-                  maxLength={1}
-                  onChange={(e) => {
-                    const v = e.target.value.replace(/[^0-9]/g, "").slice(0,1) || null;
-                    setLocalOnes(v);
-                    if (onDigit && v !== null) onDigit({ place: "ones", digit: Number(v) });
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      const tensVal = (localTens !== null ? localTens : teamDigits?.tens);
-                      const onesVal = (localOnes !== null ? localOnes : teamDigits?.ones);
-                      if (tensVal !== null && tensVal !== undefined && onesVal !== null && onesVal !== undefined) {
-                        submitDigits(tensVal, onesVal);
-                      }
-                    }
-                  }}
-                />
+            {/* Ones - always show */}
+            <div className={`slot ${mySlot === 1 ? 'yourSlot' : ''}`}>
+              <div className="slotTop">
+                <div className="slotTitle">1s {teamDigits?.lockedOnes ? "🔒" : ""}</div>
+                {mySlot === 1 && <span className="pill code">you</span>}
               </div>
+              <Input
+                value={(localOnes ?? teamDigits?.ones ?? "") + ""}
+                disabled={!(myTeam && mySlot === 1) || teamDigits?.lockedOnes || teamDigits?.overallLocked}
+                inputMode="numeric"
+                maxLength={1}
+                placeholder="?"
+                className="slotInput"
+                onChange={(e) => {
+                  const v = e.target.value.replace(/[^0-9]/g, "").slice(0,1) || null;
+                  setLocalOnes(v);
+                  if (onDigit && v !== null) onDigit({ place: "ones", digit: Number(v) });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const tensVal = (localTens !== null ? localTens : teamDigits?.tens);
+                    const onesVal = (localOnes !== null ? localOnes : teamDigits?.ones);
+                    if (tensVal !== null && tensVal !== undefined && onesVal !== null && onesVal !== undefined) {
+                      submitDigits(tensVal, onesVal);
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+          
+          <div className="hint muted">
+            {mySlot === 0 ? "You control the TENS digit" : "You control the ONES digit"} • Press Enter to submit
+          </div>
+        </Card>
+
+        {/* Opponent's Progress */}
+        <Card title={`Team ${otherTeam} (Opponent) - Q${room?.state?.teamRounds?.[otherTeam] ?? 0}`} className="opponentCard">
+          <div className="questionSection">
+            <div className="question opponentQuestion">{otherQText}</div>
+            <div className="correctCounter opponent">
+              <span className="correctIcon">✓</span>
+              <span className="correctNum">{otherCorrect}</span>
+              <span className="correctTotal">/ {targetCorrect}</span>
             </div>
           </div>
 
-          {lastRound?.winner && (
-            <div className={`toast ${lastRound.winner === 'A' ? 'good' : lastRound.winner === 'B' ? 'neutral' : ''}`} style={{ marginTop: 12 }}>
-              Match Winner: <b>{lastRound.winner === 'tie' ? 'Tie' : `Team ${lastRound.winner}`}</b>
-            </div>
-          )}
-        </Card>
-
-        {/* CARD 2: Opponent Team View */}
-        <Card title={`Team ${otherTeam} (Opponent)`}>
-          <div className="question" style={{ position: 'relative' }}>{qText}</div>
-          <ProgressBar pct={pct} />
-          <div className="stack" style={{ gap: 6 }}>
-            <div className="muted">Opponent's digits (read-only) {(String(room?.state?.correct ?? "")).length === 4 ? '(thousands+hundreds auto)' : (String(room?.state?.correct ?? "")).length === 3 ? '(hundreds auto)' : ''}</div>
-
-            <div className="row" style={{ gap: 8 }}>
-              {String(room?.state?.correct ?? "").length === 4 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div className="label">Thousands (auto)</div>
-                  <Input value={(otherDigits?.thousands ?? "") + ""} disabled={true} />
+          <div className="digitSlots">
+            {/* Thousands - only for 4-digit answers */}
+            {showOtherThousands && (
+              <div className="slot autoFilledSlot">
+                <div className="slotTop">
+                  <div className="slotTitle">1000s</div>
+                  <span className="pill good">auto</span>
                 </div>
-              )}
-
-              {(String(room?.state?.correct ?? "").length >= 3) && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div className="label">Hundreds (auto)</div>
-                  <Input value={(otherDigits?.hundreds ?? "") + ""} disabled={true} />
-                </div>
-              )}
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div className="label">Tens {otherDigits?.lockedTens ? "🔒" : ""} {otherDigits?.whoTens ? "✍️" : ""}</div>
-                <Input
-                  value={(otherDigits?.tens ?? "") + ""}
-                  disabled={true}
-                  style={{
-                    background: otherDigits?.whoTens ? 'rgba(124,92,255,.15)' : 'var(--card2)',
-                    borderColor: otherDigits?.whoTens ? 'rgba(124,92,255,.5)' : 'var(--line)'
-                  }}
-                />
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div className="label">Ones {otherDigits?.lockedOnes ? "🔒" : ""} {otherDigits?.whoOnes ? "✍️" : ""}</div>
-                <Input
-                  value={(otherDigits?.ones ?? "") + ""}
-                  disabled={true}
-                  style={{
-                    background: otherDigits?.whoOnes ? 'rgba(124,92,255,.15)' : 'var(--card2)',
-                    borderColor: otherDigits?.whoOnes ? 'rgba(124,92,255,.5)' : 'var(--line)'
-                  }}
-                />
-              </div>
-            </div>
-
-            {otherDigits?.submittedValue !== null && otherDigits?.submittedValue !== undefined && (
-              <div className="toast good" style={{ marginTop: 6 }}>
-                Submitted: <b>{otherDigits.submittedValue}</b> {(() => {
-                  const submitter = (room?.players ?? []).find(x => x.id === otherDigits.submittedBy);
-                  return submitter ? `by ${submitter.name}` : '';
-                })()}
-                {otherDigits.submittedAt && (Date.now() - otherDigits.submittedAt < 3500) && <span> 🔥 just now</span>}
+                <div className="slotDigit">{otherDigits?.thousands ?? "?"}</div>
               </div>
             )}
+            {/* Hundreds - for 3+ digit answers */}
+            {showOtherHundreds && (
+              <div className="slot autoFilledSlot">
+                <div className="slotTop">
+                  <div className="slotTitle">100s</div>
+                  <span className="pill good">auto</span>
+                </div>
+                <div className="slotDigit">{otherDigits?.hundreds ?? "?"}</div>
+              </div>
+            )}
+            {/* Tens - for 2+ digit answers */}
+            {otherAnswerLength >= 2 && (
+              <div className="slot">
+                <div className="slotTop">
+                  <div className="slotTitle">10s {otherDigits?.lockedTens ? "🔒" : ""}</div>
+                </div>
+                <div className="slotDigit">{otherDigits?.tens ?? "?"}</div>
+              </div>
+            )}
+            {/* Ones - always show */}
+            <div className="slot">
+              <div className="slotTop">
+                <div className="slotTitle">1s {otherDigits?.lockedOnes ? "🔒" : ""}</div>
+              </div>
+              <div className="slotDigit">{otherDigits?.ones ?? "?"}</div>
+            </div>
           </div>
         </Card>
       </div>
-
-      {lastRound?.results && (
-        <div className="resultsBar">
-          {lastRound.results.map(r => {
-            const p = (room?.players ?? []).find(x => x.id === r.id) || {};
-            const t = p.team;
-            const builtVal = lastRound.built?.[t];
-            const isCorrect = builtVal === lastRound.correct;
-            return (
-              <div key={r.id} className={`resultChip ${isCorrect ? 'good' : 'bad'}`}>
-                <b>{r.name}</b> Team {t ?? '—'} answered <span className="code">{builtVal ?? '—'}</span> {isCorrect ? '✅' : '❌'}
-              </div>
-            );
-          })}
-        </div>
-      )}
 
       <style>{`
 :root{
@@ -311,6 +475,8 @@ export default function Game({
   --accent:#7c5cff;
   --good:#2dd4bf;
   --bad:#fb7185;
+  --teamA:#22c55e;
+  --teamB:#3b82f6;
 }
 
 *{ box-sizing:border-box; }
@@ -323,14 +489,91 @@ body{
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
 }
 .page{ max-width:1100px; margin:24px auto; padding:0 18px 24px; }
-.hero{ display:flex; flex-direction:column; gap:6px; margin:8px 0 18px; }
-.logo{ font-size:28px; font-weight:800; letter-spacing:.2px; }
-.subtitle{ color:var(--muted); }
+
+.raceHeader{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: linear-gradient(180deg, rgba(255,255,255,.03), transparent), var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  flex-wrap: wrap;
+}
+
+.raceTitle{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.raceIcon{ font-size: 28px; }
+
+.raceProgress{
+  display: flex;
+  gap: 20px;
+  flex: 1;
+  max-width: 500px;
+}
+
+.raceTeam{ flex: 1; }
+
+.raceTeamLabel{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.teamBadge{
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--line);
+}
+
+.teamBadge.you{
+  background: rgba(124,92,255,.15);
+  border-color: rgba(124,92,255,.4);
+  color: var(--accent);
+}
+
+.raceCount{ font-weight: 800; color: var(--text); }
+
+.raceBar{
+  height: 12px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.raceBarFill{
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.raceBarFill.teamA{
+  background: linear-gradient(90deg, #16a34a, #22c55e);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
+}
+
+.raceBarFill.teamB{
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+}
 
 .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-.grid3{ display:grid; grid-template-columns: 1.4fr 1fr 1fr; gap:14px; }
 @media (max-width: 980px){
-  .grid2,.grid3{ grid-template-columns:1fr; }
+  .grid2{ grid-template-columns:1fr; }
+  .raceProgress{ flex-direction: column; gap: 10px; }
 }
 
 .card{
@@ -339,6 +582,10 @@ body{
   border-radius:16px;
   box-shadow: 0 10px 30px rgba(0,0,0,.25);
 }
+
+.yourTeamCard{ border-color: rgba(124,92,255,.3); }
+.opponentCard{ opacity: 0.85; }
+
 .cardTop{
   display:flex; align-items:center; justify-content:space-between;
   padding:14px 14px 10px;
@@ -347,36 +594,162 @@ body{
 .cardTitle{ font-weight:700; }
 .cardBody{ padding:14px; }
 
-.topBar{
-  display:flex; align-items:center; justify-content:space-between;
-  margin:6px 0 14px;
-  gap:12px;
+.questionSection{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
 }
-.roomTitle{ display:flex; align-items:center; gap:10px; font-weight:700; }
-.code{
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas;
-  background: rgba(124,92,255,.15);
-  border:1px solid rgba(124,92,255,.35);
-  padding:4px 8px;
-  border-radius:10px;
+
+.question{ font-size: 32px; font-weight: 900; letter-spacing: .3px; }
+.opponentQuestion{ font-size: 24px; opacity: 0.8; }
+
+.correctCounter{
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 12px;
 }
-.topActions{ display:flex; gap:10px; }
+
+.correctCounter.opponent{
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.correctIcon{ color: var(--good); font-weight: 800; }
+.correctNum{ font-size: 24px; font-weight: 900; color: var(--good); }
+.correctCounter.opponent .correctNum{ color: #3b82f6; }
+.correctTotal{ font-size: 14px; color: var(--muted); }
 
 .stack{ display:flex; flex-direction:column; gap:10px; }
 .row{ display:flex; gap:10px; align-items:center; }
-.col{ flex:1; min-width:140px; }
 .label{ font-size:12px; color:var(--muted); margin-bottom:6px; }
 
-.input, .select{
+.input{
   width:100%;
   background: var(--card2);
   color: var(--text);
   border:1px solid var(--line);
   border-radius:12px;
-  padding:10px 12px;
+  padding:12px 14px;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
   outline:none;
 }
-.input:focus, .select:focus{ border-color: rgba(124,92,255,.6); box-shadow: 0 0 0 3px rgba(124,92,255,.15); }
+.input:focus{ border-color: rgba(124,92,255,.6); box-shadow: 0 0 0 3px rgba(124,92,255,.15); }
+.input:disabled{ opacity: 0.5; }
+
+.hint{ font-size: 12px; text-align: center; margin-top: 12px; }
+
+.digitHint{
+  font-size: 13px;
+  text-align: center;
+  padding: 8px 12px;
+  background: rgba(124, 92, 255, 0.08);
+  border: 1px solid rgba(124, 92, 255, 0.2);
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+/* Digit Slots Grid */
+.digitSlots{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 12px;
+}
+
+/* Slot styling - matches your existing .slot class */
+.slot{
+  border: 1px solid rgba(38,38,74,.6);
+  border-radius: 14px;
+  background: rgba(255,255,255,.02);
+  padding: 12px;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+}
+
+.slot.yourSlot{
+  border-color: rgba(124,92,255,.4);
+  background: rgba(124,92,255,.06);
+}
+
+.slot.autoFilledSlot{
+  border-color: rgba(45,212,191,.3);
+  background: rgba(45,212,191,.06);
+}
+
+.slotTop{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.slotTitle{
+  font-weight: 900;
+  letter-spacing: .4px;
+  font-size: 13px;
+}
+
+.slotDigit{
+  font-size: 36px;
+  font-weight: 900;
+  text-align: center;
+  color: var(--text);
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slotInput{
+  font-size: 28px !important;
+  font-weight: 900 !important;
+  text-align: center !important;
+  padding: 8px !important;
+  height: auto !important;
+  flex: 1;
+}
+
+.slotInput:disabled{
+  opacity: 0.5;
+}
+
+/* Pills - using your existing styles */
+.pill{
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: rgba(255,255,255,.02);
+}
+
+.pill.code{
+  border-color: rgba(124,92,255,.45);
+  color: rgba(124,92,255,.9);
+  background: rgba(124,92,255,.08);
+}
+
+.pill.good{
+  border-color: rgba(45,212,191,.45);
+  color: rgba(45,212,191,.9);
+  background: rgba(45,212,191,.08);
+}
+
+.toast{
+  padding:10px 12px;
+  border-radius:14px;
+  border:1px solid rgba(38,38,74,.7);
+  background: rgba(255,255,255,.03);
+  text-align: center;
+}
+.toast.good{ border-color: rgba(45,212,191,.45); background: rgba(45,212,191,.08); }
 
 .btn{
   border:1px solid transparent;
@@ -386,170 +759,100 @@ body{
   cursor:pointer;
 }
 .btn.primary{ background: var(--accent); color:#0b0b12; }
-.btn.secondary{ background: transparent; border-color: var(--line); color: var(--text); }
-.btn:disabled{ opacity:.55; cursor:not-allowed; }
 
-.pill{
-  font-size:12px;
-  padding:5px 10px;
-  border-radius:999px;
-  border:1px solid var(--line);
-  color: var(--muted);
+.userQuick{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
   background: rgba(255,255,255,.02);
 }
-.pill.good{
-  border-color: rgba(45,212,191,.45);
-  color: rgba(45,212,191,.9);
-  background: rgba(45,212,191,.08);
-}
-.pill.neutral{
-  border-color: rgba(154,160,195,.35);
-}
 
-.playerRow{
-  display:flex; justify-content:space-between; align-items:center;
-  padding:10px; border:1px solid rgba(38,38,74,.6); border-radius:14px;
-  background: rgba(255,255,255,.02);
-}
-.playerLeft{ display:flex; gap:10px; align-items:center; }
-.avatar{
-  width:36px; height:36px; border-radius:12px;
-  display:grid; place-items:center;
+.quickAvatar{
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
   background: rgba(124,92,255,.18);
-  border:1px solid rgba(124,92,255,.35);
-  font-weight:800;
+  border: 1px solid rgba(124,92,255,.35);
+  font-weight: 800;
+  overflow: hidden;
 }
-.playerName{ font-weight:700; }
+
+.quickAvatar img{ width: 100%; height: 100%; object-fit: cover; }
+
+.quickInfo{ display: flex; flex-direction: column; gap: 2px; }
+.quickUsername{ font-weight: 700; font-size: 14px; }
+.quickPoints{ font-size: 12px; color: var(--muted); }
+
+.code{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas;
+  background: rgba(124,92,255,.15);
+  border:1px solid rgba(124,92,255,.35);
+  padding:4px 8px;
+  border-radius:10px;
+  font-size: 14px;
+}
+
 .muted{ color: var(--muted); }
 
-.question{
-  font-size:28px; font-weight:900;
-  letter-spacing:.3px;
-  margin-bottom:12px;
+.gameOverBanner{
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(11, 11, 18, 0.95);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  animation: fadeIn 0.3s ease;
 }
 
-.bar{
-  height:10px;
-  background: rgba(255,255,255,.06);
-  border:1px solid rgba(38,38,74,.7);
-  border-radius:999px;
-  overflow:hidden;
-}
-.barFill{
-  height:100%;
-  background: linear-gradient(90deg, rgba(45,212,191,.9), rgba(124,92,255,.9));
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.gameOverContent{
+  text-align: center;
+  padding: 40px;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255,255,255,.05), transparent), var(--card);
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  max-width: 500px;
+  animation: slideUp 0.4s ease;
 }
 
-.toast{
-  margin-top:14px;
-  padding:10px 12px;
-  border-radius:14px;
-  border:1px solid rgba(38,38,74,.7);
-  background: rgba(255,255,255,.03);
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-.toast.bad{ border-color: rgba(251,113,133,.5); background: rgba(251,113,133,.08); }
-.toast.neutral{ border-color: rgba(124,92,255,.35); background: rgba(124,92,255,.08); }
-.toast.good{ border-color: rgba(45,212,191,.45); background: rgba(45,212,191,.08); }
 
-.scoreRow{
-  display:flex; justify-content:space-between; align-items:center;
-  padding:10px; border:1px solid rgba(38,38,74,.6); border-radius:14px;
+.gameOverTitle{ font-size: 48px; font-weight: 900; margin: 0 0 12px 0; }
+.gameOverSubtitle{ font-size: 18px; color: var(--muted); margin-bottom: 30px; }
+
+.gameOverStats{
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.statBox{
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
   background: rgba(255,255,255,.02);
-}
-.scoreLeft{ display:flex; gap:10px; align-items:center; }
-.rank{
-  width:26px; height:26px; border-radius:10px;
-  display:grid; place-items:center;
-  border:1px solid rgba(38,38,74,.7);
-  color: var(--muted);
-  font-weight:800;
-}
-.score{ font-weight:900; }
-
-.chatBox{
-  height:240px;
-  overflow:auto;
-  padding:10px;
-  border-radius:14px;
-  border:1px solid rgba(38,38,74,.6);
-  background: rgba(0,0,0,.15);
-}
-.chatMsg{ padding:6px 0; border-bottom:1px dashed rgba(38,38,74,.45); }
-.chatFrom{ color: rgba(45,212,191,.9); font-weight:800; }
-
-.resultsBar{
-  margin-top:14px;
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-}
-.resultChip{
-  padding:8px 10px;
-  border-radius:999px;
-  border:1px solid rgba(38,38,74,.7);
-  background: rgba(255,255,255,.03);
-}
-.hint{ margin-top:10px; }
-
-.teamGrid{
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap:12px;
-}
-.slot{
-  border:1px solid rgba(38,38,74,.6);
-  border-radius:14px;
-  background: rgba(255,255,255,.02);
-  padding:12px;
-  min-height:120px;
-  display:flex;
-  flex-direction:column;
-  justify-content:space-between;
-}
-.tableRow{ padding:6px 8px; border-radius:8px; }
-.tableRow.header{ font-weight:700; opacity:0.95; }
-.tableRow:not(.header):hover{ background: rgba(255,255,255,.02); }
-.slotTop{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:10px;
-}
-.slotTitle{
-  font-weight:900;
-  letter-spacing:.4px;
-}
-.slotPlayer{
-  display:flex;
-  gap:10px;
-  align-items:center;
-}
-.slotName{ font-weight:800; }
-.slotEmpty{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
+  min-width: 140px;
 }
 
-.resultChip.good{ border-color: rgba(45,212,191,.45); background: rgba(45,212,191,.06); color: rgba(45,212,191,.9); }
-.resultChip.bad{ border-color: rgba(251,113,133,.45); background: rgba(251,113,133,.06); color: rgba(251,113,133,.9); }
+.statLabel{ font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+.statValue{ font-size: 32px; font-weight: 900; color: var(--accent); }
+.statTime{ font-size: 14px; color: var(--good); margin-top: 4px; font-weight: 700; }
 
-.bigStamp{ position:absolute; left:50%; top:48%; transform:translate(-50%,-50%); width:220px; height:220px; border-radius:999px; display:grid; place-items:center; border:10px solid rgba(255,255,255,.12); box-shadow: 0 12px 40px rgba(0,0,0,.5); opacity:0.98; }
-.bigStamp .stampInner{ font-weight:900; font-size:44px; letter-spacing:1px; line-height:1; }
-.bigStamp.correct{ background: rgba(45,212,191,.06); color: rgba(45,212,191,.95); border-color: rgba(45,212,191,.4); }
-.bigStamp.incorrect{ background: rgba(251,113,133,.06); color: rgba(251,113,133,.95); border-color: rgba(251,113,133,.4); }
-
-.playerChip{ display:flex; flex-direction:column; align-items:center; width:88px; padding:8px; border-radius:8px; background: rgba(255,255,255,.02); border:1px solid rgba(38,38,74,.6); }
-.playerChip .avatar{ width:44px; height:44px; border-radius:10px; display:grid; place-items:center; background: rgba(124,92,255,.18); border:1px solid rgba(124,92,255,.35); font-weight:800; }
-
-.liveTable{ margin-top:8px; border-radius:12px; overflow:hidden; border:1px solid rgba(38,38,74,.6); background: linear-gradient(180deg, rgba(255,255,255,.01), transparent); }
-.liveTable .tableRow{ padding:10px 12px; display:grid; gap:8px; align-items:center; }
-.liveTable .tableRow.header{ font-weight:800; color:var(--text); background: rgba(255,255,255,.02); }
-.liveTable .tableRow:not(.header){ border-top:1px solid rgba(38,38,74,.4); }
-.teamSlot{ display:inline-block; padding:6px 8px; border-radius:8px; border:1px solid rgba(38,38,74,.6); font-weight:800; width:56px; text-align:center; }
-.digitCell{ text-align:center; font-weight:800; }
-.liveTable .mutedSmall{ color:var(--muted); font-size:12px; }
+.pointsUpdate{ margin-top: 24px; font-size: 28px; font-weight: 900; }
+.pointsGained{ color: var(--good); text-shadow: 0 0 20px rgba(45, 212, 191, 0.5); }
+.pointsLost{ color: var(--bad); text-shadow: 0 0 20px rgba(251, 113, 133, 0.5); }
       `}</style>
     </div>
   );
