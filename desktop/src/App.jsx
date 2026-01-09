@@ -12,7 +12,7 @@ console.log("SOCKET_URL =", SOCKET_URL);
 
 export const socket = io(SOCKET_URL, {
   autoConnect: true,
-  transports: ["polling", "websocket"],
+  transports: ["websocket", "polling"],
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
