@@ -100,7 +100,7 @@ function getPublicRoom(roomCode) {
 
   const players = Array.from(r.players.values()).map((p) => ({
     id: p.id,
-    name: p.name,
+    name: p.name ?? null,
     ready: p.ready,
     score: p.score,
     team: p.team ?? null,
@@ -680,45 +680,52 @@ io.on("connection", (socket) => {
     console.log(`🎲 Player ${name} joined random room ${targetCode}`);
   });
 
-  socket.on("room:create", ({ name, playerName, avatarData }) => {
-    const roomCode = makeRoomCode();
+  socket.on("room:create", (payload) => {
+  const { name, roomName, playerName, avatarData } = payload || {};
 
-    rooms.set(roomCode, {
-      hostId: socket.id,
-      name: name || "Unnamed Room",
-      players: new Map(),
-      state: {
-        mode: "2v2",
-        phase: "lobby",
-        diff: "easy",
-        roundMs: 12000,
-        totalRounds: 10,
-        round: 0,
-        question: null,
-        correct: null,
-        roundEndsAt: null,
-        teamDigits: null,
-        teamScores: { A: 0, B: 0 },
-      },
-    });
+  const roomCode = makeRoomCode();
 
-    const room = rooms.get(roomCode);
-    room.players.set(socket.id, {
-      id: socket.id,
-      name: playerName || name || "Host",  // Use playerName if provided
-      avatarData: avatarData ?? null,  // Store avatar thumbnail
-      team: null,
-      slot: null,
-      ready: false,
-      score: 0,
-    });
+  const finalRoomName = (roomName ?? name ?? "").trim() || "Unnamed Room";
+  const finalPlayerName = (playerName ?? "").trim() || "Host";
 
-    socket.join(roomCode);
-    socket.emit("room:joined", { roomCode, selfId: socket.id });
-    broadcast(roomCode);
-    
-    console.log(`🏠 Room ${roomCode} created by ${playerName || name}`);
+  rooms.set(roomCode, {
+    hostId: socket.id,
+    name: finalRoomName,
+    players: new Map(),
+    state: {
+      mode: "2v2",
+      phase: "lobby",
+      diff: "easy",
+      roundMs: 12000,
+      totalRounds: 10,
+      round: 0,
+      question: null,
+      correct: null,
+      roundEndsAt: null,
+      teamDigits: null,
+      teamScores: { A: 0, B: 0 },
+    },
   });
+
+  const room = rooms.get(roomCode);
+  room.players.set(socket.id, {
+    id: socket.id,
+    name: finalPlayerName,
+    avatarData: avatarData ?? null,
+    team: null,
+    slot: null,
+    ready: false,
+    score: 0,
+  });
+
+  socket.join(roomCode);
+  socket.emit("room:joined", { roomCode, selfId: socket.id });
+  broadcast(roomCode);
+
+  console.log("🏠 room:create payload =", payload);
+  console.log(`🏠 Room ${roomCode} created. roomName="${finalRoomName}" playerName="${finalPlayerName}"`);
+});
+
 
   socket.on("team:sit", ({ roomCode, team, slot }) => {
     console.log('server recv team:sit', { id: socket.id, roomCode, team, slot });
