@@ -3,7 +3,7 @@ import { Card, Button, Input } from "./components.jsx";
 import Auth from "./Auth.jsx";
 import { userManager } from "../userManager.js";
 import { getRankProgress, getNextRank, getPointsToNextRank } from "../rankingSystem.js";
-import { userManager } from "../userManagerSupabase.js";
+// import { userManager } from "../userManagerSupabase.js";
 
 export default function Lobby({ onCreate, onJoin, onJoinRandom, error, currentUser, onLoginSuccess, isConnected }) {
   const [roomName, setRoomName] = useState("");
