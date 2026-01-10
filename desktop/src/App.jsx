@@ -4,7 +4,7 @@ import Lobby from "./ui/Lobby.jsx";
 import Room from "./ui/Room.jsx";
 import Game from "./ui/Game.jsx";
 import { updatePoints } from "./rankingSystem.js";
-import { userManager } from "/userManagerSupabase.js";
+import { userManager } from "./userManagerSupabase.js";
 
 const isDev = window.location.hostname === 'localhost';
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 

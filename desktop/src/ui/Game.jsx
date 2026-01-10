@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { updatePoints } from "../rankingSystem.js";
-import { userManager } from "./userManagerSupabase.js";
+import { userManager } from "../userManagerSupabase.js";
 
 // Simple UI Components
 function Card({ title, children, className = "" }) {
