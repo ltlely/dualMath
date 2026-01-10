@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Card, Button, Input } from "./components.jsx";
+import { userManager } from "./userManagerSupabase.js";
 
 export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose }) {
   const [isLoginMode, setIsLoginMode] = useState(true);
