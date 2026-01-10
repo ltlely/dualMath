@@ -16,7 +16,6 @@ app.use((req, res, next) => {
 app.get("/", (req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`
-    <!doctype html>
     <html>
       <head><meta charset="utf-8"><title>Math Game API</title></head>
       <body style="font-family:system-ui,Arial,sans-serif;margin:36px;color:#222">
