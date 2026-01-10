@@ -3,7 +3,6 @@ import { io } from "socket.io-client";
 import Lobby from "./ui/Lobby.jsx";
 import Room from "./ui/Room.jsx";
 import Game from "./ui/Game.jsx";
-import { userManager } from "./userManagerSupabase.js";
 import { updatePoints } from "./rankingSystem.js";
 
 

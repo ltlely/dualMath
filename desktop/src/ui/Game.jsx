@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { userManager } from "../userManagerSupabase.js";
 import { updatePoints } from "../rankingSystem.js";
 
 // Simple UI Components
