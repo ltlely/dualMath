@@ -1,9 +1,11 @@
 .vs/
 /server/node_modules/*
 /desktop/node_modules/*
+/desktop/.env
+/desktop/.env.local
+/desktop/.env.*.local
+.DS_Store
+/desktop/.env.*
 .env
 .env.local
 .env.*.local
-!.env.example
-.DS_Store
-.env.*
