@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Card, Button, Input } from "./components.jsx";
-import { userManager } from "../userManager.js";
+import { userManager } from "../userManagerSupabase.js";
 
 export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose }) {
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -29,7 +29,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
     return re.test(email);
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     const trimmed = emailOrUsername.trim();
 
     if (!trimmed) {
@@ -45,8 +45,8 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
     setIsLoading(true);
     setError("");
 
-    setTimeout(() => {
-      const result = userManager.loginUser(trimmed, password);
+    try {
+      const result = await userManager.loginUser(trimmed, password);
       setIsLoading(false);
 
       if (!result.success) {
@@ -54,18 +54,22 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
         return;
       }
 
-      // Get the most up-to-date user data from storage
-      const currentUser = userManager.getCurrentUser();
-      setAvatarData(currentUser?.avatarData || result.user.avatarData);
+      // Get the most up-to-date user data from Supabase
+      const freshUser = await userManager.getCurrentUser();
+      setAvatarData(freshUser?.avatarData || result.user.avatarData);
       setEmailOrUsername("");
       setPassword("");
       if (onLoginSuccess) {
-        onLoginSuccess(currentUser || result.user);
+        onLoginSuccess(freshUser || result.user);
       }
-    }, 300);
+    } catch (err) {
+      setIsLoading(false);
+      setError("Login failed. Please try again.");
+      console.error("Login error:", err);
+    }
   };
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
     const trimmedUsername = username.trim();
     const trimmedEmail = email.trim();
 
@@ -97,8 +101,8 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
     setIsLoading(true);
     setError("");
 
-    setTimeout(() => {
-      const result = userManager.signupUser(trimmedUsername, trimmedEmail, password);
+    try {
+      const result = await userManager.signupUser(trimmedUsername, trimmedEmail, password);
       setIsLoading(false);
 
       if (!result.success) {
@@ -115,7 +119,11 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
         onLoginSuccess(result.user);
       }
       setIsLoginMode(true);
-    }, 300);
+    } catch (err) {
+      setIsLoading(false);
+      setError("Signup failed. Please try again.");
+      console.error("Signup error:", err);
+    }
   };
 
   const handleLogout = () => {
@@ -212,7 +220,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
         });
       }
       
-      // Check final size (localStorage has ~5MB limit, but we want to be conservative)
+      // Check final size
       const dataSize = avatarDataUrl.length;
       if (dataSize > 500000) { // 500KB after compression
         setError('Image is still too large after compression. Please use a smaller image.');
@@ -223,22 +231,22 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
         return;
       }
       
-      setUploadStatus('Saving...');
+      setUploadStatus('Saving to database...');
       setAvatarData(avatarDataUrl);
       
-      // Update avatar in userManager
-      const updated = userManager.updateAvatar(currentUser.username, avatarDataUrl);
+      // Update avatar in Supabase
+      const updated = await userManager.updateAvatar(currentUser.username, avatarDataUrl);
       
       if (updated) {
         // Get fresh user data and update parent state
-        const freshUser = userManager.getCurrentUser();
+        const freshUser = await userManager.getCurrentUser();
         if (freshUser && onLoginSuccess) {
-          console.log('✅ Avatar updated successfully');
+          console.log('✅ Avatar updated successfully in Supabase');
           onLoginSuccess(freshUser);
         }
         setUploadStatus('');
       } else {
-        setError('Failed to save avatar. Storage might be full. Try a smaller image.');
+        setError('Failed to save avatar. Please try again.');
         setAvatarData(currentUser?.avatarData || null); // Revert
         setUploadStatus('');
       }
@@ -255,12 +263,12 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
     }
   };
 
-  const handleRemoveAvatar = () => {
+  const handleRemoveAvatar = async () => {
     setAvatarData(null);
     setError('');
     setUploadStatus('');
-    userManager.updateAvatar(currentUser.username, null);
-    const freshUser = userManager.getCurrentUser();
+    await userManager.updateAvatar(currentUser.username, null);
+    const freshUser = await userManager.getCurrentUser();
     if (freshUser && onLoginSuccess) {
       onLoginSuccess(freshUser);
     }

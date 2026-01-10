@@ -1,3 +1,8 @@
 .vs/
 /server/node_modules/*
 /desktop/node_modules/*
+.env
+.env.local
+.env.*.local
+!.env.example
+.DS_Store

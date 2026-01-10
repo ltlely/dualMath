@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { userManager } from "../userManager.js";
+import { userManager } from "../userManagerSupabase.js";
 import { updatePoints } from "../rankingSystem.js";
 
 // Simple UI Components
@@ -83,24 +83,26 @@ export default function Game({
 
   const isGameEnded = room?.state?.phase === "ended";
   const isForfeit = !!lastRound?.forfeit;
-const forfeitedBy = lastRound?.forfeitedBy; // "A" or "B"
+  const forfeitedBy = lastRound?.forfeitedBy;
 
-useEffect(() => {
-  const handler = () => {
-    if (room?.state?.phase === "playing" && room?.roomCode) {
-      localStorage.setItem("pending_forfeit", JSON.stringify({
-        roomCode: room.roomCode,
-        at: Date.now()
-      }));
-    }
-  };
+  useEffect(() => {
+    const handler = () => {
+      if (room?.state?.phase === "playing" && room?.roomCode) {
+        localStorage.setItem("pending_forfeit", JSON.stringify({
+          roomCode: room.roomCode,
+          at: Date.now()
+        }));
+      }
+    };
 
-  window.addEventListener("beforeunload", handler);
-  return () => window.removeEventListener("beforeunload", handler);
-}, [room?.state?.phase, room?.roomCode]);
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [room?.state?.phase, room?.roomCode]);
 
 
   // Update stats when game ends (only once)
+  // Note: Stats are now handled in App.jsx via applyLocalMatchResult
+  // This effect is kept for logging purposes
   useEffect(() => {
     console.log("🔍 Stats effect check:", { 
       isGameEnded, 
@@ -111,72 +113,10 @@ useEffect(() => {
     });
     
     if (isGameEnded && lastRound?.winner && currentUser && !statsUpdated) {
-      console.log("🎮 Processing game end stats...");
-      console.log("   Winner:", lastRound.winner);
-      console.log("   My Team:", myTeam);
-      console.log("   Current User:", currentUser?.username);
-      console.log("   Current Stats - Wins:", currentUser?.wins, "Losses:", currentUser?.losses);
-      
-      // Make sure we have a valid team
-      if (!myTeam) {
-        console.log("⚠️ No team assigned, cannot update stats");
-        setStatsUpdated(true);
-        return;
-      }
-      
-      const isTie = lastRound.winner === 'tie';
-      const didWin = lastRound.winner === myTeam;
-      
-      console.log("   Is Tie:", isTie, "Did Win:", didWin);
-      
-      if (!isTie) {
-        try {
-          const currentPoints = currentUser.rankPoints ?? 0;
-          const newPoints = updatePoints(currentPoints, didWin);
-          
-          const newWins = (currentUser.wins ?? 0) + (didWin ? 1 : 0);
-          const newLosses = (currentUser.losses ?? 0) + (!didWin ? 1 : 0);
-          
-          console.log("   Updating stats:");
-          console.log("     didWin:", didWin);
-          console.log("     Wins:", currentUser.wins ?? 0, "→", newWins);
-          console.log("     Losses:", currentUser.losses ?? 0, "→", newLosses);
-          console.log("     Points:", currentPoints, "→", newPoints);
-          
-          const updatedUser = {
-            ...currentUser,
-            rankPoints: newPoints,
-            wins: newWins,
-            losses: newLosses,
-            totalGames: (currentUser.totalGames ?? 0) + 1
-          };
-          
-          console.log("   Updated user object:", { 
-            wins: updatedUser.wins, 
-            losses: updatedUser.losses, 
-            rankPoints: updatedUser.rankPoints 
-          });
-          
-          const saved = userManager.saveUser(updatedUser);
-          
-          if (saved) {
-            console.log(`✅ Stats saved successfully!`);
-            if (typeof onUserUpdate === 'function') {
-              onUserUpdate(updatedUser);
-            }
-          } else {
-            console.log("❌ Failed to save user stats");
-          }
-        } catch (error) {
-          console.error("❌ Error updating stats:", error);
-        }
-      } else {
-        console.log("   Game was a tie, no stats update");
-      }
-      
+      console.log("🎮 Game ended - stats handled by App.jsx");
       setStatsUpdated(true);
     }
-  }, [isGameEnded, lastRound?.winner, currentUser, myTeam, statsUpdated, onUserUpdate]);
+  }, [isGameEnded, lastRound?.winner, currentUser, myTeam, statsUpdated]);
 
   // Clear inputs when round changes (new question)
   useEffect(() => {
@@ -255,20 +195,20 @@ useEffect(() => {
         </div>
 
         {!isGameEnded && (
-  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-    <Button
-      onClick={() => {
-        if (!room?.roomCode) return;
-        if (window.confirm("Forfeit the match? Your team will lose immediately.")) {
-          if (typeof onForfeit === "function") onForfeit();
-        }
-      }}
-      style={{ background: "#fb7185", color: "#0b0b12" }}
-    >
-      Forfeit
-    </Button>
-  </div>
-)}
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <Button
+              onClick={() => {
+                if (!room?.roomCode) return;
+                if (window.confirm("Forfeit the match? Your team will lose immediately.")) {
+                  if (typeof onForfeit === "function") onForfeit();
+                }
+              }}
+              style={{ background: "#fb7185", color: "#0b0b12" }}
+            >
+              Forfeit
+            </Button>
+          </div>
+        )}
 
 
         {currentUser && (
@@ -298,13 +238,13 @@ useEffect(() => {
               {lastRound.winner === 'tie' ? '🤝 Match Tied!' : 
                lastRound.winner === myTeam ? '🎉 Victory!' : '💔 Defeat'}
             </h1>
-<div className="gameOverSubtitle">
-  {lastRound.winner === "tie"
-    ? "Both teams finished at the same time!"
-    : isForfeit
-      ? `Forfeit — Team ${forfeitedBy ?? "?"} left. Team ${lastRound.winner} wins!`
-      : `Team ${lastRound.winner} finished first!`}
-</div>
+            <div className="gameOverSubtitle">
+              {lastRound.winner === "tie"
+                ? "Both teams finished at the same time!"
+                : isForfeit
+                  ? `Forfeit — Team ${forfeitedBy ?? "?"} left. Team ${lastRound.winner} wins!`
+                  : `Team ${lastRound.winner} finished first!`}
+            </div>
 
             <div className="gameOverStats">
               <div className="statBox">
@@ -323,7 +263,7 @@ useEffect(() => {
               </div>
             </div>
             
-            {statsUpdated && pointsChange !== null && lastRound.winner !== 'tie' && (
+            {pointsChange !== null && lastRound.winner !== 'tie' && (
               <div className="pointsUpdate">
                 {pointsChange >= 0 ? (
                   <div className="pointsGained">+{pointsChange} RP</div>

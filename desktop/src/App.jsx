@@ -3,7 +3,7 @@ import { io } from "socket.io-client";
 import Lobby from "./ui/Lobby.jsx";
 import Room from "./ui/Room.jsx";
 import Game from "./ui/Game.jsx";
-import { userManager } from "./userManager.js";
+import { userManager } from "./userManagerSupabase.js";
 import { updatePoints } from "./rankingSystem.js";
 
 
@@ -20,7 +20,7 @@ export const socket = io(SOCKET_URL, {
   reconnectionDelay: 1000,
 });
 
-function applyLocalMatchResult(currentUser, didWin) {
+async function applyLocalMatchResult(currentUser, didWin) {
   if (!currentUser) return currentUser;
 
   const currentPoints = currentUser.rankPoints ?? 0;
@@ -34,12 +34,12 @@ function applyLocalMatchResult(currentUser, didWin) {
     rankPoints: newPoints,
   };
 
-  userManager.saveUser(updatedUser);
+  await userManager.saveUser(updatedUser);
   return updatedUser;
 }
 
 
-function applyLocalForfeitLoss(currentUser) {
+async function applyLocalForfeitLoss(currentUser) {
   if (!currentUser) return currentUser;
 
   const currentPoints = currentUser.rankPoints ?? 0;
@@ -52,7 +52,7 @@ function applyLocalForfeitLoss(currentUser) {
     rankPoints: newPoints,
   };
 
-  userManager.saveUser(updatedUser);
+  await userManager.saveUser(updatedUser);
   return updatedUser;
 }
 
@@ -98,23 +98,38 @@ export default function App() {
   const [pendingAction, setPendingAction] = useState(null);
 
   useEffect(() => {
-  const raw = localStorage.getItem("pending_forfeit");
-  if (!raw) return;
+    const raw = localStorage.getItem("pending_forfeit");
+    if (!raw) return;
 
-  localStorage.removeItem("pending_forfeit");
+    localStorage.removeItem("pending_forfeit");
 
-  // user refreshed while in a live match -> count as loss
-  setCurrentUser((prev) => applyLocalForfeitLoss(prev));
-}, []);
+    // user refreshed while in a live match -> count as loss
+    const applyForfeit = async () => {
+      const updated = await applyLocalForfeitLoss(currentUser);
+      setCurrentUser(updated);
+    };
+    if (currentUser) applyForfeit();
+  }, []);
 
 
   // Initialize user from session on mount
   useEffect(() => {
-    const savedUser = userManager.getCurrentUser();
-    if (savedUser) {
-      console.log("🔄 Restored session for user:", savedUser.username);
-      setCurrentUser(savedUser);
-    }
+    const loadUser = async () => {
+      // First try sync version for immediate UI
+      const cachedUser = userManager.getCurrentUserSync();
+      if (cachedUser) {
+        console.log("🔄 Restored cached session for user:", cachedUser.username);
+        setCurrentUser(cachedUser);
+      }
+      
+      // Then fetch fresh data from Supabase
+      const freshUser = await userManager.getCurrentUser();
+      if (freshUser) {
+        console.log("🔄 Loaded fresh user data from Supabase:", freshUser.username);
+        setCurrentUser(freshUser);
+      }
+    };
+    loadUser();
   }, []);
 
   // Track socket connection state
@@ -194,22 +209,22 @@ export default function App() {
       setLastRound(payload);
     });
     
-    socket.on("game:ended", (payload) => {
-  console.log("🎮 GAME ENDED - Full payload:", payload);
-  setLastRound(payload);
+    socket.on("game:ended", async (payload) => {
+      console.log("🎮 GAME ENDED - Full payload:", payload);
+      setLastRound(payload);
 
-  // ✅ apply local stats here (wins OR losses)
-  // figure out my team from the latest room state
-  const me = (room?.players ?? []).find(p => p.id === selfId);
-  const myTeam = me?.team;
+      // Apply local stats here (wins OR losses)
+      const me = (room?.players ?? []).find(p => p.id === selfId);
+      const myTeam = me?.team;
 
-  if (payload?.winner && payload.winner !== "tie" && myTeam) {
-    const didWin = payload.winner === myTeam;
-    setCurrentUser(prev => applyLocalMatchResult(prev, didWin));
-  }
+      if (payload?.winner && payload.winner !== "tie" && myTeam) {
+        const didWin = payload.winner === myTeam;
+        const updated = await applyLocalMatchResult(currentUser, didWin);
+        setCurrentUser(updated);
+      }
 
-  setView("game");
-});
+      setView("game");
+    });
 
 
     socket.on("chat:new", (m) => setChat((prev) => [...prev, m]));
@@ -297,30 +312,29 @@ export default function App() {
       settings: (s) => socket.emit("room:settings", { roomCode, ...s }),
       start: () => socket.emit("game:start", { roomCode }),
       chatSend: (text) => socket.emit("chat:send", { roomCode, text }),
-     leaveRoom: () => {
-  console.log("➡️ leaving room", roomCode);
+      leaveRoom: async () => {
+        console.log("➡️ leaving room", roomCode);
 
-  const isInLiveMatch = room?.state?.phase === "playing";
+        const isInLiveMatch = room?.state?.phase === "playing";
 
-  // If leaving mid-game => forfeit locally (so stats ALWAYS update)
-  if (isInLiveMatch) {
-    socket.emit("game:forfeit", { roomCode: room?.roomCode });
+        // If leaving mid-game => forfeit locally (so stats ALWAYS update)
+        if (isInLiveMatch) {
+          socket.emit("game:forfeit", { roomCode: room?.roomCode });
+          const updated = await applyLocalForfeitLoss(currentUser);
+          setCurrentUser(updated);
+        }
 
-    setCurrentUser((prev) => applyLocalForfeitLoss(prev));
-  }
+        socket.emit("room:leave", { roomCode });
 
-  socket.emit("room:leave", { roomCode });
-
-  setView("lobby");
-  setRoomCode(null);
-  setSelfId(null);
-  setRoom(null);
-  setError("");
-  setRoundInfo(null);
-  setLastRound(null);
-  setChat([]);
-},
-
+        setView("lobby");
+        setRoomCode(null);
+        setSelfId(null);
+        setRoom(null);
+        setError("");
+        setRoundInfo(null);
+        setLastRound(null);
+        setChat([]);
+      },
     }),
     [roomCode, currentUser]
   );
@@ -389,12 +403,11 @@ export default function App() {
       currentUser={currentUser}
       onLeaveRoom={actions.leaveRoom}
       onUserUpdate={handleUserUpdate}
-      onForfeit={() => {
-  socket.emit("game:forfeit", { roomCode: room?.roomCode });
-  setCurrentUser((prev) => applyLocalForfeitLoss(prev));
-}}
-
-
+      onForfeit={async () => {
+        socket.emit("game:forfeit", { roomCode: room?.roomCode });
+        const updated = await applyLocalForfeitLoss(currentUser);
+        setCurrentUser(updated);
+      }}
     />
   );
 }
