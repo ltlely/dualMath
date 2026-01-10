@@ -1,5 +1,5 @@
 // User data management with Supabase persistence
-import { supabase } from './supabaseClient.js';
+import { supabase } from './SupabaseClient.js';
 import { getRank, getRankProgress, updatePoints, getWinPoints, getLossPoints } from './rankingSystem.js';
 
 const SESSION_KEY = "mathGame_session"; // Current session (sessionStorage - per tab)
