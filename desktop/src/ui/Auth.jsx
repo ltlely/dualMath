@@ -17,6 +17,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
   const [avatarData, setAvatarData] = useState(null);
   const [uploadStatus, setUploadStatus] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [checkingVerification, setCheckingVerification] = useState(false);
   const fileInputRef = useRef(null);
 
   // Update avatar state when currentUser changes
@@ -346,6 +347,8 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
     try {
       // Pass the email we have (from currentUser or state)
       const emailToUse = currentUser?.email || email;
+      console.log('📧 Resending verification to:', emailToUse);
+      
       const result = await userManager.resendVerificationEmail(emailToUse);
       setIsLoading(false);
 
@@ -360,6 +363,34 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
       setIsLoading(false);
       setError("Failed to resend verification email.");
       console.error("Resend verification error:", err);
+    }
+  };
+
+  const handleCheckVerification = async () => {
+    setCheckingVerification(true);
+    clearMessages();
+
+    try {
+      // Force refresh from Supabase to get latest verification status
+      const result = await userManager.refreshEmailVerificationStatus();
+      
+      console.log('📧 Verification check result:', result);
+      
+      if (result.verified) {
+        setSuccess("Email verified! Logging you in...");
+        // Get fresh user data and update parent
+        const freshUser = await userManager.getCurrentUser();
+        if (freshUser && onLoginSuccess) {
+          onLoginSuccess(freshUser);
+        }
+      } else {
+        setError("Email not verified yet. Please check your inbox and click the verification link.");
+      }
+    } catch (err) {
+      console.error("Check verification error:", err);
+      setError("Failed to check verification status. Please try again.");
+    } finally {
+      setCheckingVerification(false);
     }
   };
 
@@ -573,11 +604,22 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
             </p>
             <div className="emailDisplay">{currentUser?.email || email}</div>
             <p className="muted" style={{ textAlign: 'center' }}>
-              Please check your inbox and click the verification link to continue playing.
+              Please check your inbox (and spam folder) and click the verification link to continue playing.
             </p>
             
             {success && <div className="success">{success}</div>}
             {error && <div className="error">{error}</div>}
+            
+            <Button 
+              onClick={handleCheckVerification}
+              disabled={checkingVerification}
+            >
+              {checkingVerification ? "Checking..." : "🔄 I've Verified My Email"}
+            </Button>
+            
+            <div className="divider">
+              <span>or</span>
+            </div>
             
             <Button 
               onClick={handleResendVerification} 
@@ -589,24 +631,6 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
                 : isLoading 
                   ? "Sending..." 
                   : "📨 Resend Verification Email"}
-            </Button>
-            
-            <div className="divider">
-              <span>or</span>
-            </div>
-            
-            <Button 
-              onClick={async () => {
-                const freshUser = await userManager.getCurrentUser();
-                if (freshUser?.emailVerified) {
-                  onLoginSuccess(freshUser);
-                } else {
-                  setError("Email not verified yet. Please check your inbox.");
-                }
-              }}
-              disabled={isLoading}
-            >
-              🔄 I've Verified My Email
             </Button>
             
             <button
