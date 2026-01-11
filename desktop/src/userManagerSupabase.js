@@ -22,6 +22,13 @@ const getOrCreateSessionToken = () => {
   return sessionToken;
 };
 
+// Helper function to get the base URL for redirects
+// This works for any deployment (localhost, Vercel, Netlify, etc.)
+const getRedirectBaseUrl = () => {
+  // Use the current origin (e.g., https://your-app.vercel.app or http://localhost:5173)
+  return window.location.origin;
+};
+
 // Rank thresholds for display
 const RANK_THRESHOLDS = [
   { min: 0, name: 'Novice' },
@@ -192,6 +199,10 @@ export const userManager = {
         return { success: false, message: 'Username already taken' };
       }
 
+      // Get the redirect URL dynamically based on current deployment
+      const redirectUrl = getRedirectBaseUrl();
+      console.log('📧 Signup email redirect URL:', redirectUrl);
+
       // Sign up with Supabase Auth - this sends verification email automatically
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -200,7 +211,7 @@ export const userManager = {
           data: {
             username: username,
           },
-          emailRedirectTo: `${window.location.origin}/verify-email`,
+          emailRedirectTo: redirectUrl,
         },
       });
 
@@ -380,8 +391,12 @@ export const userManager = {
   // Send password reset email
   sendPasswordResetEmail: async (email) => {
     try {
+      // Get the redirect URL dynamically based on current deployment
+      const redirectUrl = getRedirectBaseUrl();
+      console.log('📧 Password reset redirect URL:', redirectUrl);
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: redirectUrl,
       });
 
       if (error) {
