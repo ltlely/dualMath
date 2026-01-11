@@ -93,7 +93,7 @@ export default function Lobby({ onCreate, onJoin, onJoinRandom, error, currentUs
         <div className="logoRow">
           <div>
             <div className="logo">🧫 Dual Math</div>
-            <div className="subtitle">Multiplayer math battles</div>
+            <p></p>
             <div className="userWelcome">
               Playing as: <strong>{currentUser.username}</strong>
             </div>
