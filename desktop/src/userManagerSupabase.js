@@ -1,461 +1,667 @@
-// User data management with Supabase persistence
-import { supabase } from './supabase-client';
-import { getRank, getRankProgress, updatePoints, getWinPoints, getLossPoints } from './rankingSystem';
+import { createClient } from '@supabase/supabase-js';
 
-const SESSION_KEY = "mathGame_session"; // Current session (sessionStorage - per tab)
+// Initialize Supabase client
+// Replace these with your actual Supabase project URL and anon key
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Generate a unique session token
+const generateSessionToken = () => {
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}-${Math.random().toString(36).substring(2, 15)}`;
+};
+
+// Get or create session token for this browser tab
+const getOrCreateSessionToken = () => {
+  let sessionToken = sessionStorage.getItem('dualmath_session_token');
+  if (!sessionToken) {
+    sessionToken = generateSessionToken();
+    sessionStorage.setItem('dualmath_session_token', sessionToken);
+  }
+  return sessionToken;
+};
+
+// Rank thresholds for display
+const RANK_THRESHOLDS = [
+  { min: 0, name: 'Novice' },
+  { min: 100, name: 'Apprentice' },
+  { min: 250, name: 'Journeyman' },
+  { min: 500, name: 'Expert' },
+  { min: 1000, name: 'Master' },
+  { min: 2000, name: 'Grandmaster' },
+  { min: 5000, name: 'Legend' },
+];
 
 export const userManager = {
-  // Get current logged-in user for THIS session/tab
-  async getCurrentUser() {
+  // Get current user from Supabase auth session
+  getCurrentUser: async () => {
     try {
-      // Check sessionStorage for current session
-      const session = sessionStorage.getItem(SESSION_KEY);
-      if (!session) return null;
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      const sessionData = JSON.parse(session);
-      const odooUserId = sessionData?.odooUserId;
-      
-      if (!odooUserId) return null;
-      
-      // Fetch fresh user data from Supabase
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', odooUserId)
-        .single();
-      
-      if (error || !data) {
-        console.error('Error fetching user:', error);
+      if (sessionError || !session?.user) {
+        localStorage.removeItem('dualmath_current_user');
         return null;
       }
+
+      const userId = session.user.id;
+      const currentSessionToken = getOrCreateSessionToken();
+
+      // Check if email is verified
+      const emailVerified = session.user.email_confirmed_at !== null;
       
-      return this.mapDbUserToApp(data);
-    } catch (e) {
-      console.error('Error reading current user:', e);
+      // Check if this is a recovery session (password reset flow)
+      // Recovery sessions should not be subject to session conflict checks
+      const isRecoverySession = session.user?.recovery_sent_at || 
+                                window.location.hash.includes('type=recovery') ||
+                                localStorage.getItem('dualmath_password_recovery_mode') === 'true';
+      
+      // Fetch user profile from profiles table
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error('Error fetching profile:', profileError);
+      }
+
+      // Check for session conflict (another device/tab logged in)
+      // Skip this check for recovery sessions
+      if (!isRecoverySession && profile?.active_session_token && profile.active_session_token !== currentSessionToken) {
+        console.log('⚠️ Session conflict detected - logging out this session');
+        await supabase.auth.signOut();
+        localStorage.removeItem('dualmath_current_user');
+        sessionStorage.removeItem('dualmath_session_token');
+        return null;
+      }
+
+      // Update active session token if not set or if it's this session
+      // Skip for recovery sessions
+      if (!isRecoverySession && (!profile?.active_session_token || profile.active_session_token === currentSessionToken)) {
+        await supabase
+          .from('profiles')
+          .update({ 
+            active_session_token: currentSessionToken,
+            last_active: new Date().toISOString()
+          })
+          .eq('id', userId);
+      }
+
+      const user = {
+        id: userId,
+        username: profile?.username || session.user.user_metadata?.username || 'Player',
+        email: session.user.email,
+        emailVerified: emailVerified,
+        avatarData: profile?.avatar_data || null,
+        rankPoints: profile?.rank_points || 0,
+        wins: profile?.wins || 0,
+        losses: profile?.losses || 0,
+        totalGames: profile?.total_games || 0,
+        createdAt: profile?.created_at || session.user.created_at,
+      };
+
+      // Cache locally for quick access
+      localStorage.setItem('dualmath_current_user', JSON.stringify(user));
+      
+      return user;
+    } catch (error) {
+      console.error('Error getting current user:', error);
       return null;
     }
   },
 
-  // Synchronous version that reads from sessionStorage cache
-  getCurrentUserSync() {
+  // Synchronous version for immediate UI (uses cached data)
+  getCurrentUserSync: () => {
     try {
-      const session = sessionStorage.getItem(SESSION_KEY);
-      if (!session) return null;
-      
-      const sessionData = JSON.parse(session);
-      return sessionData?.cachedUser || null;
-    } catch (e) {
-      console.error('Error reading cached user:', e);
+      const cached = localStorage.getItem('dualmath_current_user');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
       return null;
     }
   },
 
-  // Map database user to app user format
-  mapDbUserToApp(dbUser) {
-    return {
-      id: dbUser.id,
-      odooUserId: dbUser.id,
-      username: dbUser.username,
-      email: dbUser.email,
-      displayName: dbUser.display_name || dbUser.username,
-      avatarData: dbUser.avatar_data,
-      points: dbUser.points || 0,
-      rankPoints: dbUser.rank_points || 0,
-      wins: dbUser.wins || 0,
-      losses: dbUser.losses || 0,
-      totalGames: dbUser.total_games || 0,
-      createdAt: dbUser.created_at,
-    };
+  // Check if email is verified
+  isEmailVerified: async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.user?.email_confirmed_at !== null;
   },
 
-  // Map app user to database format
-  mapAppUserToDb(appUser) {
-    return {
-      username: appUser.username,
-      email: appUser.email,
-      display_name: appUser.displayName || appUser.username,
-      avatar_data: appUser.avatarData,
-      points: appUser.points || 0,
-      rank_points: appUser.rankPoints || 0,
-      wins: appUser.wins || 0,
-      losses: appUser.losses || 0,
-      total_games: appUser.totalGames || 0,
-    };
-  },
-
-  // Save/update a user
-  async saveUser(user) {
-    if (!user || !user.id) {
-      console.error('Cannot save user: invalid user object');
-      return false;
-    }
-
+  // Resend verification email
+  resendVerificationEmail: async (emailAddress = null) => {
     try {
-      const dbUser = this.mapAppUserToDb(user);
+      // Try to get email from multiple sources
+      let email = emailAddress;
       
+      if (!email) {
+        // Try from current session
+        const { data: { session } } = await supabase.auth.getSession();
+        email = session?.user?.email;
+      }
+      
+      if (!email) {
+        // Try from cached user
+        const cached = localStorage.getItem('dualmath_current_user');
+        if (cached) {
+          const user = JSON.parse(cached);
+          email = user?.email;
+        }
+      }
+      
+      if (!email) {
+        // Try from pending verification email
+        email = localStorage.getItem('dualmath_pending_verification_email');
+      }
+      
+      if (!email) {
+        return { success: false, message: 'No email address found. Please try logging in again.' };
+      }
+
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+      });
+
+      if (error) {
+        // If error says user is already confirmed, that's actually good
+        if (error.message?.includes('already confirmed')) {
+          return { success: true, message: 'Email is already verified! Please refresh and login.' };
+        }
+        return { success: false, message: error.message };
+      }
+
+      return { success: true, message: 'Verification email sent! Check your inbox.' };
+    } catch (error) {
+      console.error('Resend verification error:', error);
+      return { success: false, message: 'Failed to send verification email' };
+    }
+  },
+
+  // Sign up new user
+  signupUser: async (username, email, password) => {
+    try {
+      // First check if username is already taken
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', username.toLowerCase())
+        .single();
+
+      if (existingUser) {
+        return { success: false, message: 'Username already taken' };
+      }
+
+      // Sign up with Supabase Auth - this sends verification email automatically
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username: username,
+          },
+          emailRedirectTo: `${window.location.origin}/verify-email`,
+        },
+      });
+
+      if (error) {
+        return { success: false, message: error.message };
+      }
+
+      if (!data.user) {
+        return { success: false, message: 'Signup failed' };
+      }
+
+      const sessionToken = getOrCreateSessionToken();
+
+      // Create profile in profiles table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: data.user.id,
+          username: username.toLowerCase(),
+          display_name: username,
+          email: email, // Store email for username login lookup
+          rank_points: 0,
+          wins: 0,
+          losses: 0,
+          total_games: 0,
+          active_session_token: sessionToken,
+          last_active: new Date().toISOString(),
+        });
+
+      if (profileError) {
+        console.error('Profile creation error:', profileError);
+      }
+
+      const user = {
+        id: data.user.id,
+        username: username,
+        email: email,
+        emailVerified: false, // Not verified yet
+        avatarData: null,
+        rankPoints: 0,
+        wins: 0,
+        losses: 0,
+        totalGames: 0,
+      };
+
+      localStorage.setItem('dualmath_current_user', JSON.stringify(user));
+      // Store email for resend verification (in case session isn't available)
+      localStorage.setItem('dualmath_pending_verification_email', email);
+
+      return { 
+        success: true, 
+        user, 
+        message: 'Account created! Please check your email to verify your account.',
+        requiresVerification: true
+      };
+    } catch (error) {
+      console.error('Signup error:', error);
+      return { success: false, message: 'Signup failed. Please try again.' };
+    }
+  },
+
+  // Login user
+  loginUser: async (emailOrUsername, password) => {
+    try {
+      let email = emailOrUsername;
+
+      // If not an email, look up by username
+      if (!emailOrUsername.includes('@')) {
+        // Get email from profiles table (we store it there during signup)
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('username', emailOrUsername.toLowerCase())
+          .single();
+
+        if (profileError || !profile) {
+          return { success: false, message: 'User not found' };
+        }
+        
+        if (!profile.email) {
+          return { success: false, message: 'Please login with your email address' };
+        }
+        
+        email = profile.email;
+      }
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        return { success: false, message: error.message };
+      }
+
+      if (!data.user) {
+        return { success: false, message: 'Login failed' };
+      }
+
+      const sessionToken = getOrCreateSessionToken();
+      const emailVerified = data.user.email_confirmed_at !== null;
+
+      // Update the active session token - this will invalidate other sessions
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          active_session_token: sessionToken,
+          last_active: new Date().toISOString()
+        })
+        .eq('id', data.user.id);
+
+      if (updateError) {
+        console.error('Failed to update session token:', updateError);
+      }
+
+      // Fetch profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      const user = {
+        id: data.user.id,
+        username: profile?.username || data.user.user_metadata?.username || 'Player',
+        email: data.user.email,
+        emailVerified: emailVerified,
+        avatarData: profile?.avatar_data || null,
+        rankPoints: profile?.rank_points || 0,
+        wins: profile?.wins || 0,
+        losses: profile?.losses || 0,
+        totalGames: profile?.total_games || 0,
+      };
+
+      localStorage.setItem('dualmath_current_user', JSON.stringify(user));
+      
+      // Store email for resend verification if not verified
+      if (!emailVerified) {
+        localStorage.setItem('dualmath_pending_verification_email', data.user.email);
+      } else {
+        localStorage.removeItem('dualmath_pending_verification_email');
+      }
+
+      return { 
+        success: true, 
+        user,
+        requiresVerification: !emailVerified 
+      };
+    } catch (error) {
+      console.error('Login error:', error);
+      return { success: false, message: 'Login failed. Please try again.' };
+    }
+  },
+
+  // Logout user
+  logoutUser: async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user?.id) {
+        // Clear the active session token
+        await supabase
+          .from('profiles')
+          .update({ active_session_token: null })
+          .eq('id', session.user.id);
+      }
+
+      await supabase.auth.signOut();
+      localStorage.removeItem('dualmath_current_user');
+      localStorage.removeItem('dualmath_pending_verification_email');
+      sessionStorage.removeItem('dualmath_session_token');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  },
+
+  // Send password reset email
+  sendPasswordResetEmail: async (email) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        return { success: false, message: error.message };
+      }
+
+      return { success: true, message: 'Password reset email sent! Check your inbox.' };
+    } catch (error) {
+      console.error('Password reset error:', error);
+      return { success: false, message: 'Failed to send reset email. Please try again.' };
+    }
+  },
+
+  // Update password (after clicking reset link)
+  updatePassword: async (newPassword) => {
+    try {
+      console.log('🔐 Attempting to update password...');
+      
+      // The PASSWORD_RECOVERY event should have established a session
+      // Let's check for it with retries
+      let session = null;
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      while (!session && attempts < maxAttempts) {
+        const { data, error } = await supabase.auth.getSession();
+        session = data?.session;
+        
+        console.log(`🔐 Session check attempt ${attempts + 1}:`, { 
+          hasSession: !!session,
+          userId: session?.user?.id,
+          error: error?.message 
+        });
+        
+        if (!session && attempts < maxAttempts - 1) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+        attempts++;
+      }
+      
+      if (!session) {
+        return { 
+          success: false, 
+          message: 'Session expired. Please request a new password reset link and try again quickly after clicking it.' 
+        };
+      }
+
+      // Update the password
+      console.log('🔐 Updating password for user:', session.user?.id);
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) {
+        console.error('Update password error:', error);
+        return { success: false, message: error.message };
+      }
+
+      console.log('✅ Password updated successfully');
+
+      // Clear recovery mode flag
+      localStorage.removeItem('dualmath_password_recovery_mode');
+      
+      // Clear the hash from URL after successful reset
+      window.history.replaceState(null, '', window.location.pathname);
+
+      // Sign out after password change so user logs in fresh
+      await supabase.auth.signOut();
+      localStorage.removeItem('dualmath_current_user');
+      localStorage.removeItem('dualmath_pending_verification_email');
+      sessionStorage.removeItem('dualmath_session_token');
+
+      return { success: true, message: 'Password updated successfully!' };
+    } catch (error) {
+      console.error('Password update error:', error);
+      return { success: false, message: 'Failed to update password. Please request a new reset link.' };
+    }
+  },
+
+  // Save/update user data
+  saveUser: async (user) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.user) {
+        console.error('No authenticated user to save');
+        return false;
+      }
+
       const { error } = await supabase
-        .from('users')
-        .update(dbUser)
-        .eq('id', user.id);
-      
+        .from('profiles')
+        .update({
+          rank_points: user.rankPoints || 0,
+          wins: user.wins || 0,
+          losses: user.losses || 0,
+          total_games: user.totalGames || 0,
+          avatar_data: user.avatarData || null,
+          last_active: new Date().toISOString(),
+        })
+        .eq('id', session.user.id);
+
       if (error) {
         console.error('Error saving user:', error);
         return false;
       }
 
-      // Update cached user in session
-      this.updateSessionCache(user);
+      // Update local cache
+      localStorage.setItem('dualmath_current_user', JSON.stringify(user));
       
       return true;
-    } catch (e) {
-      console.error('Error saving user:', e);
+    } catch (error) {
+      console.error('Save user error:', error);
       return false;
     }
   },
 
-  // Update session cache
-  updateSessionCache(user) {
+  // Update avatar
+  updateAvatar: async (username, avatarData) => {
     try {
-      const session = sessionStorage.getItem(SESSION_KEY);
-      if (session) {
-        const sessionData = JSON.parse(session);
-        sessionData.cachedUser = user;
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
-      }
-    } catch (e) {
-      console.error('Error updating session cache:', e);
-    }
-  },
-
-  // Check if email exists
-  async emailExists(email) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email.toLowerCase())
-      .single();
-    
-    return !error && data !== null;
-  },
-
-  // Check if username exists
-  async usernameExists(username) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id')
-      .ilike('username', username)
-      .single();
-    
-    return !error && data !== null;
-  },
-
-  // Get user by email
-  async getUserByEmail(email) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email.toLowerCase())
-      .single();
-    
-    if (error || !data) return null;
-    return this.mapDbUserToApp(data);
-  },
-
-  // Get user by username
-  async getUserByUsername(username) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .ilike('username', username)
-      .single();
-    
-    if (error || !data) return null;
-    return this.mapDbUserToApp(data);
-  },
-
-  // Validate login credentials
-  async validateCredentials(emailOrUsername, password) {
-    // Try to find by email first
-    let dbUser = null;
-    
-    const { data: emailUser } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', emailOrUsername.toLowerCase())
-      .single();
-    
-    if (emailUser) {
-      dbUser = emailUser;
-    } else {
-      // Try username
-      const { data: usernameUser } = await supabase
-        .from('users')
-        .select('*')
-        .ilike('username', emailOrUsername)
-        .single();
+      console.log('🖼️ Updating avatar for user...');
       
-      dbUser = usernameUser;
-    }
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('Session error in updateAvatar:', sessionError);
+        return false;
+      }
+      
+      if (!session?.user) {
+        console.error('No session found in updateAvatar');
+        return false;
+      }
 
-    if (!dbUser) {
-      return { success: false, message: "User not found" };
-    }
+      console.log('🖼️ Session found, updating profile for user:', session.user.id);
 
-    // Simple password hash comparison
-    const hashedPassword = this.simpleHash(password);
-    if (dbUser.password_hash !== hashedPassword) {
-      return { success: false, message: "Incorrect password" };
-    }
+      const { error } = await supabase
+        .from('profiles')
+        .update({ avatar_data: avatarData })
+        .eq('id', session.user.id);
 
-    return { success: true, user: this.mapDbUserToApp(dbUser) };
+      if (error) {
+        console.error('Error updating avatar in database:', error);
+        return false;
+      }
+
+      console.log('✅ Avatar updated in database');
+
+      // Update local cache
+      const cached = localStorage.getItem('dualmath_current_user');
+      if (cached) {
+        const user = JSON.parse(cached);
+        user.avatarData = avatarData;
+        localStorage.setItem('dualmath_current_user', JSON.stringify(user));
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Update avatar error:', error);
+      return false;
+    }
   },
 
-  // Simple password hashing (same as before)
-  simpleHash(str) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return Math.abs(hash).toString(16);
-  },
-
-  // Sign up - Create new user account
-  async signupUser(username, email, password) {
-    const normalizedEmail = email.toLowerCase().trim();
-    const normalizedUsername = username.trim();
-
-    // Validation
-    if (!normalizedUsername || normalizedUsername.length < 3) {
-      return { success: false, message: "Username must be at least 3 characters" };
-    }
-
-    if (!normalizedEmail) {
-      return { success: false, message: "Email is required" };
-    }
-
-    if (!password || password.length < 6) {
-      return { success: false, message: "Password must be at least 6 characters" };
-    }
-
-    // Check if email exists
-    if (await this.emailExists(normalizedEmail)) {
-      return { success: false, message: "Email already registered" };
-    }
-
-    // Check if username exists
-    if (await this.usernameExists(normalizedUsername)) {
-      return { success: false, message: "Username already taken" };
-    }
-
-    // Create new user in Supabase
-    const { data, error } = await supabase
-      .from('users')
-      .insert({
-        username: normalizedUsername,
-        email: normalizedEmail,
-        password_hash: this.simpleHash(password),
-        display_name: normalizedUsername,
-        avatar_data: null,
-        points: 0,
-        rank_points: 0,
-        wins: 0,
-        losses: 0,
-        total_games: 0,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Signup error:', error);
-      return { success: false, message: "Failed to create account. Please try again." };
-    }
-
-    const user = this.mapDbUserToApp(data);
+  // Get user rank based on points
+  getUserRank: (user) => {
+    const points = user?.rankPoints || 0;
+    let rank = 'Novice';
     
-    // Set session for this tab
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ 
-      odooUserId: user.id,
-      cachedUser: user
-    }));
-
-    return { success: true, user };
-  },
-
-  // Login with email or username and password
-  async loginUser(emailOrUsername, password) {
-    const trimmed = emailOrUsername.trim();
-
-    if (!trimmed) {
-      return { success: false, message: "Email or username is required" };
+    for (const threshold of RANK_THRESHOLDS) {
+      if (points >= threshold.min) {
+        rank = threshold.name;
+      }
     }
-
-    if (!password) {
-      return { success: false, message: "Password is required" };
-    }
-
-    const result = await this.validateCredentials(trimmed, password);
     
-    if (!result.success) {
-      return result;
-    }
-
-    const user = result.user;
-    
-    // Set session for this tab
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ 
-      odooUserId: user.id,
-      cachedUser: user
-    }));
-    
-    return { success: true, user };
+    return rank;
   },
 
-  // Logout current user (this tab only)
-  logoutUser() {
-    sessionStorage.removeItem(SESSION_KEY);
-  },
-
-  // Get current rank based on rank points
-  getUserRank(user = null) {
-    const currentUser = user || this.getCurrentUserSync();
-    if (!currentUser) return 'Novice';
-    const rankPoints = currentUser.rankPoints ?? 0;
-    return getRank(rankPoints);
-  },
-
-  // Get rank progress percentage
-  getUserRankProgress(user = null) {
-    const currentUser = user || this.getCurrentUserSync();
-    if (!currentUser) return 0;
-    const rankPoints = currentUser.rankPoints ?? 0;
-    return getRankProgress(rankPoints);
-  },
-
-  // Get user stats (wins, losses, win rate, etc.)
-  getUserStats(user = null) {
-    const currentUser = user || this.getCurrentUserSync();
-    if (!currentUser) return null;
+  // Get user stats
+  getUserStats: (user) => {
+    if (!user) return null;
     
-    const wins = currentUser.wins || 0;
-    const losses = currentUser.losses || 0;
-    const totalGames = currentUser.totalGames || (wins + losses) || 0;
-    const winRate = totalGames > 0 ? ((wins / totalGames) * 100).toFixed(1) : 0;
-
+    const totalGames = (user.wins || 0) + (user.losses || 0);
+    const winRate = totalGames > 0 ? Math.round((user.wins / totalGames) * 100) : 0;
+    
     return {
-      wins,
-      losses,
-      totalGames,
-      winRate,
-      rankPoints: currentUser.rankPoints || 0,
-      rank: this.getUserRank(currentUser)
+      rank: userManager.getUserRank(user),
+      rankPoints: user.rankPoints || 0,
+      wins: user.wins || 0,
+      losses: user.losses || 0,
+      totalGames: totalGames,
+      winRate: winRate,
     };
   },
 
-  // Handle game win with ranking system
-  async handleGameWin() {
-    const user = await this.getCurrentUser();
-    if (!user) return null;
-
-    if (user.rankPoints === undefined) {
-      user.rankPoints = 0;
-    }
-
-    const oldPoints = user.rankPoints;
-    const oldRank = getRank(oldPoints);
-    const pointsGained = getWinPoints(oldPoints);
-    
-    user.rankPoints = updatePoints(oldPoints, true);
-    user.wins = (user.wins || 0) + 1;
-    user.totalGames = (user.totalGames || 0) + 1;
-    
-    const newRank = getRank(user.rankPoints);
-    const rankUp = oldRank !== newRank;
-
-    await this.saveUser(user);
-
-    return { 
-      user, 
-      rankUp, 
-      oldRank, 
-      newRank,
-      pointsGained,
-      oldPoints,
-      newPoints: user.rankPoints
-    };
+  // Listen for auth state changes (for real-time session invalidation)
+  onAuthStateChange: (callback) => {
+    return supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', event);
+      
+      // Handle password recovery - set flag so UI knows to show reset form
+      if (event === 'PASSWORD_RECOVERY') {
+        console.log('🔐 Password recovery session detected - setting recovery flag');
+        localStorage.setItem('dualmath_password_recovery_mode', 'true');
+        // Don't call callback - let the Auth component handle this
+        return;
+      }
+      
+      // Check if we're in recovery mode
+      const isRecoveryMode = localStorage.getItem('dualmath_password_recovery_mode') === 'true';
+      
+      if (event === 'SIGNED_OUT') {
+        // Only clear if not in recovery mode
+        if (!isRecoveryMode && !window.location.hash.includes('type=recovery')) {
+          localStorage.removeItem('dualmath_current_user');
+          sessionStorage.removeItem('dualmath_session_token');
+          callback(null);
+        }
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        // Skip if in recovery mode - don't log them into the app
+        if (isRecoveryMode || window.location.hash.includes('type=recovery')) {
+          console.log('🔐 In recovery mode - not logging into app');
+          return;
+        }
+        userManager.getCurrentUser().then(callback);
+      } else if (event === 'USER_UPDATED') {
+        // After password is updated, clear recovery mode
+        localStorage.removeItem('dualmath_password_recovery_mode');
+        userManager.getCurrentUser().then(callback);
+      }
+    });
   },
 
-  // Handle game loss with ranking system
-  async handleGameLoss() {
-    const user = await this.getCurrentUser();
-    if (!user) return null;
-
-    if (user.rankPoints === undefined) {
-      user.rankPoints = 0;
-    }
-
-    const oldPoints = user.rankPoints;
-    const oldRank = getRank(oldPoints);
-    const pointsLost = getLossPoints(oldPoints);
-    
-    user.rankPoints = updatePoints(oldPoints, false);
-    user.losses = (user.losses || 0) + 1;
-    user.totalGames = (user.totalGames || 0) + 1;
-    
-    const newRank = getRank(user.rankPoints);
-    const rankDown = oldRank !== newRank;
-
-    await this.saveUser(user);
-
-    return { 
-      user, 
-      rankDown, 
-      oldRank, 
-      newRank,
-      pointsLost,
-      oldPoints,
-      newPoints: user.rankPoints
-    };
+  // Check if in password recovery mode
+  isInRecoveryMode: () => {
+    return localStorage.getItem('dualmath_password_recovery_mode') === 'true' ||
+           window.location.hash.includes('type=recovery');
   },
 
-  // Update user avatar
-  async updateAvatar(username, avatarData) {
-    const user = await this.getUserByUsername(username);
-
-    if (user) {
-      user.avatarData = avatarData;
-      const saved = await this.saveUser(user);
-      return saved ? user : null;
-    }
-    return null;
+  // Clear recovery mode (call after successful password reset)
+  clearRecoveryMode: () => {
+    localStorage.removeItem('dualmath_password_recovery_mode');
   },
 
-  // Update display name
-  async updateDisplayName(username, displayName) {
-    const user = await this.getUserByUsername(username);
+  // Check if session is still valid (call periodically)
+  validateSession: async () => {
+    try {
+      // Skip validation during password recovery
+      const isRecoveryMode = localStorage.getItem('dualmath_password_recovery_mode') === 'true' ||
+                             window.location.hash.includes('type=recovery');
+      if (isRecoveryMode) {
+        return { valid: true, reason: 'recovery_mode' };
+      }
 
-    if (user) {
-      user.displayName = displayName;
-      const saved = await this.saveUser(user);
-      return saved ? user : null;
-    }
-    return null;
-  },
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.user) {
+        return { valid: false, reason: 'no_session' };
+      }
 
-  // Get leaderboard
-  async getLeaderboard() {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .order('rank_points', { ascending: false })
-      .limit(100);
-    
-    if (error) {
-      console.error('Error fetching leaderboard:', error);
-      return [];
+      const currentSessionToken = getOrCreateSessionToken();
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('active_session_token')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profile?.active_session_token && profile.active_session_token !== currentSessionToken) {
+        // Session was invalidated by another login
+        await supabase.auth.signOut();
+        localStorage.removeItem('dualmath_current_user');
+        sessionStorage.removeItem('dualmath_session_token');
+        return { valid: false, reason: 'session_replaced' };
+      }
+
+      return { valid: true };
+    } catch (error) {
+      console.error('Session validation error:', error);
+      return { valid: false, reason: 'error' };
     }
-    
-    return data.map(u => this.mapDbUserToApp(u));
   },
 };
+
+export { supabase };

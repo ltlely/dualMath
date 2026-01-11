@@ -3,6 +3,7 @@ import { io } from "socket.io-client";
 import Lobby from "./ui/Lobby.jsx";
 import Room from "./ui/Room.jsx";
 import Game from "./ui/Game.jsx";
+import Auth from "./ui/Auth.jsx";
 import { updatePoints } from "./rankingSystem.js";
 import { userManager } from "./userManagerSupabase.js";
 
@@ -95,6 +96,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [pendingAction, setPendingAction] = useState(null);
+  const [sessionError, setSessionError] = useState(null);
 
   useEffect(() => {
     const raw = localStorage.getItem("pending_forfeit");
@@ -126,10 +128,55 @@ export default function App() {
       if (freshUser) {
         console.log("🔄 Loaded fresh user data from Supabase:", freshUser.username);
         setCurrentUser(freshUser);
+      } else if (cachedUser) {
+        // Session was invalidated (another device logged in)
+        console.log("⚠️ Session invalidated - clearing local state");
+        setCurrentUser(null);
+        setSessionError("You've been logged out because another device signed in with this account.");
       }
     };
     loadUser();
   }, []);
+
+  // Listen for auth state changes
+  useEffect(() => {
+    const { data: { subscription } } = userManager.onAuthStateChange((user) => {
+      console.log("🔔 Auth state changed:", user?.username || "logged out");
+      setCurrentUser(user);
+      if (!user) {
+        // User was logged out, return to lobby
+        setView("lobby");
+        setRoomCode(null);
+        setSelfId(null);
+        setRoom(null);
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
+
+  // Periodic session validation
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const validateInterval = setInterval(async () => {
+      const result = await userManager.validateSession();
+      if (!result.valid) {
+        if (result.reason === 'session_replaced') {
+          setSessionError("You've been logged out because another device signed in with this account.");
+          setCurrentUser(null);
+          setView("lobby");
+          setRoomCode(null);
+          setSelfId(null);
+          setRoom(null);
+        }
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(validateInterval);
+  }, [currentUser]);
 
   // Track socket connection state
   useEffect(() => {
@@ -246,6 +293,12 @@ export default function App() {
         socket.emit("team:sit", { roomCode, team, slot }); 
       },
       createRoom: async ({ name }) => {
+        // Check email verification before allowing game actions
+        if (currentUser && !currentUser.emailVerified) {
+          setError("Please verify your email before creating a room.");
+          return;
+        }
+
         // Create tiny thumbnail for sharing (32x32, ~1-2KB)
         const avatarThumbnail = await createTinyThumbnail(currentUser?.avatarData);
         
@@ -268,6 +321,12 @@ export default function App() {
         socket.emit("room:create", roomData);
       },
       joinRoom: async ({ roomCode: joinCode }) => {
+        // Check email verification before allowing game actions
+        if (currentUser && !currentUser.emailVerified) {
+          setError("Please verify your email before joining a room.");
+          return;
+        }
+
         const avatarThumbnail = await createTinyThumbnail(currentUser?.avatarData);
         
         const joinData = { 
@@ -287,6 +346,12 @@ export default function App() {
         socket.emit("room:join", joinData);
       },
       joinRandomRoom: async () => {
+        // Check email verification before allowing game actions
+        if (currentUser && !currentUser.emailVerified) {
+          setError("Please verify your email before joining a game.");
+          return;
+        }
+
         const avatarThumbnail = await createTinyThumbnail(currentUser?.avatarData);
         
         const joinData = { 
@@ -349,6 +414,7 @@ export default function App() {
   const handleLoginSuccess = (user) => {
     console.log("🔐 Login success:", user?.username || "logged out");
     setCurrentUser(user);
+    setSessionError(null); // Clear any session errors
     if (user) {
       setView("lobby");
     }
@@ -359,54 +425,160 @@ export default function App() {
     setCurrentUser(updatedUser);
   };
 
+  // Show session error modal if needed
+  const SessionErrorModal = () => {
+    if (!sessionError) return null;
+    
+    return (
+      <div className="sessionErrorOverlay">
+        <div className="sessionErrorModal">
+          <div className="sessionErrorIcon">⚠️</div>
+          <h2>Session Ended</h2>
+          <p>{sessionError}</p>
+          <button 
+            className="sessionErrorBtn"
+            onClick={() => {
+              setSessionError(null);
+              setCurrentUser(null);
+            }}
+          >
+            Login Again
+          </button>
+        </div>
+        <style>{`
+          .sessionErrorOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(11, 11, 18, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 2000;
+            display: grid;
+            place-items: center;
+          }
+          .sessionErrorModal {
+            text-align: center;
+            padding: 40px;
+            border-radius: 24px;
+            border: 1px solid rgba(251, 113, 133, 0.3);
+            background: linear-gradient(180deg, rgba(251, 113, 133, 0.05), transparent), #121222;
+            box-shadow: 0 20px 60px rgba(0,0,0,.5);
+            max-width: 400px;
+          }
+          .sessionErrorIcon {
+            font-size: 64px;
+            margin-bottom: 16px;
+          }
+          .sessionErrorModal h2 {
+            margin: 0 0 12px 0;
+            color: #fb7185;
+          }
+          .sessionErrorModal p {
+            color: #9aa0c3;
+            margin-bottom: 24px;
+          }
+          .sessionErrorBtn {
+            background: #7c5cff;
+            color: #0b0b12;
+            border: none;
+            border-radius: 12px;
+            padding: 14px 28px;
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+          }
+          .sessionErrorBtn:hover {
+            background: #8b6fff;
+          }
+        `}</style>
+      </div>
+    );
+  };
+
+  // Check if in password recovery mode - show Auth component directly
+  const isRecoveryMode = localStorage.getItem('dualmath_password_recovery_mode') === 'true' ||
+                         window.location.hash.includes('type=recovery');
+
+  if (isRecoveryMode) {
+    return (
+      <div className="page" style={{ 
+        maxWidth: '500px', 
+        margin: '40px auto', 
+        padding: '0 18px' 
+      }}>
+        <Auth 
+          onLoginSuccess={(user) => {
+            // Clear recovery mode when user logs in or cancels
+            if (!localStorage.getItem('dualmath_password_recovery_mode')) {
+              handleLoginSuccess(user);
+            }
+          }}
+          isLoggedIn={false}
+          currentUser={null}
+        />
+      </div>
+    );
+  }
+
   if (view === "lobby") {
     return (
-      <Lobby 
-        onCreate={actions.createRoom} 
-        onJoin={actions.joinRoom}
-        onJoinRandom={actions.joinRandomRoom}
-        error={error}
-        currentUser={currentUser}
-        onLoginSuccess={handleLoginSuccess}
-        isConnected={isConnected}
-      />
+      <>
+        <SessionErrorModal />
+        <Lobby 
+          onCreate={actions.createRoom} 
+          onJoin={actions.joinRoom}
+          onJoinRandom={actions.joinRandomRoom}
+          error={error}
+          currentUser={currentUser}
+          onLoginSuccess={handleLoginSuccess}
+          isConnected={isConnected}
+        />
+      </>
     );
   }
 
   if (view === "room") {
     return (
-      <Room
-        room={room}
-        selfId={selfId}
-        onReady={actions.ready}
-        onSettings={actions.settings}
-        onStart={actions.start}
-        onSit={actions.sit}
-        onLeaveRoom={actions.leaveRoom}
-        error={error}
-        currentUser={currentUser}
-      />
+      <>
+        <SessionErrorModal />
+        <Room
+          room={room}
+          selfId={selfId}
+          onReady={actions.ready}
+          onSettings={actions.settings}
+          onStart={actions.start}
+          onSit={actions.sit}
+          onLeaveRoom={actions.leaveRoom}
+          error={error}
+          currentUser={currentUser}
+        />
+      </>
     );
   }
 
   return (
-    <Game
-      room={room}
-      selfId={selfId}
-      roundInfo={roundInfo}
-      lastRound={lastRound}
-      onDigit={onDigit}
-      onSubmit={onSubmit}
-      onChatSend={actions.chatSend}
-      chat={chat}
-      currentUser={currentUser}
-      onLeaveRoom={actions.leaveRoom}
-      onUserUpdate={handleUserUpdate}
-      onForfeit={async () => {
-        socket.emit("game:forfeit", { roomCode: room?.roomCode });
-        const updated = await applyLocalForfeitLoss(currentUser);
-        setCurrentUser(updated);
-      }}
-    />
+    <>
+      <SessionErrorModal />
+      <Game
+        room={room}
+        selfId={selfId}
+        roundInfo={roundInfo}
+        lastRound={lastRound}
+        onDigit={onDigit}
+        onSubmit={onSubmit}
+        onChatSend={actions.chatSend}
+        chat={chat}
+        currentUser={currentUser}
+        onLeaveRoom={actions.leaveRoom}
+        onUserUpdate={handleUserUpdate}
+        onForfeit={async () => {
+          socket.emit("game:forfeit", { roomCode: room?.roomCode });
+          const updated = await applyLocalForfeitLoss(currentUser);
+          setCurrentUser(updated);
+        }}
+      />
+    </>
   );
 }

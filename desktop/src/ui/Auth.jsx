@@ -3,16 +3,20 @@ import { Card, Button, Input } from "./components.jsx";
 import { userManager } from "../userManagerSupabase.js";
 
 export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose }) {
-  const [isLoginMode, setIsLoginMode] = useState(true);
+  const [mode, setMode] = useState("login"); // login, signup, forgot, verify, reset
   const [emailOrUsername, setEmailOrUsername] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [avatarData, setAvatarData] = useState(null);
-  const [uploadStatus, setUploadStatus] = useState(""); // For showing upload progress
+  const [uploadStatus, setUploadStatus] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
   const fileInputRef = useRef(null);
 
   // Update avatar state when currentUser changes
@@ -24,9 +28,98 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
     }
   }, [currentUser?.avatarData, currentUser?.id]);
 
+  // Check for password reset token or email verification in URL
+  useEffect(() => {
+    const hash = window.location.hash;
+    
+    // Check if already in recovery mode (from localStorage flag)
+    const isRecoveryMode = localStorage.getItem('dualmath_password_recovery_mode') === 'true';
+    if (isRecoveryMode) {
+      console.log('🔐 Recovery mode flag detected - showing reset form');
+      setMode("reset");
+      return;
+    }
+    
+    if (!hash) return;
+    
+    const hashParams = new URLSearchParams(hash.substring(1));
+    const type = hashParams.get('type');
+    const accessToken = hashParams.get('access_token');
+    
+    console.log('🔗 URL hash detected:', { type, hasToken: !!accessToken });
+    
+    if (type === 'recovery' && accessToken) {
+      // Password reset flow
+      // Set recovery mode flag
+      localStorage.setItem('dualmath_password_recovery_mode', 'true');
+      console.log('🔐 Recovery link detected - showing reset form');
+      setMode("reset");
+      
+    } else if (type === 'signup' && accessToken) {
+      // Email verification callback
+      console.log('✅ Email verification link detected');
+      
+      const handleEmailVerification = async () => {
+        try {
+          // Wait for Supabase to process the token
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Refresh the user data
+          const freshUser = await userManager.getCurrentUser();
+          if (freshUser?.emailVerified && onLoginSuccess) {
+            setSuccess('Email verified successfully! You can now play.');
+            onLoginSuccess(freshUser);
+          } else {
+            setSuccess('Email verified! Please login to continue.');
+          }
+        } catch (err) {
+          console.error('Error handling email verification:', err);
+        }
+        
+        // Clear the hash
+        window.history.replaceState(null, '', window.location.pathname);
+      };
+      
+      handleEmailVerification();
+      setMode("login");
+      
+    } else if (type === 'magiclink' && accessToken) {
+      console.log('🔗 Magic link detected');
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
+
+  // Cooldown timer for resend verification
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
+
+  // Session validation interval
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const validateInterval = setInterval(async () => {
+      const result = await userManager.validateSession();
+      if (!result.valid && result.reason === 'session_replaced') {
+        setError("You've been logged out because another device signed in.");
+        if (onLoginSuccess) onLoginSuccess(null);
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(validateInterval);
+  }, [isLoggedIn, onLoginSuccess]);
+
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
+  };
+
+  const clearMessages = () => {
+    setError("");
+    setSuccess("");
   };
 
   const handleLogin = async () => {
@@ -43,7 +136,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
     }
 
     setIsLoading(true);
-    setError("");
+    clearMessages();
 
     try {
       const result = await userManager.loginUser(trimmed, password);
@@ -54,7 +147,16 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
         return;
       }
 
-      // Get the most up-to-date user data from Supabase
+      // Check if email verification is required
+      if (result.requiresVerification) {
+        setMode("verify");
+        setEmail(result.user.email);
+        if (onLoginSuccess) {
+          onLoginSuccess(result.user);
+        }
+        return;
+      }
+
       const freshUser = await userManager.getCurrentUser();
       setAvatarData(freshUser?.avatarData || result.user.avatarData);
       setEmailOrUsername("");
@@ -78,6 +180,11 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
       return;
     }
 
+    if (trimmedUsername.length < 3) {
+      setError("Username must be at least 3 characters");
+      return;
+    }
+
     if (!trimmedEmail) {
       setError("Please enter an email");
       return;
@@ -93,13 +200,18 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
       return;
     }
 
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
     if (password !== passwordConfirm) {
       setError("Passwords do not match");
       return;
     }
 
     setIsLoading(true);
-    setError("");
+    clearMessages();
 
     try {
       const result = await userManager.signupUser(trimmedUsername, trimmedEmail, password);
@@ -107,6 +219,16 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
 
       if (!result.success) {
         setError(result.message);
+        return;
+      }
+
+      // Show verification screen
+      if (result.requiresVerification) {
+        setMode("verify");
+        setSuccess("Account created! Please check your email to verify your account.");
+        if (onLoginSuccess) {
+          onLoginSuccess(result.user);
+        }
         return;
       }
 
@@ -118,7 +240,6 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
       if (onLoginSuccess) {
         onLoginSuccess(result.user);
       }
-      setIsLoginMode(true);
     } catch (err) {
       setIsLoading(false);
       setError("Signup failed. Please try again.");
@@ -126,15 +247,132 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
     }
   };
 
-  const handleLogout = () => {
-    userManager.logoutUser();
-    setIsLoginMode(true);
+  const handleForgotPassword = async () => {
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      setError("Please enter your email address");
+      return;
+    }
+
+    if (!validateEmail(trimmedEmail)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
+    setIsLoading(true);
+    clearMessages();
+
+    try {
+      const result = await userManager.sendPasswordResetEmail(trimmedEmail);
+      setIsLoading(false);
+
+      if (!result.success) {
+        setError(result.message);
+        return;
+      }
+
+      setSuccess(result.message);
+      setEmail("");
+    } catch (err) {
+      setIsLoading(false);
+      setError("Failed to send reset email. Please try again.");
+      console.error("Forgot password error:", err);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!newPassword) {
+      setError("Please enter a new password");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    if (newPassword !== newPasswordConfirm) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    setIsLoading(true);
+    clearMessages();
+
+    try {
+      const result = await userManager.updatePassword(newPassword);
+      setIsLoading(false);
+
+      if (!result.success) {
+        setError(result.message);
+        return;
+      }
+
+      // Clear recovery mode flag
+      localStorage.removeItem('dualmath_password_recovery_mode');
+      
+      // Clear the hash from URL
+      window.history.replaceState(null, '', window.location.pathname);
+      
+      // Show success and switch to login mode
+      setSuccess("Password updated successfully! Please login with your new password.");
+      setNewPassword("");
+      setNewPasswordConfirm("");
+      
+      // Important: Tell parent we're logged out so they show Auth component
+      if (onLoginSuccess) {
+        onLoginSuccess(null);
+      }
+      
+      // Switch to login mode after a short delay
+      setTimeout(() => {
+        setMode("login");
+      }, 100);
+      
+    } catch (err) {
+      setIsLoading(false);
+      setError("Failed to update password. The reset link may have expired. Please request a new one.");
+      console.error("Reset password error:", err);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (resendCooldown > 0) return;
+
+    setIsLoading(true);
+    clearMessages();
+
+    try {
+      // Pass the email we have (from currentUser or state)
+      const emailToUse = currentUser?.email || email;
+      const result = await userManager.resendVerificationEmail(emailToUse);
+      setIsLoading(false);
+
+      if (!result.success) {
+        setError(result.message);
+        return;
+      }
+
+      setSuccess(result.message);
+      setResendCooldown(60); // 60 second cooldown
+    } catch (err) {
+      setIsLoading(false);
+      setError("Failed to resend verification email.");
+      console.error("Resend verification error:", err);
+    }
+  };
+
+  const handleLogout = async () => {
+    await userManager.logoutUser();
+    setMode("login");
     setEmailOrUsername("");
     setUsername("");
     setEmail("");
     setPassword("");
     setPasswordConfirm("");
     setAvatarData(null);
+    clearMessages();
     if (onLoginSuccess) {
       onLoginSuccess(null);
     }
@@ -149,7 +387,6 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
       const ctx = canvas.getContext('2d');
       
       img.onload = () => {
-        // Calculate new dimensions
         let width = img.width;
         let height = img.height;
         
@@ -160,27 +397,16 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
         
         canvas.width = width;
         canvas.height = height;
-        
-        // Draw and compress
         ctx.drawImage(img, 0, 0, width, height);
-        
-        // Convert to base64 with compression
         const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
         resolve(compressedDataUrl);
       };
       
-      img.onerror = () => {
-        reject(new Error('Failed to load image'));
-      };
+      img.onerror = () => reject(new Error('Failed to load image'));
       
-      // Read the file as data URL
       const reader = new FileReader();
-      reader.onload = (e) => {
-        img.src = e.target.result;
-      };
-      reader.onerror = () => {
-        reject(new Error('Failed to read file'));
-      };
+      reader.onload = (e) => { img.src = e.target.result; };
+      reader.onerror = () => reject(new Error('Failed to read file'));
       reader.readAsDataURL(file);
     });
   };
@@ -189,29 +415,23 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Clear previous states
-    setError('');
+    clearMessages();
     setUploadStatus('Processing image...');
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       setError('Please select an image file (JPG, PNG, GIF, etc.)');
       setUploadStatus('');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
     try {
       let avatarDataUrl;
       
-      // If file is larger than 100KB, compress it
       if (file.size > 100000) {
         setUploadStatus('Compressing image...');
         avatarDataUrl = await compressImage(file, 200, 0.7);
       } else {
-        // Small file, read directly
         avatarDataUrl = await new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = (event) => resolve(event.target.result);
@@ -220,34 +440,29 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
         });
       }
       
-      // Check final size
       const dataSize = avatarDataUrl.length;
-      if (dataSize > 500000) { // 500KB after compression
+      if (dataSize > 500000) {
         setError('Image is still too large after compression. Please use a smaller image.');
         setUploadStatus('');
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
+        if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
       
       setUploadStatus('Saving to database...');
       setAvatarData(avatarDataUrl);
       
-      // Update avatar in Supabase
       const updated = await userManager.updateAvatar(currentUser.username, avatarDataUrl);
       
       if (updated) {
-        // Get fresh user data and update parent state
         const freshUser = await userManager.getCurrentUser();
         if (freshUser && onLoginSuccess) {
-          console.log('✅ Avatar updated successfully in Supabase');
+          console.log('✅ Avatar updated successfully');
           onLoginSuccess(freshUser);
         }
         setUploadStatus('');
       } else {
         setError('Failed to save avatar. Please try again.');
-        setAvatarData(currentUser?.avatarData || null); // Revert
+        setAvatarData(currentUser?.avatarData || null);
         setUploadStatus('');
       }
       
@@ -257,15 +472,12 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
       setUploadStatus('');
     }
     
-    // Clear the file input for next upload
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleRemoveAvatar = async () => {
     setAvatarData(null);
-    setError('');
+    clearMessages();
     setUploadStatus('');
     await userManager.updateAvatar(currentUser.username, null);
     const freshUser = await userManager.getCurrentUser();
@@ -274,20 +486,260 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
     }
   };
 
+  // PASSWORD RESET SCREEN - Must be first, before any other checks
+  // This ensures users can reset password even if "logged in" via recovery token
+  const isRecoveryMode = mode === "reset" || 
+                         localStorage.getItem('dualmath_password_recovery_mode') === 'true' ||
+                         window.location.hash.includes('type=recovery');
+  
+  if (isRecoveryMode && mode !== "login") {
+    return (
+      <div className="authModal">
+        <Card title="🔐 Reset Password">
+          <div className="stack">
+            <p className="muted">Enter your new password below.</p>
+            <Input
+              type="password"
+              value={newPassword}
+              onChange={(e) => {
+                setNewPassword(e.target.value);
+                clearMessages();
+              }}
+              placeholder="New Password (6+ chars)"
+              disabled={isLoading}
+            />
+            <Input
+              type="password"
+              value={newPasswordConfirm}
+              onChange={(e) => {
+                setNewPasswordConfirm(e.target.value);
+                clearMessages();
+              }}
+              placeholder="Confirm New Password"
+              onKeyPress={(e) => e.key === "Enter" && handleResetPassword()}
+              disabled={isLoading}
+            />
+            {success && <div className="success">{success}</div>}
+            {error && <div className="error">{error}</div>}
+            <Button 
+              onClick={handleResetPassword} 
+              disabled={!newPassword || !newPasswordConfirm || isLoading}
+            >
+              {isLoading ? "Updating..." : "Update Password"}
+            </Button>
+            <button
+              className="linkBtn"
+              onClick={() => {
+                // Clear recovery mode and go to login
+                localStorage.removeItem('dualmath_password_recovery_mode');
+                setMode("login");
+                clearMessages();
+                window.history.replaceState(null, '', window.location.pathname);
+                // Tell parent we're logged out
+                if (onLoginSuccess) {
+                  onLoginSuccess(null);
+                }
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </Card>
+        
+        <style>{`
+          .success {
+            padding: 12px;
+            background: rgba(45,212,191,.08);
+            border: 1px solid rgba(45,212,191,.5);
+            border-radius: 8px;
+            color: rgba(45,212,191,.9);
+            font-size: 14px;
+            text-align: center;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // Email Verification Screen
+  if (mode === "verify" || (currentUser && !currentUser.emailVerified)) {
+    return (
+      <div className="authModal">
+        <Card title="📧 Verify Your Email">
+          <div className="stack">
+            <div className="verifyIcon">✉️</div>
+            <p className="verifyText">
+              We've sent a verification link to:
+            </p>
+            <div className="emailDisplay">{currentUser?.email || email}</div>
+            <p className="muted" style={{ textAlign: 'center' }}>
+              Please check your inbox and click the verification link to continue playing.
+            </p>
+            
+            {success && <div className="success">{success}</div>}
+            {error && <div className="error">{error}</div>}
+            
+            <Button 
+              onClick={handleResendVerification} 
+              disabled={isLoading || resendCooldown > 0}
+              variant="secondary"
+            >
+              {resendCooldown > 0 
+                ? `Resend in ${resendCooldown}s` 
+                : isLoading 
+                  ? "Sending..." 
+                  : "📨 Resend Verification Email"}
+            </Button>
+            
+            <div className="divider">
+              <span>or</span>
+            </div>
+            
+            <Button 
+              onClick={async () => {
+                const freshUser = await userManager.getCurrentUser();
+                if (freshUser?.emailVerified) {
+                  onLoginSuccess(freshUser);
+                } else {
+                  setError("Email not verified yet. Please check your inbox.");
+                }
+              }}
+              disabled={isLoading}
+            >
+              🔄 I've Verified My Email
+            </Button>
+            
+            <button
+              className="linkBtn"
+              onClick={handleLogout}
+              style={{ marginTop: '10px' }}
+            >
+              Use a different account
+            </button>
+          </div>
+        </Card>
+        
+        <style>{`
+          .verifyIcon {
+            font-size: 64px;
+            text-align: center;
+            margin-bottom: 10px;
+          }
+          .verifyText {
+            text-align: center;
+            color: var(--muted);
+            margin-bottom: 8px;
+          }
+          .emailDisplay {
+            text-align: center;
+            font-weight: 700;
+            font-size: 16px;
+            padding: 12px 16px;
+            background: rgba(124,92,255,.1);
+            border: 1px solid rgba(124,92,255,.3);
+            border-radius: 10px;
+            margin-bottom: 12px;
+          }
+          .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--muted);
+            font-size: 12px;
+          }
+          .divider::before,
+          .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--line);
+          }
+          .success {
+            padding: 12px;
+            background: rgba(45,212,191,.08);
+            border: 1px solid rgba(45,212,191,.5);
+            border-radius: 8px;
+            color: rgba(45,212,191,.9);
+            font-size: 14px;
+            text-align: center;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // Forgot Password Screen
+  if (mode === "forgot") {
+    return (
+      <div className="authModal">
+        <Card title="🔑 Forgot Password">
+          <div className="stack">
+            <p className="muted">Enter your email address and we'll send you a link to reset your password.</p>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                clearMessages();
+              }}
+              placeholder="Email address"
+              onKeyPress={(e) => e.key === "Enter" && handleForgotPassword()}
+              disabled={isLoading}
+            />
+            {success && <div className="success">{success}</div>}
+            {error && <div className="error">{error}</div>}
+            <Button 
+              onClick={handleForgotPassword} 
+              disabled={!email.trim() || isLoading}
+            >
+              {isLoading ? "Sending..." : "📧 Send Reset Link"}
+            </Button>
+            <div className="authToggle">
+              <span className="muted">Remember your password? </span>
+              <button
+                className="linkBtn"
+                onClick={() => {
+                  setMode("login");
+                  clearMessages();
+                }}
+              >
+                Back to Login
+              </button>
+            </div>
+          </div>
+        </Card>
+        
+        <style>{`
+          .success {
+            padding: 12px;
+            background: rgba(45,212,191,.08);
+            border: 1px solid rgba(45,212,191,.5);
+            border-radius: 8px;
+            color: rgba(45,212,191,.9);
+            font-size: 14px;
+            text-align: center;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // Not logged in - show login or signup
   if (!isLoggedIn) {
     return (
       <div className="authModal">
-        {isLoginMode ? (
+        {mode === "login" ? (
           <Card title="Login">
             <div className="stack">
               <p className="muted">Enter your email or username to login</p>
+              {success && <div className="success">{success}</div>}
               <Input
                 value={emailOrUsername}
                 onChange={(e) => {
                   setEmailOrUsername(e.target.value);
                   setError("");
                 }}
-                placeholder="email or username"
+                placeholder="Email or username"
                 onKeyPress={(e) => e.key === "Enter" && handleLogin()}
                 disabled={isLoading}
               />
@@ -306,13 +758,24 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
               <Button onClick={handleLogin} disabled={!emailOrUsername.trim() || !password || isLoading}>
                 {isLoading ? "Logging in..." : "Login"}
               </Button>
+              
+              <button
+                className="linkBtn forgotLink"
+                onClick={() => {
+                  setMode("forgot");
+                  clearMessages();
+                }}
+              >
+                Forgot password?
+              </button>
+              
               <div className="authToggle">
                 <span className="muted">Don't have an account? </span>
                 <button
                   className="linkBtn"
                   onClick={() => {
-                    setIsLoginMode(false);
-                    setError("");
+                    setMode("signup");
+                    clearMessages();
                   }}
                 >
                   Sign up
@@ -328,7 +791,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
                 value={username}
                 onChange={(e) => {
                   setUsername(e.target.value);
-                  setError("");
+                  clearMessages();
                 }}
                 placeholder="Username (3+ chars)"
                 disabled={isLoading}
@@ -339,7 +802,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
-                  setError("");
+                  clearMessages();
                 }}
                 placeholder="Email"
                 disabled={isLoading}
@@ -349,7 +812,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
-                  setError("");
+                  clearMessages();
                 }}
                 placeholder="Password (6+ chars)"
                 disabled={isLoading}
@@ -359,7 +822,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
                 value={passwordConfirm}
                 onChange={(e) => {
                   setPasswordConfirm(e.target.value);
-                  setError("");
+                  clearMessages();
                 }}
                 placeholder="Confirm Password"
                 onKeyPress={(e) => e.key === "Enter" && handleSignup()}
@@ -377,8 +840,8 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
                 <button
                   className="linkBtn"
                   onClick={() => {
-                    setIsLoginMode(true);
-                    setError("");
+                    setMode("login");
+                    clearMessages();
                   }}
                 >
                   Login
@@ -387,10 +850,31 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
             </div>
           </Card>
         )}
+        
+        <style>{`
+          .forgotLink {
+            text-align: center;
+            font-size: 13px;
+            color: var(--muted);
+          }
+          .forgotLink:hover {
+            color: var(--accent);
+          }
+          .success {
+            padding: 12px;
+            background: rgba(45,212,191,.08);
+            border: 1px solid rgba(45,212,191,.5);
+            border-radius: 8px;
+            color: rgba(45,212,191,.9);
+            font-size: 14px;
+            text-align: center;
+          }
+        `}</style>
       </div>
     );
   }
 
+  // Logged in - show account settings
   return (
     <div className="authPanel">
       <Card
@@ -416,7 +900,11 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
               <div className="userInfo">
                 <div className="username">@{currentUser?.username}</div>
                 <div className="displayNameSmall">{currentUser?.email}</div>
-                
+                {currentUser?.emailVerified ? (
+                  <div className="verifiedBadge">✓ Email Verified</div>
+                ) : (
+                  <div className="unverifiedBadge">⚠ Email Not Verified</div>
+                )}
               </div>
             </div>
 
@@ -433,7 +921,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
                 <Button
                   variant="secondary"
                   onClick={() => {
-                    setError('');
+                    clearMessages();
                     setUploadStatus('');
                     fileInputRef.current?.click();
                   }}
@@ -515,31 +1003,33 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
         .authPanel .displayNameSmall {
           font-size: 14px;
           color: var(--muted);
-          margin-bottom: 12px;
+          margin-bottom: 8px;
         }
         
-        .authPanel .stats {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-        
-        .authPanel .statItem {
+        .verifiedBadge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 10px;
+          background: rgba(45,212,191,.1);
+          border: 1px solid rgba(45,212,191,.4);
+          border-radius: 20px;
           font-size: 12px;
-          padding: 4px 8px;
-          background: rgba(255,255,255,.02);
-          border: 1px solid rgba(38,38,74,.6);
-          border-radius: 6px;
+          color: rgba(45,212,191,.9);
+          font-weight: 600;
         }
         
-        .authPanel .statLabel {
-          color: var(--muted);
-          margin-right: 4px;
-        }
-        
-        .authPanel .statValue {
-          font-weight: 700;
-          color: var(--accent);
+        .unverifiedBadge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 10px;
+          background: rgba(251,113,133,.1);
+          border: 1px solid rgba(251,113,133,.4);
+          border-radius: 20px;
+          font-size: 12px;
+          color: rgba(251,113,133,.9);
+          font-weight: 600;
         }
         
         .authPanel .uploadSection {
