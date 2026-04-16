@@ -29,7 +29,7 @@ import girlHair16 from "../public/Hair/Girl/GirlHair16.png";
 import girlHair17 from "../public/Hair/Girl/GirlHair17.png";
 import girlHair18 from "../public/Hair/Girl/GirlHair18.png";
 import girlHair19 from "../public/Hair/Girl/GirlHair19.png";
-import girlHair20 from "../public/Hair/Girl/girlHair20.png";
+import girlHair20 from "../public/Hair/Girl/GirlHair20.png";
 import uniHat1 from "../public/Hair/Accessories/UniHat1.png";
 import uniFlower1 from "../public/Hair/Accessories/UniFlower1.png";
 import uniGlass1 from "../public/Hair/Accessories/UniGlass1.png";
