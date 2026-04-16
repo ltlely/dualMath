@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, Button, Input } from "./components.jsx";
 import { userManager } from "../userManagerSupabase.js";
 
@@ -15,10 +15,8 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
   const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [avatarData, setAvatarData] = useState(null);
-  const [uploadStatus, setUploadStatus] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
   const [checkingVerification, setCheckingVerification] = useState(false);
-  const fileInputRef = useRef(null);
 
   // Update avatar state when currentUser changes
   useEffect(() => {
@@ -442,74 +440,9 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
     });
   };
 
-  const handleAvatarUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    clearMessages();
-    setUploadStatus('Processing image...');
-
-    if (!file.type.startsWith('image/')) {
-      setError('Please select an image file (JPG, PNG, GIF, etc.)');
-      setUploadStatus('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
-    try {
-      let avatarDataUrl;
-      
-      if (file.size > 100000) {
-        setUploadStatus('Compressing image...');
-        avatarDataUrl = await compressImage(file, 200, 0.7);
-      } else {
-        avatarDataUrl = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (event) => resolve(event.target.result);
-          reader.onerror = () => reject(new Error('Failed to read file'));
-          reader.readAsDataURL(file);
-        });
-      }
-      
-      const dataSize = avatarDataUrl.length;
-      if (dataSize > 500000) {
-        setError('Image is still too large after compression. Please use a smaller image.');
-        setUploadStatus('');
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        return;
-      }
-      
-      setUploadStatus('Saving to database...');
-      setAvatarData(avatarDataUrl);
-      
-      const updated = await userManager.updateAvatar(currentUser.username, avatarDataUrl);
-      
-      if (updated) {
-        const freshUser = await userManager.getCurrentUser();
-        if (freshUser && onLoginSuccess) {
-          console.log('✅ Avatar updated successfully');
-          onLoginSuccess(freshUser);
-        }
-        setUploadStatus('');
-      } else {
-        setError('Failed to save avatar. Please try again.');
-        setAvatarData(currentUser?.avatarData || null);
-        setUploadStatus('');
-      }
-      
-    } catch (err) {
-      console.error('Avatar upload error:', err);
-      setError('Failed to process image. Please try again with a different image.');
-      setUploadStatus('');
-    }
-    
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
   const handleRemoveAvatar = async () => {
     setAvatarData(null);
     clearMessages();
-    setUploadStatus('');
     await userManager.updateAvatar(currentUser.username, null);
     const freshUser = await userManager.getCurrentUser();
     if (freshUser && onLoginSuccess) {
@@ -932,53 +865,6 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
               </div>
             </div>
 
-            <div className="uploadSection">
-              <label className="label">Change Avatar</label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
-                onChange={handleAvatarUpload}
-                style={{ display: "none" }}
-              />
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    clearMessages();
-                    setUploadStatus('');
-                    fileInputRef.current?.click();
-                  }}
-                  disabled={!!uploadStatus}
-                >
-                  {uploadStatus || "📸 Upload Photo"}
-                </Button>
-                {avatarData && !uploadStatus && (
-                  <Button
-                    variant="secondary"
-                    onClick={handleRemoveAvatar}
-                  >
-                    🗑️ Remove
-                  </Button>
-                )}
-              </div>
-              {error && (
-                <div className="error" style={{ 
-                  marginTop: "8px", 
-                  fontSize: "12px", 
-                  padding: "8px",
-                  background: "rgba(251,113,133,.08)",
-                  border: "1px solid rgba(251,113,133,.5)",
-                  borderRadius: "8px",
-                  color: "rgba(251,113,133,.9)"
-                }}>
-                  {error}
-                </div>
-              )}
-              <p className="muted" style={{ fontSize: "12px", marginTop: "8px" }}>
-                Upload a profile picture (JPG, PNG). Large images will be automatically compressed.
-              </p>
-            </div>
           </div>
         </div>
       </Card>
@@ -1017,7 +903,8 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
         .authPanel .userInfo {
           flex: 1;
         }
-        
+
+
         .authPanel .username {
           font-size: 18px;
           font-weight: 700;
@@ -1056,11 +943,6 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
           font-weight: 600;
         }
         
-        .authPanel .uploadSection {
-          margin-top: 20px;
-          padding-top: 20px;
-          border-top: 1px solid rgba(38,38,74,.6);
-        }
       `}</style>
     </div>
   );

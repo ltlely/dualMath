@@ -4,8 +4,9 @@ import Lobby from "./ui/Lobby.jsx";
 import Room from "./ui/Room.jsx";
 import Game from "./ui/Game.jsx";
 import Auth from "./ui/Auth.jsx";
-import { updatePoints } from "./rankingSystem.js";
+import Store from "./ui/Store.jsx";
 import { userManager } from "./userManagerSupabase.js";
+import { updatePoints, getRank } from "./rankingSystem.js";
 
 const isDev = window.location.hostname === 'localhost';
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 
@@ -20,24 +21,107 @@ export const socket = io(SOCKET_URL, {
   reconnectionDelay: 1000,
 });
 
-async function applyLocalMatchResult(currentUser, didWin) {
+
+function createPreviewQuestion() {
+  const a = Math.floor(Math.random() * 12) + 1;
+  const b = Math.floor(Math.random() * 9) + 1;
+  const ops = ["+", "-", "×"];
+  return { a, b, op: ops[Math.floor(Math.random() * ops.length)] };
+}
+
+function createPreviewDigits() {
+  const tens = Math.floor(Math.random() * 10);
+  const ones = Math.floor(Math.random() * 10);
+  return {
+    answerLength: 2,
+    tens,
+    ones,
+    lockedTens: false,
+    lockedOnes: false,
+    overallLocked: false,
+  };
+}
+
+function createPreviewGame(avatarData = null) {
+  return {
+    roomCode: "T642P",
+    state: {
+      phase: "playing",
+      round: 3,
+      totalRounds: 10,
+      targetCorrect: 10,
+      teamRounds: { A: 3, B: 3 },
+      teamDigits: {
+        A: { answerLength: 2, tens: 1, ones: 9, lockedTens: false, lockedOnes: false, overallLocked: false },
+        B: { answerLength: 2, tens: 2, ones: 0, lockedTens: true, lockedOnes: false, overallLocked: false },
+      },
+      teamQuestions: {
+        A: { a: 12, b: 8, op: "+" },
+        B: { a: 9, b: 4, op: "+" },
+      },
+      teamStats: {
+        A: { correctCount: 2, timeToTarget: 25000 },
+        B: { correctCount: 4, timeToTarget: 22000 },
+      },
+    },
+    teams: {
+      A: {
+        score: 12,
+        members: [
+          { id: "self", name: "lyly", score: 7, slot: 0, ready: true, avatarData },
+          { id: "bot2", name: "Nova", score: 5, slot: 1, ready: true, avatarData: null },
+        ],
+      },
+      B: {
+        score: 14,
+        members: [
+          { id: "bot1", name: "Bolt", score: 8, slot: 0, ready: true, avatarData: null },
+          { id: "bot3", name: "Zara", score: 6, slot: 1, ready: true, avatarData: null },
+        ],
+      },
+    },
+    players: [
+      { id: "self", name: "lyly", score: 7, slot: 0, team: "A", ready: true, avatarData },
+      { id: "bot2", name: "Nova", score: 5, slot: 1, team: "A", ready: true, avatarData: null },
+      { id: "bot1", name: "Bolt", score: 8, slot: 0, team: "B", ready: true, avatarData: null },
+      { id: "bot3", name: "Zara", score: 6, slot: 1, team: "B", ready: true, avatarData: null },
+    ],
+  };
+}
+
+async function applyLocalMatchResult(currentUser, didWin, diff = "easy") {
   if (!currentUser) return currentUser;
 
   const currentPoints = currentUser.rankPoints ?? 0;
   const newPoints = updatePoints(currentPoints, didWin);
+  const coinReward = didWin ? getWinCoinReward(diff) : 0;
 
   const updatedUser = {
-    ...currentUser,
-    wins: (currentUser.wins ?? 0) + (didWin ? 1 : 0),
-    losses: (currentUser.losses ?? 0) + (didWin ? 0 : 1),
-    totalGames: (currentUser.totalGames ?? 0) + 1,
-    rankPoints: newPoints,
-  };
+  ...currentUser,
+  wins: (currentUser.wins ?? 0) + (didWin ? 1 : 0),
+  losses: (currentUser.losses ?? 0) + (didWin ? 0 : 1),
+  totalGames: (currentUser.totalGames ?? 0) + 1,
+  rankPoints: newPoints,
+  rank: getRank(newPoints),
+  coins: (currentUser.coins ?? 2000) + coinReward,
+};
 
-  await userManager.saveUser(updatedUser);
+await userManager.saveUser(updatedUser);
   return updatedUser;
 }
 
+function getWinCoinReward(diff = "easy") {
+  switch ((diff || "easy").toLowerCase()) {
+    case "med":
+    case "medium":
+      return 225;
+    case "hard":
+      return 325;
+    case "easy":
+    default:
+      return 150;
+  }
+}
 
 async function applyLocalForfeitLoss(currentUser) {
   if (!currentUser) return currentUser;
@@ -45,12 +129,13 @@ async function applyLocalForfeitLoss(currentUser) {
   const currentPoints = currentUser.rankPoints ?? 0;
   const newPoints = updatePoints(currentPoints, false); // false = loss
 
-  const updatedUser = {
-    ...currentUser,
-    losses: (currentUser.losses ?? 0) + 1,
-    totalGames: (currentUser.totalGames ?? 0) + 1,
-    rankPoints: newPoints,
-  };
+const updatedUser = {
+  ...currentUser,
+  losses: (currentUser.losses ?? 0) + 1,
+  totalGames: (currentUser.totalGames ?? 0) + 1,
+  rankPoints: newPoints,
+  rank: getRank(newPoints),
+};
 
   await userManager.saveUser(updatedUser);
   return updatedUser;
@@ -58,29 +143,27 @@ async function applyLocalForfeitLoss(currentUser) {
 
 
 // Create a tiny thumbnail (32x32) for sharing via socket - keeps payload small
-const createTinyThumbnail = (avatarData) => {
+const createTinyThumbnail = async (src, size = 64) => {
+  if (!src) return null;
+
   return new Promise((resolve) => {
-    if (!avatarData) {
-      resolve(null);
-      return;
-    }
-    
     const img = new Image();
+
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 32;
-      canvas.height = 32;
-      const ctx = canvas.getContext('2d');
-      
-      // Draw image scaled to 32x32
-      ctx.drawImage(img, 0, 0, 32, 32);
-      
-      // Convert to very compressed JPEG (quality 0.5)
-      const thumbnail = canvas.toDataURL('image/jpeg', 0.5);
-      resolve(thumbnail);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      canvas.width = size;
+      canvas.height = size;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      resolve(canvas.toDataURL("image/png"));
     };
-    img.onerror = () => resolve(null);
-    img.src = avatarData;
+
+    img.onerror = () => resolve(src);
+    img.src = src;
   });
 };
 
@@ -97,6 +180,41 @@ export default function App() {
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [pendingAction, setPendingAction] = useState(null);
   const [sessionError, setSessionError] = useState(null);
+  const [screen, setScreen] = useState("lobby");
+  const [previewGame, setPreviewGame] = useState(() => createPreviewGame());
+const [lastKnownTeam, setLastKnownTeam] = useState(null);
+
+  const [testRankOverride, setTestRankOverride] = useState(null);
+const effectiveRankPoints = testRankOverride?.rankPoints ?? currentUser?.rankPoints ?? 0;
+const effectiveRankLevel = testRankOverride?.rankLevel ?? currentUser?.rank ?? "Novice";
+
+
+  const handlePreviewSubmit = useCallback(({ tens, ones }) => {
+    setPreviewGame((prev) => {
+      if (!prev) return prev;
+
+      const nextRound = Math.min((prev.state.round || 0) + 1, prev.state.totalRounds);
+      return {
+        ...prev,
+        state: {
+          ...prev.state,
+          round: nextRound,
+          teamRounds: {
+            A: (prev.state.teamRounds?.A || 0) + 1,
+            B: (prev.state.teamRounds?.B || 0) + 1,
+          },
+          teamQuestions: {
+            A: createPreviewQuestion(),
+            B: createPreviewQuestion(),
+          },
+          teamDigits: {
+            A: createPreviewDigits(),
+            B: createPreviewDigits(),
+          },
+        },
+      };
+    });
+  }, []);
 
   useEffect(() => {
     const raw = localStorage.getItem("pending_forfeit");
@@ -237,12 +355,22 @@ export default function App() {
       setChat([]);
     });
 
-    socket.on("room:update", (r) => {
-      setRoom(r);
-      if (r?.state?.phase === "playing") setView("game");
-      if (r?.state?.phase === "lobby") setView("room");
-    });
+ socket.on("room:update", (r) => {
+  setRoom(r);
 
+  const me = (r?.players ?? []).find((p) => p.id === selfId);
+  if (me?.team) {
+    setLastKnownTeam(me.team);
+  }
+
+  if (r?.state?.phase === "lobby") {
+    setView("room");
+  }
+
+  if (r?.state?.phase === "ended") {
+    setView("game");
+  }
+});
     socket.on("room:error", ({ message }) => setError(message));
 
     socket.on("game:roundStart", (info) => {
@@ -255,22 +383,22 @@ export default function App() {
       setLastRound(payload);
     });
     
-    socket.on("game:ended", async (payload) => {
-      console.log("🎮 GAME ENDED - Full payload:", payload);
-      setLastRound(payload);
+socket.on("game:ended", async (payload) => {
+  setLastRound(payload);
 
-      // Apply local stats here (wins OR losses)
-      const me = (room?.players ?? []).find(p => p.id === selfId);
-      const myTeam = me?.team;
+  const me = (room?.players ?? []).find((p) => p.id === selfId);
+  const myTeam = me?.team || lastKnownTeam;
 
-      if (payload?.winner && payload.winner !== "tie" && myTeam) {
-        const didWin = payload.winner === myTeam;
-        const updated = await applyLocalMatchResult(currentUser, didWin);
-        setCurrentUser(updated);
-      }
+  if (payload?.winner && payload.winner !== "tie" && myTeam) {
+  const didWin = payload.winner === myTeam;
+const matchDiff = room?.state?.diff ?? "easy";
+const updated = await applyLocalMatchResult(currentUser, didWin, matchDiff);
 
-      setView("game");
-    });
+    setCurrentUser(updated);
+  }
+
+  setView("game");
+});
 
 
     socket.on("chat:new", (m) => setChat((prev) => [...prev, m]));
@@ -304,10 +432,20 @@ export default function App() {
         
         const roomData = { 
           name: name || "Unnamed Room",
-          playerName: currentUser?.username || 'Guest',
-          avatarData: avatarThumbnail // Tiny thumbnail, safe to send
+          playerName: currentUser?.username || "Guest",
+          avatarData: avatarThumbnail,
+          // rankPoints: currentUser?.rankPoints || 0,
+          // rankLevel: currentUser?.rank || "Novice",
+          rankPoints: effectiveRankPoints,
+          rankLevel: effectiveRankLevel,
         };
-        
+
+        console.log("TEST RANK SEND createRoom", {
+          effectiveRankPoints,
+          effectiveRankLevel,
+          testRankOverride,
+        });
+                
         // Store as pending action in case we disconnect
         setPendingAction({ type: 'createRoom', data: roomData });
         
@@ -331,9 +469,19 @@ export default function App() {
         
         const joinData = { 
           roomCode: joinCode, 
-          name: currentUser?.username || 'Guest',
-          avatarData: avatarThumbnail
+          name: currentUser?.username || "Guest",
+          avatarData: avatarThumbnail,
+          // rankPoints: currentUser?.rankPoints || 0,
+          // rankLevel: currentUser?.rank || "Novice",
+          rankPoints: effectiveRankPoints,
+          rankLevel: effectiveRankLevel,
         };
+
+        console.log("TEST RANK SEND joinRoom", {
+          effectiveRankPoints,
+          effectiveRankLevel,
+          testRankOverride,
+        });
         
         setPendingAction({ type: 'joinRoom', data: joinData });
         
@@ -355,10 +503,20 @@ export default function App() {
         const avatarThumbnail = await createTinyThumbnail(currentUser?.avatarData);
         
         const joinData = { 
-          name: currentUser?.username || 'Guest',
-          avatarData: avatarThumbnail
+          name: currentUser?.username || "Guest",
+          avatarData: avatarThumbnail,
+          // rankPoints: effectiveRankPoints,
+          // rankLevel: effectiveRankLevel,
+          rankPoints: effectiveRankPoints,
+          rankLevel: effectiveRankLevel,
         };
-        
+
+        console.log("TEST RANK SEND joinRandomRoom", {
+          effectiveRankPoints,
+          effectiveRankLevel,
+          testRankOverride,
+        });
+                
         setPendingAction({ type: 'joinRandom', data: joinData });
         
         if (!socket.connected) {
@@ -379,28 +537,26 @@ export default function App() {
       leaveRoom: async () => {
         console.log("➡️ leaving room", roomCode);
 
-        const isInLiveMatch = room?.state?.phase === "playing";
+  const isInLiveMatch = room?.state?.phase === "playing";
 
-        // If leaving mid-game => forfeit locally (so stats ALWAYS update)
-        if (isInLiveMatch) {
-          socket.emit("game:forfeit", { roomCode: room?.roomCode });
-          const updated = await applyLocalForfeitLoss(currentUser);
-          setCurrentUser(updated);
-        }
+  if (isInLiveMatch) {
+    socket.emit("game:forfeit", { roomCode: room?.roomCode });
+    return;
+  }
 
-        socket.emit("room:leave", { roomCode });
+  socket.emit("room:leave", { roomCode });
 
-        setView("lobby");
-        setRoomCode(null);
-        setSelfId(null);
-        setRoom(null);
-        setError("");
-        setRoundInfo(null);
-        setLastRound(null);
-        setChat([]);
-      },
+  setView("lobby");
+  setRoomCode(null);
+  setSelfId(null);
+  setRoom(null);
+  setRoundInfo(null);
+  setLastRound(null);
+  setChat([]);
+  setError("");
+},
     }),
-    [roomCode, currentUser]
+    [roomCode, currentUser, effectiveRankPoints, effectiveRankLevel, testRankOverride, room]
   );
 
   const onDigit = ({ place, digit }) => {
@@ -522,22 +678,54 @@ export default function App() {
     );
   }
 
-  if (view === "lobby") {
-    return (
-      <>
-        <SessionErrorModal />
-        <Lobby 
-          onCreate={actions.createRoom} 
-          onJoin={actions.joinRoom}
-          onJoinRandom={actions.joinRandomRoom}
-          error={error}
+if (screen === "game") {
+  return (
+    <Game
+      room={previewGame}
+      selfId="self"
+      currentUser={currentUser}
+      onSubmit={handlePreviewSubmit}
+      onBack={() => setScreen("lobby")}
+      onLeaveRoom={() => setScreen("lobby")}
+    />
+  );
+}
+
+if (view === "lobby" || view === "store") {
+  return (
+    <>
+      <SessionErrorModal />
+
+      <Lobby 
+        onCreate={actions.createRoom} 
+        onJoin={actions.joinRoom}
+        onJoinRandom={actions.joinRandomRoom}
+        onOpenStore={() => setView("store")}
+        error={error}
+        currentUser={currentUser}
+        onLoginSuccess={handleLoginSuccess}
+        isConnected={isConnected}
+        setTestRankOverride={setTestRankOverride}
+        testRankOverride={testRankOverride}
+        onOpenGame={() => {
+          setPreviewGame(createPreviewGame(currentUser?.avatarData));
+          setScreen("game");
+        }}
+      />
+
+      {view === "store" && (
+        <Store
           currentUser={currentUser}
           onLoginSuccess={handleLoginSuccess}
-          isConnected={isConnected}
+          onClose={() => setView("lobby")}
         />
-      </>
-    );
-  }
+      )}
+    </>
+  );
+}
+
+
+
 
   if (view === "room") {
     return (
@@ -573,11 +761,10 @@ export default function App() {
         currentUser={currentUser}
         onLeaveRoom={actions.leaveRoom}
         onUserUpdate={handleUserUpdate}
-        onForfeit={async () => {
-          socket.emit("game:forfeit", { roomCode: room?.roomCode });
-          const updated = await applyLocalForfeitLoss(currentUser);
-          setCurrentUser(updated);
-        }}
+onForfeit={() => {
+  console.log("🚩 emitting game:forfeit", { roomCode: room?.roomCode });
+  socket.emit("game:forfeit", { roomCode: room?.roomCode });
+}}
       />
     </>
   );

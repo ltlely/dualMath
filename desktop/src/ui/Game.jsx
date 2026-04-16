@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { updatePoints } from "../rankingSystem.js";
 import { userManager } from "../userManagerSupabase.js";
 
+
 // Simple UI Components
 function Card({ title, children, className = "" }) {
   return (
@@ -23,7 +24,8 @@ function Input(props) {
 }
 
 export default function Game({
-  room, selfId,
+  room,
+  selfId,
   roundInfo,
   lastRound,
   onDigit,
@@ -31,6 +33,7 @@ export default function Game({
   onChatSend,
   chat,
   currentUser,
+  onBack,
   onLeaveRoom,
   onUserUpdate,
   onForfeit,
@@ -40,6 +43,7 @@ export default function Game({
   const [localTens, setLocalTens] = useState(null);
   const [localOnes, setLocalOnes] = useState(null);
   const [statsUpdated, setStatsUpdated] = useState(false);
+  const [showForfeitModal, setShowForfeitModal] = useState(false);
 
   const playersSorted = useMemo(() => {
     const ps = [...(room?.players ?? [])];
@@ -81,7 +85,7 @@ export default function Game({
   const otherCorrect = room?.state?.teamStats?.[otherTeam]?.correctCount ?? 0;
   const targetCorrect = room?.state?.targetCorrect ?? 10;
 
-  const isGameEnded = room?.state?.phase === "ended";
+  const isGameEnded = room?.state?.phase === "ended" || !!lastRound?.winner || !!lastRound?.forfeit;
   const isForfeit = !!lastRound?.forfeit;
   const forfeitedBy = lastRound?.forfeitedBy;
 
@@ -138,15 +142,21 @@ export default function Game({
   }, []);
 
   function submitDigits(tensVal, onesVal) {
+    const tensProvided = tensVal !== null && tensVal !== undefined && tensVal !== "";
+    const onesProvided = onesVal !== null && onesVal !== undefined && onesVal !== "";
+    if (!tensProvided || !onesProvided) return false;
+
     const t = Number(tensVal);
     const o = Number(onesVal);
     if (!Number.isInteger(t) || !Number.isInteger(o)) return false;
+
     if (typeof onSubmit === 'function') {
       onSubmit({ tens: t, ones: o });
-    } else if (onDigit) {
+    } else if (typeof onDigit === 'function') {
       onDigit({ place: "tens", digit: t });
       onDigit({ place: "ones", digit: o });
     }
+
     setLocalTens(null);
     setLocalOnes(null);
     return true;
@@ -162,6 +172,28 @@ export default function Game({
 
   const pointsChange = getPointsChange();
 
+  const getCoinReward = () => {
+  if (!lastRound?.winner || lastRound.winner === "tie" || !currentUser) return null;
+
+  const didWin = lastRound.winner === myTeam;
+  if (!didWin) return 0;
+
+  const diff = (room?.state?.diff || "easy").toLowerCase();
+
+  switch (diff) {
+    case "med":
+    case "medium":
+      return 225;
+    case "hard":
+      return 325;
+    case "easy":
+    default:
+      return 150;
+  }
+};
+const coinReward = getCoinReward();
+  
+
   return (
     <div className="page">
       {/* Race Progress Header */}
@@ -172,6 +204,8 @@ export default function Game({
           <span className="code">{room?.roomCode}</span>
         </div>
         
+        <Button variant="secondary" onClick={onBack}>Back</Button>
+
         <div className="raceProgress">
           <div className="raceTeam">
             <div className="raceTeamLabel">
@@ -196,17 +230,15 @@ export default function Game({
 
         {!isGameEnded && (
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <Button
-              onClick={() => {
-                if (!room?.roomCode) return;
-                if (window.confirm("Forfeit the match? Your team will lose immediately.")) {
-                  if (typeof onForfeit === "function") onForfeit();
-                }
-              }}
-              style={{ background: "#fb7185", color: "#0b0b12" }}
-            >
-              Forfeit
-            </Button>
+           <Button
+  onClick={() => {
+    if (!room?.roomCode) return;
+    setShowForfeitModal(true);
+  }}
+  style={{ background: "#fb7185", color: "#0b0b12" }}
+>
+  Forfeit
+</Button>
           </div>
         )}
 
@@ -222,9 +254,9 @@ export default function Game({
             </div>
             <div className="quickInfo">
               <div className="quickUsername">@{currentUser?.username}</div>
-              <div className="quickPoints">
-                {userManager.getUserRank(currentUser)} • {currentUser?.rankPoints ?? 0} RP
-              </div>
+                <div className="quickPoints">
+                  {(currentUser ? userManager.getUserRank(currentUser) : "Novice")} • {currentUser?.rankPoints ?? 0} RP
+                </div>
             </div>
           </div>
         )}
@@ -263,15 +295,21 @@ export default function Game({
               </div>
             </div>
             
-            {pointsChange !== null && lastRound.winner !== 'tie' && (
-              <div className="pointsUpdate">
-                {pointsChange >= 0 ? (
-                  <div className="pointsGained">+{pointsChange} RP</div>
-                ) : (
-                  <div className="pointsLost">{pointsChange} RP</div>
-                )}
-              </div>
-            )}
+            {pointsChange !== null && lastRound.winner !== "tie" && (
+  <div className="pointsUpdate">
+    {pointsChange >= 0 ? (
+      <div className="pointsGained">+{pointsChange} RP</div>
+    ) : (
+      <div className="pointsLost">{pointsChange} RP</div>
+    )}
+
+    {coinReward !== null && (
+      <div className="coinsEarned">
+        {coinReward > 0 ? `+${coinReward} Coins` : `+0 Coins`}
+      </div>
+    )}
+  </div>
+)}
             
             <Button onClick={onLeaveRoom} style={{ marginTop: '20px', padding: '14px 28px', fontSize: '16px' }}>
               Return to Lobby
@@ -282,8 +320,10 @@ export default function Game({
 
       <div className="grid2">
         {/* Your Team's Question */}
-        <Card title={`Your Team (${myTeam}) - Q${room?.state?.teamRounds?.[myTeam] ?? 0}`} className="yourTeamCard">
-          <div className="questionSection">
+<Card
+  title={`Your Team (${myTeam}) - Round ${(room?.state?.teamStats?.[myTeam]?.correctCount ?? 0) + 1}`}
+  className="yourTeamCard"
+>          <div className="questionSection">
             <div className="question">{qText}</div>
             <div className="correctCounter">
               <span className="correctIcon">✓</span>
@@ -330,7 +370,7 @@ export default function Game({
                   {mySlot === 0 && <span className="pill code">you</span>}
                 </div>
                 <Input
-                  value={(localTens ?? teamDigits?.tens ?? "") + ""}
+                  value={((mySlot === 0 ? localTens : teamDigits?.tens) ?? "") + ""}
                   disabled={!(myTeam && mySlot === 0) || teamDigits?.lockedTens || teamDigits?.overallLocked}
                   inputMode="numeric"
                   maxLength={1}
@@ -343,8 +383,8 @@ export default function Game({
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
-                      const tensVal = (localTens !== null ? localTens : teamDigits?.tens);
-                      const onesVal = (localOnes !== null ? localOnes : teamDigits?.ones);
+                      const tensVal = localTens !== null ? localTens : teamDigits?.tens;
+                      const onesVal = localOnes !== null ? localOnes : teamDigits?.ones;
                       if (tensVal !== null && tensVal !== undefined && onesVal !== null && onesVal !== undefined) {
                         submitDigits(tensVal, onesVal);
                       }
@@ -361,7 +401,7 @@ export default function Game({
                 {mySlot === 1 && <span className="pill code">you</span>}
               </div>
               <Input
-                value={(localOnes ?? teamDigits?.ones ?? "") + ""}
+                value={((mySlot === 1 ? localOnes : teamDigits?.ones) ?? "") + ""}
                 disabled={!(myTeam && mySlot === 1) || teamDigits?.lockedOnes || teamDigits?.overallLocked}
                 inputMode="numeric"
                 maxLength={1}
@@ -374,8 +414,8 @@ export default function Game({
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    const tensVal = (localTens !== null ? localTens : teamDigits?.tens);
-                    const onesVal = (localOnes !== null ? localOnes : teamDigits?.ones);
+                    const tensVal = localTens !== null ? localTens : teamDigits?.tens;
+                    const onesVal = localOnes !== null ? localOnes : teamDigits?.ones;
                     if (tensVal !== null && tensVal !== undefined && onesVal !== null && onesVal !== undefined) {
                       submitDigits(tensVal, onesVal);
                     }
@@ -391,8 +431,10 @@ export default function Game({
         </Card>
 
         {/* Opponent's Progress */}
-        <Card title={`Team ${otherTeam} (Opponent) - Q${room?.state?.teamRounds?.[otherTeam] ?? 0}`} className="opponentCard">
-          <div className="questionSection">
+<Card
+  title={`Team ${otherTeam} (Opponent) - Round ${(room?.state?.teamStats?.[otherTeam]?.correctCount ?? 0) + 1}`}
+  className="opponentCard"
+>          <div className="questionSection">
             <div className="question opponentQuestion">{otherQText}</div>
             <div className="correctCounter opponent">
               <span className="correctIcon">✓</span>
@@ -442,346 +484,474 @@ export default function Game({
         </Card>
       </div>
 
+      {showForfeitModal && (
+  <div className="forfeitOverlay">
+    <div className="forfeitModal">
+      <div className="forfeitTitle">Forfeit Match?</div>
+      <div className="forfeitText">
+        Your team will lose immediately.
+      </div>
+
+      <div className="forfeitActions">
+        <button
+          className="forfeitBtn cancel"
+          onClick={() => setShowForfeitModal(false)}
+        >
+          Cancel
+        </button>
+
+        <button
+          className="forfeitBtn confirm"
+          onClick={() => {
+            setShowForfeitModal(false);
+            if (typeof onForfeit === "function") onForfeit();
+          }}
+        >
+          Yes, Forfeit
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
       <style>{`
 :root{
-  --bg:#0b0b12;
-  --card:#121222;
-  --card2:#15152a;
-  --text:#f3f4ff;
-  --muted:#9aa0c3;
-  --line:#26264a;
-  --accent:#7c5cff;
-  --good:#2dd4bf;
-  --bad:#fb7185;
-  --teamA:#22c55e;
-  --teamB:#3b82f6;
+  --base: rgba(240, 231, 207, 0.94);
+  --cream:#f5eed7;
+  --cream-2:#f9f2d9;
+  --cream-3:#f0e3c1;
+  --tan:#dcc4a2;
+  --tan-2:#c8ad86;
+  --brown:#8d6b4f;
+  --brown-dark:#5b3f2a;
+  --brown-soft:#b19179;
+  --brown-light:#d8c1aa;
+  --gold:#cfa25f;
+  --gold-2:#d9b16a;
+  --gold-3:#e5c584;
+  --ink:#4c3826;
+  --muted:#8f7b63;
+  --card-border:#bea87f;
+  --success-bg: rgba(145, 115, 70, 0.12);
+  --success-border: rgba(145, 115, 70, 0.35);
+  --error-bg: rgba(168, 88, 72, 0.12);
+  --error-border: rgba(168, 88, 72, 0.3);
+  --glow-gold: 0 0 40px rgba(205, 162, 90, 0.14);
+  --glow-brown: 0 0 24px rgba(139, 107, 74, 0.18);
+
+  --teamA:#93b96b;
+  --teamA-dark:#6f8f4f;
+  --teamB:#b495dc;
+  --teamB-dark:#8f72c1;
+  --bad:#c97a6b;
 }
 
 *{ box-sizing:border-box; }
+
 body{
   margin:0;
-  background: radial-gradient(900px 500px at 30% -10%, rgba(124,92,255,.25), transparent),
-              radial-gradient(900px 500px at 90% 10%, rgba(45,212,191,.18), transparent),
-              var(--bg);
-  color:var(--text);
+  background:
+    radial-gradient(circle at top, rgba(255, 248, 230, 0.75), transparent 35%),
+    linear-gradient(180deg, #f8f0dd 0%, #e6d2ac 100%);
+  color:var(--ink);
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
 }
-.page{ max-width:1100px; margin:24px auto; padding:0 18px 24px; }
+
+.page{
+  max-width:1200px;
+  margin:0 auto;
+  padding:24px 24px 36px;
+  color:var(--ink);
+}
 
 .raceHeader{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 20px;
-  padding: 16px 20px;
-  background: linear-gradient(180deg, rgba(255,255,255,.03), transparent), var(--card);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  flex-wrap: wrap;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  margin-bottom:20px;
+  padding:18px;
+  background: linear-gradient(180deg, var(--cream), var(--tan));
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  border-radius:28px;
+  box-shadow: 0 16px 32px rgba(95, 70, 48, 0.08);
+  flex-wrap:wrap;
 }
 
 .raceTitle{
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 20px;
-  font-weight: 800;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  font-size:28px;
+  font-weight:900;
+  color:var(--ink);
 }
 
-.raceIcon{ font-size: 28px; }
+.raceIcon{ font-size:30px; }
 
 .raceProgress{
-  display: flex;
-  gap: 20px;
-  flex: 1;
-  max-width: 500px;
+  display:flex;
+  gap:16px;
+  flex:1;
+  max-width:520px;
 }
 
-.raceTeam{ flex: 1; }
+.raceTeam{ flex:1; }
 
 .raceTeamLabel{
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-  font-size: 12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:8px;
+  font-size:12px;
 }
 
 .teamBadge{
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-weight: 700;
-  background: rgba(255,255,255,.05);
-  border: 1px solid var(--line);
+  padding:6px 10px;
+  border-radius:999px;
+  font-weight:800;
+  background: rgba(255, 253, 244, 0.78);
+  border: 1px solid rgba(107, 79, 52, 0.18);
+  color: var(--ink);
 }
 
 .teamBadge.you{
-  background: rgba(124,92,255,.15);
-  border-color: rgba(124,92,255,.4);
-  color: var(--accent);
+  background: linear-gradient(180deg, #f3e2b7, #ead4a2);
+  border-color: rgba(107, 79, 52, 0.24);
+  color: #6b4a33;
 }
 
-.raceCount{ font-weight: 800; color: var(--text); }
+.raceCount{
+  font-weight:900;
+  color:var(--brown-dark);
+}
 
 .raceBar{
-  height: 12px;
-  background: rgba(255,255,255,.06);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  overflow: hidden;
+  height:14px;
+  background: rgba(255,255,255,0.55);
+  border: 1px solid rgba(107, 79, 52, 0.18);
+  border-radius:999px;
+  overflow:hidden;
 }
 
 .raceBarFill{
-  height: 100%;
-  border-radius: 999px;
+  height:100%;
+  border-radius:999px;
   transition: width 0.3s ease;
 }
 
 .raceBarFill.teamA{
-  background: linear-gradient(90deg, #16a34a, #22c55e);
-  box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
+  background: linear-gradient(90deg, var(--teamA-dark), var(--teamA));
+  box-shadow: 0 0 10px rgba(111, 143, 79, 0.25);
 }
 
 .raceBarFill.teamB{
-  background: linear-gradient(90deg, #2563eb, #3b82f6);
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+  background: linear-gradient(90deg, var(--teamB-dark), var(--teamB));
+  box-shadow: 0 0 10px rgba(143, 114, 193, 0.22);
 }
 
-.grid2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.grid2{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px;
+}
+
 @media (max-width: 980px){
   .grid2{ grid-template-columns:1fr; }
-  .raceProgress{ flex-direction: column; gap: 10px; }
+  .raceProgress{ flex-direction:column; gap:10px; }
 }
 
 .card{
-  border:1px solid var(--line);
-  background: linear-gradient(180deg, rgba(255,255,255,.03), transparent), var(--card);
-  border-radius:16px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  background: linear-gradient(180deg, var(--cream), var(--tan));
+  border-radius:28px;
+  box-shadow: 0 16px 32px rgba(95, 70, 48, 0.08);
 }
 
-.yourTeamCard{ border-color: rgba(124,92,255,.3); }
-.opponentCard{ opacity: 0.85; }
+.yourTeamCard{
+  box-shadow: 0 16px 32px rgba(180, 149, 220, 0.12);
+}
 
+.opponentCard{
+  opacity: 0.96;
+}
+
+.coinsEarned{
+  margin-top: 10px;
+  font-size: 22px;
+  font-weight: 900;
+  color: #b8892d;
+}
+  
 .cardTop{
-  display:flex; align-items:center; justify-content:space-between;
-  padding:14px 14px 10px;
-  border-bottom:1px solid rgba(38,38,74,.7);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:16px 18px 12px;
+  border-bottom:1px solid rgba(107, 79, 52, 0.16);
 }
-.cardTitle{ font-weight:700; }
-.cardBody{ padding:14px; }
+
+.cardTitle{
+  font-weight:900;
+  color:var(--ink);
+  font-size:24px;
+}
+
+.cardBody{
+  padding:16px;
+}
 
 .questionSection{
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  margin-bottom:16px;
 }
 
-.question{ font-size: 32px; font-weight: 900; letter-spacing: .3px; }
-.opponentQuestion{ font-size: 24px; opacity: 0.8; }
+.question{
+  font-size:34px;
+  font-weight:900;
+  letter-spacing:.2px;
+  color:var(--brown-dark);
+}
+
+.opponentQuestion{
+  font-size:26px;
+  opacity:0.9;
+}
 
 .correctCounter{
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 14px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 12px;
+  display:flex;
+  align-items:center;
+  gap:4px;
+  padding:8px 14px;
+  background: rgba(147, 185, 107, 0.18);
+  border: 1px solid rgba(111, 143, 79, 0.25);
+  border-radius:14px;
 }
 
 .correctCounter.opponent{
-  background: rgba(59, 130, 246, 0.1);
-  border-color: rgba(59, 130, 246, 0.3);
+  background: rgba(180, 149, 220, 0.16);
+  border-color: rgba(143, 114, 193, 0.22);
 }
 
-.correctIcon{ color: var(--good); font-weight: 800; }
-.correctNum{ font-size: 24px; font-weight: 900; color: var(--good); }
-.correctCounter.opponent .correctNum{ color: #3b82f6; }
-.correctTotal{ font-size: 14px; color: var(--muted); }
-
-.stack{ display:flex; flex-direction:column; gap:10px; }
-.row{ display:flex; gap:10px; align-items:center; }
-.label{ font-size:12px; color:var(--muted); margin-bottom:6px; }
+.correctIcon{ color: var(--teamA-dark); font-weight: 800; }
+.correctNum{ font-size:24px; font-weight:900; color: var(--teamA-dark); }
+.correctCounter.opponent .correctNum{ color: var(--teamB-dark); }
+.correctTotal{ font-size:14px; color: var(--muted); }
 
 .input{
   width:100%;
-  background: var(--card2);
-  color: var(--text);
-  border:1px solid var(--line);
-  border-radius:12px;
+  background:#fffdf5;
+  color:var(--ink);
+  border:1px solid rgba(107, 79, 52, 0.2);
+  border-radius:14px;
   padding:12px 14px;
-  font-size: 20px;
-  font-weight: 700;
-  text-align: center;
+  font-size:20px;
+  font-weight:700;
+  text-align:center;
   outline:none;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
 }
-.input:focus{ border-color: rgba(124,92,255,.6); box-shadow: 0 0 0 3px rgba(124,92,255,.15); }
-.input:disabled{ opacity: 0.5; }
 
-.hint{ font-size: 12px; text-align: center; margin-top: 12px; }
+.input:focus{
+  border-color: rgba(107, 79, 52, 0.45);
+  box-shadow: 0 0 0 3px rgba(207, 162, 95, 0.14);
+}
+
+.input:disabled{
+  opacity:0.5;
+}
+
+.hint{
+  font-size:12px;
+  text-align:center;
+  margin-top:12px;
+  color:var(--muted);
+}
 
 .digitHint{
-  font-size: 13px;
-  text-align: center;
-  padding: 8px 12px;
-  background: rgba(124, 92, 255, 0.08);
-  border: 1px solid rgba(124, 92, 255, 0.2);
-  border-radius: 12px;
-  margin-bottom: 12px;
+  font-size:13px;
+  text-align:center;
+  padding:8px 12px;
+  background: rgba(255,255,255,0.35);
+  border: 1px solid rgba(107, 79, 52, 0.12);
+  border-radius:14px;
+  margin-bottom:12px;
+  color:var(--muted);
 }
 
-/* Digit Slots Grid */
 .digitSlots{
-  display: grid;
+  display:grid;
   grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-  gap: 12px;
+  gap:12px;
 }
 
-/* Slot styling - matches your existing .slot class */
 .slot{
-  border: 1px solid rgba(38,38,74,.6);
-  border-radius: 14px;
-  background: rgba(255,255,255,.02);
-  padding: 12px;
-  min-height: 100px;
-  display: flex;
-  flex-direction: column;
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  border-radius:18px;
+  background: linear-gradient(180deg, var(--cream-2), var(--base));
+  padding:12px;
+  min-height:100px;
+  display:flex;
+  flex-direction:column;
+  box-shadow: 0 10px 18px rgba(107, 79, 52, 0.06);
 }
 
 .slot.yourSlot{
-  border-color: rgba(124,92,255,.4);
-  background: rgba(124,92,255,.06);
+  border-color: rgba(180, 149, 220, 0.45);
+  background: linear-gradient(180deg, #f4ecfb, #e7d8f8);
 }
 
 .slot.autoFilledSlot{
-  border-color: rgba(45,212,191,.3);
-  background: rgba(45,212,191,.06);
+  border-color: rgba(147, 185, 107, 0.35);
+  background: linear-gradient(180deg, #eef6e4, #dce9c8);
 }
 
 .slotTop{
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:10px;
 }
 
 .slotTitle{
-  font-weight: 900;
-  letter-spacing: .4px;
-  font-size: 13px;
+  font-weight:900;
+  letter-spacing:.3px;
+  font-size:13px;
+  color:var(--brown-dark);
 }
 
 .slotDigit{
-  font-size: 36px;
-  font-weight: 900;
-  text-align: center;
-  color: var(--text);
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-size:36px;
+  font-weight:900;
+  text-align:center;
+  color:var(--brown-dark);
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
 
 .slotInput{
-  font-size: 28px !important;
-  font-weight: 900 !important;
-  text-align: center !important;
-  padding: 8px !important;
-  height: auto !important;
-  flex: 1;
+  font-size:28px !important;
+  font-weight:900 !important;
+  text-align:center !important;
+  padding:8px !important;
+  height:auto !important;
+  flex:1;
 }
 
 .slotInput:disabled{
-  opacity: 0.5;
+  opacity:0.5;
 }
 
-/* Pills - using your existing styles */
 .pill{
-  font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
+  font-size:11px;
+  padding:4px 8px;
+  border-radius:999px;
+  border: 1px solid rgba(107, 79, 52, 0.18);
   color: var(--muted);
-  background: rgba(255,255,255,.02);
+  background: rgba(255, 253, 244, 0.78);
 }
 
 .pill.code{
-  border-color: rgba(124,92,255,.45);
-  color: rgba(124,92,255,.9);
-  background: rgba(124,92,255,.08);
+  background: linear-gradient(180deg, #efe3ff, #dcc7f5);
+  border-color: rgba(143, 114, 193, 0.28);
+  color: var(--teamB-dark);
 }
 
 .pill.good{
-  border-color: rgba(45,212,191,.45);
-  color: rgba(45,212,191,.9);
-  background: rgba(45,212,191,.08);
+  background: linear-gradient(180deg, #edf6df, #d6e8b6);
+  border-color: rgba(111, 143, 79, 0.28);
+  color: var(--teamA-dark);
 }
-
-.toast{
-  padding:10px 12px;
-  border-radius:14px;
-  border:1px solid rgba(38,38,74,.7);
-  background: rgba(255,255,255,.03);
-  text-align: center;
-}
-.toast.good{ border-color: rgba(45,212,191,.45); background: rgba(45,212,191,.08); }
 
 .btn{
   border:1px solid transparent;
-  border-radius:12px;
-  padding:10px 14px;
-  font-weight:650;
+  border-radius:16px;
+  padding:12px 16px;
+  font-weight:800;
   cursor:pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
-.btn.primary{ background: var(--accent); color:#0b0b12; }
+
+.btn:hover{
+  transform: translateY(-1px);
+}
+
+.btn.primary{
+  background: linear-gradient(180deg, #f0cf64, #d6ae38);
+  color:#5a4224;
+  box-shadow: 0 10px 18px rgba(190, 150, 54, 0.22);
+}
 
 .userQuick{
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  padding: 8px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.02);
+  display:flex;
+  gap:10px;
+  align-items:center;
+  padding:10px 12px;
+  border-radius:18px;
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  background: rgba(255, 253, 244, 0.75);
 }
 
 .quickAvatar{
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: rgba(124,92,255,.18);
-  border: 1px solid rgba(124,92,255,.35);
-  font-weight: 800;
-  overflow: hidden;
+  width:42px;
+  height:42px;
+  border-radius:12px;
+  display:grid;
+  place-items:center;
+  background:#fffdf4;
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  font-weight:800;
+  overflow:hidden;
+  color:var(--brown-dark);
 }
 
-.quickAvatar img{ width: 100%; height: 100%; object-fit: cover; }
+.quickAvatar img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
 
-.quickInfo{ display: flex; flex-direction: column; gap: 2px; }
-.quickUsername{ font-weight: 700; font-size: 14px; }
-.quickPoints{ font-size: 12px; color: var(--muted); }
+.quickInfo{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.quickUsername{
+  font-weight:700;
+  font-size:14px;
+  color:var(--ink);
+}
+
+.quickPoints{
+  font-size:12px;
+  color:var(--muted);
+}
 
 .code{
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas;
-  background: rgba(124,92,255,.15);
-  border:1px solid rgba(124,92,255,.35);
+  background: linear-gradient(180deg, #f3e2b7, #ead4a2);
+  border:1px solid rgba(107, 79, 52, 0.24);
   padding:4px 8px;
   border-radius:10px;
-  font-size: 14px;
+  font-size:14px;
+  color:#6b4a33;
 }
 
-.muted{ color: var(--muted); }
+.muted{
+  color:var(--muted);
+}
 
 .gameOverBanner{
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(11, 11, 18, 0.95);
-  backdrop-filter: blur(10px);
+  background: rgba(76, 56, 38, 0.45);
+  backdrop-filter: blur(6px);
   z-index: 1000;
   display: grid;
   place-items: center;
@@ -791,13 +961,13 @@ body{
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .gameOverContent{
-  text-align: center;
-  padding: 40px;
-  border-radius: 24px;
-  border: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(255,255,255,.05), transparent), var(--card);
-  box-shadow: 0 20px 60px rgba(0,0,0,.5);
-  max-width: 500px;
+  text-align:center;
+  padding:40px;
+  border-radius:28px;
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  background: linear-gradient(180deg, var(--cream), var(--tan));
+  box-shadow: 0 20px 60px rgba(95, 70, 48, 0.18);
+  max-width:520px;
   animation: slideUp 0.4s ease;
 }
 
@@ -806,32 +976,123 @@ body{
   to { opacity: 1; transform: translateY(0); }
 }
 
-.gameOverTitle{ font-size: 48px; font-weight: 900; margin: 0 0 12px 0; }
-.gameOverSubtitle{ font-size: 18px; color: var(--muted); margin-bottom: 30px; }
+.gameOverTitle{
+  font-size:48px;
+  font-weight:900;
+  margin:0 0 12px 0;
+  color:var(--brown-dark);
+}
+
+.gameOverSubtitle{
+  font-size:18px;
+  color:var(--muted);
+  margin-bottom:30px;
+}
 
 .gameOverStats{
-  display: flex;
-  gap: 20px;
-  justify-content: center;
-  margin-bottom: 10px;
+  display:flex;
+  gap:20px;
+  justify-content:center;
+  margin-bottom:10px;
 }
 
 .statBox{
-  padding: 20px;
-  border-radius: 16px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.02);
-  min-width: 140px;
+  padding:20px;
+  border-radius:18px;
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  background: rgba(255, 253, 244, 0.75);
+  min-width:140px;
 }
 
-.statLabel{ font-size: 14px; color: var(--muted); margin-bottom: 8px; }
-.statValue{ font-size: 32px; font-weight: 900; color: var(--accent); }
-.statTime{ font-size: 14px; color: var(--good); margin-top: 4px; font-weight: 700; }
+.statLabel{
+  font-size:14px;
+  color:var(--muted);
+  margin-bottom:8px;
+}
 
-.pointsUpdate{ margin-top: 24px; font-size: 28px; font-weight: 900; }
-.pointsGained{ color: var(--good); text-shadow: 0 0 20px rgba(45, 212, 191, 0.5); }
-.pointsLost{ color: var(--bad); text-shadow: 0 0 20px rgba(251, 113, 133, 0.5); }
-      `}</style>
+.statValue{
+  font-size:32px;
+  font-weight:900;
+  color:var(--brown-dark);
+}
+
+.statTime{
+  font-size:14px;
+  color:var(--teamA-dark);
+  margin-top:4px;
+  font-weight:700;
+}
+
+.pointsUpdate{
+  margin-top:24px;
+  font-size:28px;
+  font-weight:900;
+}
+
+.pointsGained{
+  color:var(--teamA-dark);
+}
+
+.pointsLost{
+  color:var(--bad);
+}
+
+.forfeitOverlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(76, 56, 38, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+}
+
+.forfeitModal{
+  width: min(92vw, 420px);
+  padding: 24px;
+  border-radius: 24px;
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  background: linear-gradient(180deg, var(--cream), var(--tan));
+  box-shadow: 0 20px 60px rgba(95, 70, 48, 0.18);
+}
+
+.forfeitTitle{
+  font-size: 24px;
+  font-weight: 900;
+  margin-bottom: 10px;
+  color: var(--brown-dark);
+}
+
+.forfeitText{
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+
+.forfeitActions{
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.forfeitBtn{
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.forfeitBtn.cancel{
+  background: linear-gradient(180deg, #fffaf0, #efe5cf);
+  border-color: rgba(166, 134, 93, 0.22);
+  color: #5a4028;
+}
+
+.forfeitBtn.confirm{
+  background: linear-gradient(180deg, #e29b8a, #c97a6b);
+  color: #fff8f2;
+}
+`}</style>
     </div>
   );
 }

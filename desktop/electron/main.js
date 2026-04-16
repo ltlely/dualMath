@@ -4,28 +4,25 @@ const os = require("os");
 
 console.log("✅ USING desktop/electron/main.js");
 
-// Put Electron's user data in a stable folder.
-// (Using tmp works for dev, but it's better not to for a Steam build.)
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 if (isDev) {
-  app.setPath("userData", path.join(os.tmpdir(), "ameba-pico-math-userdata"));
-  app.setPath("cache", path.join(os.tmpdir(), "ameba-pico-math-cache"));
+  app.setPath("userData", path.join(os.tmpdir(), "game-userdata"));
+  app.setPath("cache", path.join(os.tmpdir(), "game-cache"));
 }
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1100,
-    height: 720,
+    width: 1400,
+    height: 900,
+    minWidth: 1200,
+    minHeight: 800,
+    resizable: true,
     backgroundColor: "#0b0b12",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
-      // optional hardening (turn on when you’re ready)
-      // contextIsolation: true,
-      // nodeIntegration: false,
     },
   });
 
-  // Only open DevTools in development
   if (isDev) {
     win.webContents.openDevTools({ mode: "detach" });
   }
@@ -43,14 +40,12 @@ function createWindow() {
   if (devUrl) {
     win.loadURL(devUrl);
   } else {
-    // Packaged/Steam build loads the built site from disk
     win.loadFile(path.join(__dirname, "../dist/index.html"));
   }
 }
 
 app.whenReady().then(createWindow);
 
-// macOS behavior (optional but standard)
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-
+import { getRank } from "./rankingSystem.js";
 // Initialize Supabase client
 // Replace these with your actual Supabase project URL and anon key
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL';
@@ -24,21 +24,18 @@ const getOrCreateSessionToken = () => {
 
 // Helper function to get the base URL for redirects
 // This works for any deployment (localhost, Vercel, Netlify, etc.)
+
+// const getRedirectBaseUrl = () => {
+//   return import.meta.env.VITE_APP_URL || "https://dual-math.vercel.app";
+// };
+
 const getRedirectBaseUrl = () => {
-  // Use the current origin (e.g., https://your-app.vercel.app or http://localhost:5173)
-  return window.location.origin;
+  const configuredUrl = import.meta.env.VITE_APP_URL;
+  if (configuredUrl) return configuredUrl.replace(/\/$/, "");
+  return  "https://dual-math.vercel.app";
 };
 
-// Rank thresholds for display
-const RANK_THRESHOLDS = [
-  { min: 0, name: 'Novice' },
-  { min: 100, name: 'Apprentice' },
-  { min: 250, name: 'Journeyman' },
-  { min: 500, name: 'Expert' },
-  { min: 1000, name: 'Master' },
-  { min: 2000, name: 'Grandmaster' },
-  { min: 5000, name: 'Legend' },
-];
+
 
 export const userManager = {
   // Get current user from Supabase auth session
@@ -301,8 +298,26 @@ export const userManager = {
         });
 
       if (profileError) {
-        console.error('Profile creation error:', profileError);
-      }
+  console.error("saveUser profile update error:", profileError);
+
+  const message = String(profileError.message || "").toLowerCase();
+
+  if (
+    message.includes("duplicate key") ||
+    message.includes("unique constraint") ||
+    message.includes("profiles_username_key")
+  ) {
+    return {
+      success: false,
+      message: "That username is already taken.",
+    };
+  }
+
+  return {
+    success: false,
+    message: "Could not update username.",
+  };
+}
 
       const user = {
         id: data.user.id,
@@ -547,40 +562,52 @@ export const userManager = {
 
   // Save/update user data
   saveUser: async (user) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.user) {
-        console.error('No authenticated user to save');
-        return false;
+  try {
+    const { error: profileError } = await supabase
+      .from("profiles")
+.update({
+  username: (user.username || "").trim().toLowerCase(),
+  display_name: (user.username || "").trim(),
+  rank_points: user.rankPoints || 0,
+  wins: user.wins || 0,
+  losses: user.losses || 0,
+  total_games: user.totalGames || 0,
+  avatar_data: user.avatarData || null,
+  coins: user.coins ?? 2000,
+  username_changed_at: user.usernameChangedAt || null,
+  last_active: new Date().toISOString(),
+})
+      .eq("id", user.id);
+
+    if (profileError) {
+      console.error("saveUser profile update error:", profileError);
+
+      const message = String(profileError.message || "").toLowerCase();
+
+      if (
+        message.includes("duplicate key") ||
+        message.includes("unique constraint") ||
+        message.includes("profiles_username_key")
+      ) {
+        return {
+          success: false,
+          message: "That username is already taken.",
+        };
       }
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          rank_points: user.rankPoints || 0,
-          wins: user.wins || 0,
-          losses: user.losses || 0,
-          total_games: user.totalGames || 0,
-          avatar_data: user.avatarData || null,
-          last_active: new Date().toISOString(),
-        })
-        .eq('id', session.user.id);
-
-      if (error) {
-        console.error('Error saving user:', error);
-        return false;
-      }
-
-      // Update local cache
-      localStorage.setItem('dualmath_current_user', JSON.stringify(user));
-      
-      return true;
-    } catch (error) {
-      console.error('Save user error:', error);
-      return false;
+      return {
+        success: false,
+        message: "Could not update username.",
+      };
     }
-  },
+
+    localStorage.setItem("dualmath_current_user", JSON.stringify(user));
+    return { success: true, user };
+  } catch (error) {
+    console.error("saveUser error:", error);
+    return { success: false, message: "Could not update username." };
+  }
+},
 
   // Update avatar
   updateAvatar: async (username, avatarData) => {
@@ -629,17 +656,20 @@ export const userManager = {
   },
 
   // Get user rank based on points
+  // getUserRank: (user) => {
+  //   const points = user?.rankPoints || 0;
+  //   let rank = 'Novice';
+    
+  //   for (const threshold of RANK_THRESHOLDS) {
+  //     if (points >= threshold.min) {
+  //       rank = threshold.name;
+  //     }
+  //   }
+    
+  //   return rank;
+  // },
   getUserRank: (user) => {
-    const points = user?.rankPoints || 0;
-    let rank = 'Novice';
-    
-    for (const threshold of RANK_THRESHOLDS) {
-      if (points >= threshold.min) {
-        rank = threshold.name;
-      }
-    }
-    
-    return rank;
+    return getRank(user?.rankPoints || 0);
   },
 
   // Get user stats
@@ -772,6 +802,28 @@ export const userManager = {
       return { verified: false, error: error.message };
     }
   },
+
+  getUserByUsername: async (username) => {
+  try {
+    const normalized = username.trim().toLowerCase();
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .eq("username", normalized)
+      .maybeSingle();
+
+    if (error) {
+      console.error("getUserByUsername error:", error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("getUserByUsername catch error:", error);
+    return null;
+  }
+},
 };
 
 export { supabase };

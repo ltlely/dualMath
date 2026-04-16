@@ -107,3 +107,95 @@ export function getPointsToNextRank(currentPoints) {
   
   return rankData.maxPoints - normalizedPoints + 1;
 }
+
+// Matchmaking + auto difficulty helpers
+
+export function getSafeRankPoints(playerOrPoints) {
+  if (typeof playerOrPoints === "number") {
+    return Math.max(0, Math.min(1100, playerOrPoints));
+  }
+
+  if (typeof playerOrPoints?.rankPoints === "number") {
+    return Math.max(0, Math.min(1100, playerOrPoints.rankPoints));
+  }
+
+  return 0;
+}
+
+export function getLobbyAveragePoints(players = []) {
+  if (!players.length) return 0;
+
+  const total = players.reduce((sum, player) => {
+    return sum + getSafeRankPoints(player);
+  }, 0);
+
+  return total / players.length;
+}
+
+export function getLobbyPointSpread(players = []) {
+  if (!players.length) return 0;
+
+  const points = players.map(getSafeRankPoints);
+  return Math.max(...points) - Math.min(...points);
+}
+
+export function getAutoDifficulty(players = []) {
+  const avg = getLobbyAveragePoints(players);
+  const spread = getLobbyPointSpread(players);
+
+  let diff = "easy";
+
+  if (avg >= 901) {
+    diff = "hard";
+  } else if (avg >= 601) {
+    diff = "medium";
+  } else {
+    diff = "easy";
+  }
+
+  // soften extreme mismatch lobbies
+  // example: 1 King + 3 Novice should not instantly feel like a hard lobby
+  if (spread >= 500 && avg < 901 && diff === "hard") {
+    diff = "medium";
+  }
+
+  return diff;
+}
+
+export function getDefaultMatchSettings(players = []) {
+  return {
+    diff: getAutoDifficulty(players),
+    roundMs: 11000,
+    totalRounds: 11,
+  };
+}
+
+export function getRankMatchBucket(points) {
+  const safePoints = getSafeRankPoints(points);
+
+  if (safePoints <= 400) return "low";
+  if (safePoints <= 700) return "mid";
+  if (safePoints <= 1100) return "high";
+  return "low";
+}
+
+export function canJoinRandomLobby(playerA, playerB) {
+  const a = getSafeRankPoints(playerA);
+  const b = getSafeRankPoints(playerB);
+  const diff = Math.abs(a - b);
+
+  // stricter for low ranks, looser for higher ranks
+  if (a <= 400 && b <= 400) return diff <= 150;
+  if (a <= 700 && b <= 700) return diff <= 200;
+  return diff <= 250;
+}
+
+export function isPlayerCompatibleWithRoom(player, roomPlayers = []) {
+  if (!roomPlayers.length) return true;
+
+  const playerPoints = getSafeRankPoints(player);
+  const roomAvg = getLobbyAveragePoints(roomPlayers);
+
+  // allow joining if reasonably close to current room average
+  return Math.abs(playerPoints - roomAvg) <= 250;
+}

@@ -2,6 +2,10 @@ import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
+import {
+  getDefaultMatchSettings,
+  isPlayerCompatibleWithRoom,
+} from "./rankingSystem.js";
 
 const app = express();
 app.use(cors());
@@ -105,6 +109,8 @@ function getPublicRoom(roomCode) {
     team: p.team ?? null,
     slot: p.slot ?? null,
     avatarData: p.avatarData ?? null,
+    rankPoints: p.rankPoints ?? 0,
+    rankLevel: p.rankLevel ?? "Novice",
   }));
 
   const teamA = players.filter((p) => p.team === "A");
@@ -175,26 +181,33 @@ function makeQuestion(diff = "easy") {
   // Hard: 3-4 digit answers (100-9999), players fill tens+ones, hundreds+thousands auto-filled
   
   if (diff === "easy") {
-    // Easy: simple math with small numbers, answers 0-99
-    const ops = ["+", "-", "×"];
-    const op = ops[Math.floor(Math.random() * ops.length)];
-    
-    if (op === "+") {
-      const a = Math.floor(Math.random() * 50);
-      const b = Math.floor(Math.random() * 50);
-      return { a, b, op, answer: a + b };
-    }
-    if (op === "-") {
-      let a = Math.floor(Math.random() * 100);
-      let b = Math.floor(Math.random() * 100);
-      if (b > a) [a, b] = [b, a];
-      return { a, b, op, answer: a - b };
-    }
-    // multiplication
-    const a = Math.floor(Math.random() * 10);
-    const b = Math.floor(Math.random() * 10);
-    return { a, b, op, answer: a * b };
+  const ops = ["+", "-", "×"];
+  const op = ops[Math.floor(Math.random() * ops.length)];
+
+  if (op === "+") {
+    const answer = Math.floor(Math.random() * 90) + 10; // 10-99
+    const a = Math.floor(Math.random() * answer);
+    const b = answer - a;
+    return { a, b, op, answer };
   }
+
+  if (op === "-") {
+    const answer = Math.floor(Math.random() * 90) + 10; // 10-99
+    const b = Math.floor(Math.random() * 50) + 1;
+    const a = answer + b;
+    return { a, b, op, answer };
+  }
+
+  // multiplication with guaranteed 2-digit answer
+  let a, b, answer;
+  do {
+    a = Math.floor(Math.random() * 9) + 2;
+    b = Math.floor(Math.random() * 9) + 2;
+    answer = a * b;
+  } while (answer < 10 || answer > 99);
+
+  return { a, b, op, answer };
+}
   
   if (diff === "med") {
     // Medium: answers should be 2-3 digits (10-999)
@@ -502,14 +515,21 @@ function endRound(roomCode) {
 
 io.on("connection", (socket) => {
   socket.on("game:forfeit", ({ roomCode }) => {
-  const code = String(roomCode || "").trim().toUpperCase();
-  forfeitGame(code, socket.id, "manual_forfeit");
-});
+    const code = String(roomCode || "").trim().toUpperCase();
+    const room = rooms.get(code);
+
+    console.log("🚩 server recv game:forfeit", {
+      socketId: socket.id,
+      roomCode: code,
+      phase: room?.state?.phase,
+    });
+
+    forfeitGame(code, socket.id, "manual_forfeit");
+  });
 
 socket.on("disconnect", () => {
   for (const [roomCode, room] of rooms.entries()) {
     if (room.players.has(socket.id)) {
-      // ✅ Refresh/tab close = disconnect = forfeit (if match live)
       if (room.state.phase === "playing") {
         forfeitGame(roomCode, socket.id, "disconnect");
       }
@@ -522,10 +542,15 @@ socket.on("disconnect", () => {
         else rooms.delete(roomCode);
       }
 
-      broadcast(roomCode);
+      if (rooms.has(roomCode)) {
+        applyAutoMatchSettings(room);
+        broadcast(roomCode);
+       }
+      }
     }
-  }
-});
+  });
+
+  
 
 
   socket.on("team:digit", ({ roomCode, place, digit }) => {
@@ -628,7 +653,7 @@ socket.on("disconnect", () => {
     setTimeout(() => endRoundForTeam(code, p.team), 150);
   });
 
-  socket.on("room:join", ({ roomCode, name, avatarData }) => {
+  socket.on("room:join", ({ roomCode, name, avatarData, rankPoints = 0, rankLevel = "Novice" }) => {
     const code = String(roomCode || "").trim().toUpperCase();
     const room = rooms.get(code);
 
@@ -637,26 +662,43 @@ socket.on("disconnect", () => {
     room.players.set(socket.id, {
       id: socket.id,
       name,
-      avatarData: avatarData ?? null,  // Store avatar thumbnail
+      avatarData: avatarData ?? null,
       team: null,
       slot: null,
       ready: false,
       score: 0,
+      rankPoints,
+      rankLevel,
     });
+
+    
 
     socket.join(code);
     socket.emit("room:joined", { roomCode: code, selfId: socket.id });
+    applyAutoMatchSettings(room);
     broadcast(code);
+
+    console.log("👥 room:join player =", {
+      id: socket.id,
+      name,
+      rankPoints,
+      rankLevel,
+    });
   });
 
   // Join a random available room or create one if none exist
-  socket.on("room:joinRandom", ({ name, avatarData }) => {
-    // Find a room that's in lobby phase and has space (less than 4 players)
+socket.on("room:joinRandom", ({ name, avatarData, rankPoints = 0, rankLevel = "Novice" }) => {    // Find a room that's in lobby phase and has space (less than 4 players)
     let targetRoom = null;
     let targetCode = null;
     
     for (const [code, room] of rooms.entries()) {
-      if (room.state.phase === "lobby" && room.players.size < 4) {
+      if (room.state.phase !== "lobby") continue;
+      if (room.players.size >= 4) continue;
+
+      const roomPlayers = Array.from(room.players.values());
+      const incomingPlayer = { rankPoints, rankLevel };
+
+      if (isPlayerCompatibleWithRoom(incomingPlayer, roomPlayers)) {
         targetRoom = room;
         targetCode = code;
         break;
@@ -699,17 +741,33 @@ socket.on("disconnect", () => {
       slot: null,
       ready: false,
       score: 0,
+      rankPoints: rankPoints,
+      rankLevel: rankLevel
     });
+
     
     socket.join(targetCode);
     socket.emit("room:joined", { roomCode: targetCode, selfId: socket.id });
+    applyAutoMatchSettings(targetRoom);
     broadcast(targetCode);
     
-    console.log(`🎲 Player ${name} joined random room ${targetCode}`);
+    console.log("🎲 room:joinRandom player =", {
+      id: socket.id,
+      name,
+      rankPoints,
+      rankLevel,
+    });
   });
 
   socket.on("room:create", (payload) => {
-  const { name, roomName, playerName, avatarData } = payload || {};
+  const {
+    name,
+    roomName,
+    playerName,
+    avatarData,
+    rankPoints = 0,
+    rankLevel = "Novice",
+  } = payload || {};
 
   const roomCode = makeRoomCode();
 
@@ -724,8 +782,8 @@ socket.on("disconnect", () => {
       mode: "2v2",
       phase: "lobby",
       diff: "easy",
-      roundMs: 12000,
-      totalRounds: 10,
+      roundMs: 11000,
+      totalRounds: 11,
       round: 0,
       question: null,
       correct: null,
@@ -736,22 +794,32 @@ socket.on("disconnect", () => {
   });
 
   const room = rooms.get(roomCode);
-  room.players.set(socket.id, {
-    id: socket.id,
-    name: finalPlayerName,
-    avatarData: avatarData ?? null,
-    team: null,
-    slot: null,
-    ready: false,
-    score: 0,
-  });
+      room.players.set(socket.id, {
+        id: socket.id,
+        name: finalPlayerName,
+        avatarData: avatarData ?? null,
+        team: null,
+        slot: null,
+        ready: false,
+        score: 0,
+        rankPoints,
+        rankLevel,
+      });
+
 
   socket.join(roomCode);
   socket.emit("room:joined", { roomCode, selfId: socket.id });
+  applyAutoMatchSettings(room);
   broadcast(roomCode);
 
   console.log("🏠 room:create payload =", payload);
-  console.log(`🏠 Room ${roomCode} created. roomName="${finalRoomName}" playerName="${finalPlayerName}"`);
+  // console.log(`🏠 Room ${roomCode} created. roomName="${finalRoomName}" playerName="${finalPlayerName}"`);
+  console.log("🏠 room:create player =", {
+    id: socket.id,
+    name: room.players.get(socket.id)?.name,
+    rankPoints: room.players.get(socket.id)?.rankPoints ?? 0,
+    rankLevel: room.players.get(socket.id)?.rankLevel ?? "Novice",
+  });
 });
 
 
@@ -775,8 +843,31 @@ socket.on("disconnect", () => {
     me.team = team;
     me.slot = slot;
     me.ready = false;
-    broadcast(code);
-    console.log('server broadcast room:update after sit', { roomCode: code, players: Array.from(room.players.values()).map(p => ({ id: p.id, name: p.name, team: p.team, slot: p.slot })) });
+
+      const effectiveRankPoints = me.rankPoints ?? 0;
+  const effectiveRankLevel = me.rankLevel ?? "Novice";
+
+   console.log(
+    `Player ${me.name} (ID: ${me.id}) sat in Team ${team} Slot ${slot}. Effective Rank: ${effectiveRankLevel} (${effectiveRankPoints} points)`
+  );
+
+
+    applyAutoMatchSettings(room);
+
+console.log("server broadcast room:update after sit", {
+  roomCode: code,
+  players: Array.from(room.players.values()).map((p) => ({
+    id: p.id,
+    name: p.name,
+    team: p.team,
+    slot: p.slot,
+    rankPoints: p.rankPoints ?? 0,
+    rankLevel: p.rankLevel ?? "Novice",
+  })),
+  diff: room.state.diff,
+});
+
+broadcast(code);
   });
 
   socket.on("player:ready", ({ roomCode, ready }) => {
@@ -789,21 +880,36 @@ socket.on("disconnect", () => {
     if (!p) return;
 
     p.ready = !!ready;
+
+    applyAutoMatchSettings(room);
     broadcast(code);
-    console.log('server broadcast room:update after ready', { roomCode: code, players: Array.from(room.players.values()).map(p => ({ id: p.id, name: p.name, team: p.team, slot: p.slot, ready: p.ready })) });
-  });
+console.log("server broadcast room:update after ready", {
+  roomCode: code,
+  diff: room.state.diff,
+  roundMs: room.state.roundMs,
+  totalRounds: room.state.totalRounds,
+  players: Array.from(room.players.values()).map((p) => ({
+    id: p.id,
+    name: p.name,
+    team: p.team,
+    slot: p.slot,
+    ready: p.ready,
+    rankPoints: p.rankPoints ?? 0,
+    rankLevel: p.rankLevel ?? "Novice",
+  })),
+});  });
 
-  socket.on("room:settings", ({ roomCode, diff, roundMs, totalRounds }) => {
-    const code = String(roomCode || "").trim().toUpperCase();
-    const room = rooms.get(code);
-    if (!room || room.hostId !== socket.id) return;
+  // socket.on("room:settings", ({ roomCode, diff, roundMs, totalRounds }) => {
+  //   const code = String(roomCode || "").trim().toUpperCase();
+  //   const room = rooms.get(code);
+  //   if (!room || room.hostId !== socket.id) return;
 
-    room.state.diff = diff ?? room.state.diff;
-    room.state.roundMs = roundMs ?? room.state.roundMs;
-    room.state.totalRounds = totalRounds ?? room.state.totalRounds;
+  //   room.state.diff = diff ?? room.state.diff;
+  //   room.state.roundMs = roundMs ?? room.state.roundMs;
+  //   room.state.totalRounds = totalRounds ?? room.state.totalRounds;
 
-    broadcast(code);
-  });
+  //   broadcast(code);
+  // });
 
   socket.on("game:start", ({ roomCode }) => {
     const code = String(roomCode || "").trim().toUpperCase();
@@ -828,6 +934,7 @@ socket.on("disconnect", () => {
       }
     }
 
+    applyAutoMatchSettings(room);
     room.state.round = 0;
     room.state.phase = "playing";
 
@@ -841,7 +948,8 @@ socket.on("disconnect", () => {
 
     // reset team scores (score is tracked per-team now)
     room.state.teamScores = { A: 0, B: 0 };
-    broadcast(code);
+      applyAutoMatchSettings(room);
+
     startRound(code);
   });
 
@@ -869,7 +977,9 @@ socket.on("disconnect", () => {
     }
   }
 
+  applyAutoMatchSettings(room);
   broadcast(code);
+
   console.log(`👋 Player left room ${code}`);
 });
 
@@ -939,7 +1049,29 @@ function forfeitGame(roomCode, leaverSocketId, reason = "disconnect") {
   });
 }
 
+function applyAutoMatchSettings(room) {
+  const playerList = Array.from(room.players.values());
+  const settings = getDefaultMatchSettings(playerList);
 
+    console.log("🎚️ AUTO MATCH SETTINGS", {
+    playerList: playerList.map((p) => ({
+      name: p.name,
+      rankPoints: p.rankPoints ?? 0,
+      rankLevel: p.rankLevel ?? "Novice",
+    })),
+    settings,
+  });
+
+  room.state = {
+    ...room.state,
+    diff: settings.diff,
+    roundMs: 11000,
+    totalRounds: 11,
+  };
+
+
+
+}
 
 //   socket.on("room:leave", ({ roomCode }) => {
 //   const code = String(roomCode || "").trim().toUpperCase();

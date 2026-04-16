@@ -1,0 +1,998 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { Card, Button } from "./components.jsx";
+import { userManager } from "../userManagerSupabase.js";
+import boyCharacter from "../public/Character/BoyCharacter.png";
+import girlCharacter from "../public/Character/GirlCharacter.png";
+import boyHair1 from "../public/Hair/Boy/BoyHair1.png";
+import boyHair2 from "../public/Hair/Boy/BoyHair2.png";
+import boyHair3 from "../public/Hair/Boy/BoyHair3.png";
+import boyHair4 from "../public/Hair/Boy/BoyHair4.png";
+import boyHair5 from "../public/Hair/Boy/BoyHair5.png";
+import boyHair6 from "../public/Hair/Boy/BoyHair6.png";
+import boyHair7 from "../public/Hair/Boy/BoyHair7.png";
+import girlHair1 from "../public/Hair/Girl/GirlHair1.png";
+import girlHair2 from "../public/Hair/Girl/GirlHair2.png";
+import girlHair3 from "../public/Hair/Girl/GirlHair3.png";
+import girlHair4 from "../public/Hair/Girl/GirlHair4.png";
+import girlHair5 from "../public/Hair/Girl/GirlHair5.png";
+import girlHair6 from "../public/Hair/Girl/GirlHair6.png";
+import girlHair7 from "../public/Hair/Girl/GirlHair7.png";
+import girlHair8 from "../public/Hair/Girl/GirlHair8.png";
+import girlHair9 from "../public/Hair/Girl/GirlHair9.png";
+import girlHair10 from "../public/Hair/Girl/GirlHair10.png";
+import girlHair11 from "../public/Hair/Girl/GirlHair11.png";
+import girlHair12 from "../public/Hair/Girl/GirlHair12.png";
+import girlHair13 from "../public/Hair/Girl/GirlHair13.png";
+import girlHair14 from "../public/Hair/Girl/GirlHair14.png";
+import girlHair15 from "../public/Hair/Girl/GirlHair15.png";
+import girlHair16 from "../public/Hair/Girl/GirlHair16.png";
+import girlHair17 from "../public/Hair/Girl/GirlHair17.png";
+import girlHair18 from "../public/Hair/Girl/GirlHair18.png";
+import girlHair19 from "../public/Hair/Girl/GirlHair19.png";
+import girlHair20 from "../public/Hair/Girl/girlHair20.png";
+import uniHat1 from "../public/Hair/Accessories/UniHat1.png";
+import uniFlower1 from "../public/Hair/Accessories/UniFlower1.png";
+import uniGlass1 from "../public/Hair/Accessories/UniGlass1.png";
+import uniCrab1 from "../public/Hair/Accessories/UniCrab1.png";
+import girlDress1 from "../public/Dress/GirlDress1.png";
+import girlDress2 from "../public/Dress/GirlDress2.png";
+import girlDress3 from "../public/Dress/GirlDress3.png";
+import girlDress4 from "../public/Dress/GirlDress4.png";
+import girlDress5 from "../public/Dress/GirlDress5.png";
+import GirlTop1 from "../public/Tops/Girl/GirlTop1.png";
+import GirlTop2 from "../public/Tops/Girl/GirlTop2.png";
+import UniTop1 from "../public/Tops/Uni/UniTop1.png";
+import GirlSkirt1 from "../public/Bottoms/Girl/GirlSkirt1.png";
+import GirlSkirt2 from "../public/Bottoms/Girl/GirlSkirt2.png";
+import UniShoes1 from "../public/Shoes/UniShoes1.png";
+import UniShoes2 from "../public/Shoes/UniShoes2.png";
+import UniShoes3 from "../public/Shoes/UniShoes3.png";
+import UniShorts1 from "../public/Bottoms/Uni/UniShorts1.png";
+import BoyTop1 from "../public/Tops/Boy/BoyTop1.png";
+import BoyOutfit1 from "../public/Outfits/Boy/BoyOutfit1.png";
+import BoyOutfit2 from "../public/Outfits/Boy/BoyOutfit2.png";
+import BoyOutfit3 from "../public/Outfits/Boy/BoyOutfit3.png";
+import GirlTop3 from "../public/Tops/Girl/Sprites/GirlTop3.png";
+import GirlTop4 from "../public/Tops/Girl/Sprites/GirlTop4.png";
+import GirlTop5 from "../public/Tops/Girl/Sprites/GirlTop5.png";
+import GirlTop6 from "../public/Tops/Girl/Sprites/GirlTop6.png";
+import GirlTop7 from "../public/Tops/Girl/Sprites/GirlTop7.png";
+import GirlTop8 from "../public/Tops/Girl/Sprites/GirlTop8.png";
+import GirlTop9 from "../public/Tops/Girl/GirlTop9.png";
+import GirlTop10 from "../public/Tops/Girl/GirlTop10.png";
+import BoyTop2 from "../public/Tops/Boy/Sprites/BoyTop2.png";
+import BoyTop3 from "../public/Tops/Boy/Sprites/BoyTop3.png";
+import BoyTop4 from "../public/Tops/Boy/Sprites/BoyTop4.png";
+import BoyTop5 from "../public/Tops/Boy/Sprites/BoyTop5.png";
+import UniHat2 from "../public/Hair/Accessories/UniHat2.png";
+import BoyTop6 from "../public/Tops/Boy/BoyTop6.png";
+import BoyTop7 from "../public/Tops/Boy/BoyTop7.png";
+import BoyTop8 from "../public/Tops/Boy/BoyTop8.png";
+import GirlOutfit1 from "../public/Outfits/Girl/GirlOutfit1.png";
+import UniEyepatch from "../public/Hair/Accessories/UniEyepatch.png";
+import UniEgg from "../public/Hair/Accessories/UniEgg.png";
+import UniToast from "../public/Hair/Accessories/UniToast.png";
+import BoyShorts1 from "../public/Bottoms/Boy/BoyShorts1.png";
+import BoyShorts2 from "../public/Bottoms/Boy/BoyShorts2.png";
+import BoyShorts3 from "../public/Bottoms/Boy/BoyShorts3.png";
+import UniTop2 from "../public/Tops/Uni/UniTop2.png";
+import GirlTop11 from "../public/Tops/Girl/GirlTop11.png";
+import UniTop3 from "../public/Tops/Uni/UniTop3.png";
+
+const STARTING_COINS = 2000;
+const LAST_GENDER_KEY = "store_last_gender";
+
+const GirlTop1Frames = [
+  GirlTop3,
+  GirlTop4,
+  GirlTop5,
+  GirlTop6,
+  GirlTop7,
+  GirlTop8,
+];
+
+const BoyTop1Frames = [
+  BoyTop2,
+  BoyTop3,
+  BoyTop4,
+  BoyTop5,
+];
+
+
+const storeItems = {
+  hair: [
+    { id: "BoyHair1", label: "Soft Brown Cut", asset: boyHair1, price: 20, rarity: "Common" },
+    { id: "BoyHair2", label: "Layered Sweep", asset: boyHair2, price: 35, rarity: "Common" },
+    { id: "BoyHair3", label: "Silver Breeze", asset: boyHair3, price: 550, rarity: "Rare" },
+    { id: "BoyHair4", label: "Moss cut", asset: boyHair4, price: 75, rarity: "Common" },
+    { id: "BoyHair5", label: "Stormy Waves", asset: boyHair5, price: 1200, rarity: "Epic" },
+    { id: "BoyHair6", label: "Aura Shag", asset: boyHair6, price: 1300, rarity: "Rare" },
+    { id: "BoyHair7", label: "Crimson Comet", asset: boyHair7, price: 650, rarity: "Uncommon" },
+    { id: "GirlHair2", label: "Northwind Hair", asset: girlHair2, price: 20, rarity: "Common" },
+    { id: "GirlHair1", label: "Maple Buns", asset: girlHair1, price: 1100, rarity: "Uncommon" },
+    { id: "GirlHair3", label: "Violet Breeze", asset: girlHair3, price: 100, rarity: "Common" },
+    { id: "GirlHair4", label: "Blue Mist", asset: girlHair4, price: 150, rarity: "Common" },
+    { id: "GirlHair5", label: "Frosty Flair", asset: girlHair5, price: 1600, rarity: "Rare" },
+    { id: "GirlHair6", label: "Tidal Whisper", asset: girlHair6, price: 2000, rarity: "Rare" },
+    { id: "GirlHair7", label: "Sunset Halo", asset: girlHair7, price: 900, rarity: "Common" },
+    { id: "GirlHair8", label: "Cinnamon Bun", asset: girlHair8, price: 450, rarity: "Common" },
+    { id: "GirlHair9", label: "Moonflower", asset: girlHair9, price: 3750, rarity: "Epic" },
+    { id: "GirlHair10", label: "Jewelry Twist", asset: girlHair10, price: 1200, rarity: "Rare" },
+    { id: "GirlHair11", label: "Whisper Ribbon", asset: girlHair11, price: 4200, rarity: "Epic" },
+    { id: "GirlHair12", label: "Flora Tresses", asset: girlHair12, price: 2100, rarity: "Epic" },
+    { id: "GirlHair13", label: "Golden Stardust", asset: girlHair13, price: 1300, rarity: "Uncommon" },
+    { id: "GirlHair14", label: "Hairbow Twintails", asset: girlHair14, price: 2500, rarity: "Epic" },
+    { id: "GirlHair15", label: "Bow Braids", asset: girlHair15, price: 2500, rarity: "Rare" },
+    { id: "GirlHair16", label: "Strawberry Waves", asset: girlHair16, price: 800, rarity: "Uncommon" },
+    { id: "GirlHair17", label: "Shadow Cut", asset: girlHair17, price: 600, rarity: "Common" },
+    { id: "GirlHair18", label: "Cherry Puff Bangs ", asset: girlHair18, price: 450, rarity: "Common" },
+    { id: "GirlHair19", label: "Moonlit Aqua Hair", asset: girlHair19, price: 3000, rarity: "Epic" },
+    { id: "GirlHair20", label: "Crimson Puff Hair", asset: girlHair20, price: 2300, rarity: "Rare" },
+  ],
+  tops: [
+    { id: "GirlTop1", label: "Sky Puff Top", asset: GirlTop1, price: 150, rarity: "Uncommon" },
+    { id: "GirlTop2", label: "Brown Blouse", asset: GirlTop2, price: 120, rarity: "Common" },
+    { id: "UniTop1", label: "Pink Bunny Tee", asset: UniTop1, price: 120, rarity: "Common" }, 
+    { id: "BoyTop1", label: "Tuxedo Shirt", asset: BoyTop1, price: 1800, rarity: "Rare" },
+    { id: "GirlTop1Animated", label: "Flower Bloom Top", asset: GirlTop1Frames[0], price: 1400, rarity: "Epic" },  
+    { id: "BoyTop1Animated", label: "Blueberry Glow Shirt", asset: BoyTop1Frames[0], price: 1400, rarity: "Epic" },
+    { id: "GirlTop9", label: "Sunshine Reef Top", asset: GirlTop9, price: 300, rarity: "Uncommon" },
+    { id: "BoyTop7", label: "Cozy Navy Shirt", asset: BoyTop7, price: 1800, rarity: "Rare" },
+    { id: "BoyTop8", label: "Woodland Jacket", asset: BoyTop8, price: 600, rarity: "Uncommon" },
+    { id: "GirlTop10", label: "Strawberry Dot", asset: GirlTop10, price: 1400, rarity: "Epic" },
+    { id: "UniTop2", label: "Mint Cozy", asset: UniTop2, price: 400, rarity: "Uncommon" },
+    { id: "GirlTop11", label: "Lime Sorbet Top", asset: GirlTop11, price: 1200, rarity: "Uncommon" },
+    { id: "UniTop3", label: "Velvet Blush Top", asset: UniTop3, price: 800, rarity: "Common" },
+  ],
+  bottoms: [
+    { id: "GirlSkirt1", label: "White Skirt", asset: GirlSkirt1, price: 180, rarity: "Common" },
+    { id: "GirlSkirt2", label: "Aloha Petal Skirt", asset: GirlSkirt2, price: 75, rarity: "Common" },
+    { id: "UniShorts1", label: "Blue Shorts", asset: UniShorts1, price: 60, rarity: "Common" },
+    { id: "BoyShorts1", label: "Grey Sweats", asset: BoyShorts1, price: 50, rarity: "Common" },
+    { id: "BoyShorts2", label: "Brown Cozy Pants", asset: BoyShorts2, price: 350, rarity: "Uncommon" },
+    { id: "BoyShorts3", label: "Khaki Pants", asset: BoyShorts3, price: 400, rarity: "Uncommon" },
+  ],
+  outfits: [
+    { id: "girlDress1", label: "Inferno Sprite Hood", asset: girlDress1, price: 250, rarity: "Uncommon" },
+    { id: "girlDress2", label: "Berry Glow Dress", asset: girlDress2, price: 150, rarity: "Common" },
+    { id: "girlDress3", label: "Sky Cloud Dress", asset: girlDress3, price: 180, rarity: "Common" },
+    { id: "girlDress4", label: "Fairy Tale Dress", asset: girlDress4, price: 1400, rarity: "Rare" },
+    { id: "girlDress5", label: "Watermelon Apron", asset: girlDress5, price: 650, rarity: "Uncommon" },
+    { id: "BoyOutfit1", label: "Aloha Explorer", asset: BoyOutfit1, price: 1000, rarity: "Epic" },
+    { id: "BoyOutfit2", label: "Little Island", asset: BoyOutfit2, price: 200, rarity: "Common" },
+    { id: "BoyOutfit3", label: "Lifeguard", asset: BoyOutfit3, price: 800, rarity: "Uncommon" },
+    { id: "GirlOutfit1", label: "Coral Reef", asset: GirlOutfit1, price: 300, rarity: "Uncommon" },
+  ],
+  shoes: [
+    {id: "UniShoes1", label: "Dark Wing", asset: UniShoes1, price: 70, rarity: "Common"},
+    {id: "UniShoes2", label: "Ducky", asset: UniShoes2, price: 190, rarity: "Uncommon"},
+    {id: "UniShoes3", label: "Gecko Slides", asset: UniShoes3, price: 450, rarity: "Rare"},
+
+  ],
+  accessories: [
+    { id: "UniHat1", label: "Mushroom Hat", asset: uniHat1, price: 1150, rarity: "Rare", gender: "all" },
+    { id: "UniFlower1", label: "Flower", asset: uniFlower1, price: 95, rarity: "Common", gender: "all" },
+    { id: "UniGlass1", label: "Glasses", asset: uniGlass1, price: 120, rarity: "Uncommon", gender: "all" },
+    { id: "UniCrab1", label: "Crab Headband", asset: uniCrab1, price: 250, rarity: "Rare", gender: "all" },
+    { id: "UniHat2", label: "Frog Hat", asset: UniHat2, price: 1300, rarity: "Epic", gender: "all" },
+    { id: "UniEyepatch", label: "Eyepatch", asset: UniEyepatch, price: 500, rarity: "Uncommon", gender: "all" },
+    { id: "UniEgg", label: "Egg", asset: UniEgg, price: 1400, rarity: "Epic", gender: "all" },
+    { id: "UniToast", label: "Toast", asset: UniToast, price: 200, rarity: "Common", gender: "all" },
+  ],
+};
+
+const categoryMeta = {
+  hair: { label: "Hair", emoji: "✂️" },
+  tops: { label: "Tops", emoji: "👕" },
+  bottoms: { label: "Bottoms", emoji: "👖" },
+  outfits: { label: "Outfits", emoji: "👗" },
+  shoes: { label: "Shoes", emoji: "👟" },
+  accessories: { label: "Accessories", emoji: "✨" },
+};
+
+const rarityClass = {
+  Common: "rarityCommon",
+  Uncommon: "rarityUncommon",
+  Rare: "rarityRare",
+  Epic: "rarityEpic",
+};
+
+const inferGenderFromItem = (item) => {
+  const raw = `${item.id} ${item.label} ${item.asset || ""}`.toLowerCase();
+  if (raw.includes("boy") || raw.includes("male")) return "male";
+  if (raw.includes("girl") || raw.includes("female")) return "female";
+  return "all";
+};
+
+const normalizedStoreItems = Object.fromEntries(
+  Object.entries(storeItems).map(([category, items]) => [
+    category,
+    items.map((item) => ({ ...item, gender: inferGenderFromItem(item) })),
+  ])
+);
+
+const getHairAsset = (name) => {
+  if (name === "BoyHair2") return boyHair2;
+  if (name === "BoyHair3") return boyHair3;
+  if (name === "BoyHair4") return boyHair4;
+  if (name === "BoyHair5") return boyHair5;
+  if (name === "BoyHair1") return boyHair1;
+  if (name === "GirlHair1") return girlHair1;
+  if (name === "GirlHair2") return girlHair2;
+  if (name === "GirlHair3") return girlHair3;
+  if (name === "GirlHair4") return girlHair4;
+  if (name === "GirlHair5") return girlHair5;
+  if (name === "GirlHair6") return girlHair6;
+  if (name === "GirlHair7") return girlHair7;
+  if (name === "GirlHair8") return girlHair8;
+  if (name === "GirlHair9") return girlHair9;
+  if (name === "GirlHair10") return girlHair10;
+  if (name === "GirlHair11") return girlHair11;
+  if (name === "BoyHair6") return boyHair6;
+  if (name === "BoyHair7") return boyHair7;
+  if (name === "GirlHair12") return girlHair12;
+  if (name === "GirlHair13") return girlHair13;
+  if (name === "GirlHair14") return girlHair14;
+  if (name === "GirlHair15") return girlHair15;
+  if (name === "GirlHair16") return girlHair16;
+  if (name === "GirlHair17") return girlHair17;
+  if (name === "GirlHair18") return girlHair18;
+  if (name === "GirlHair19") return girlHair19;
+  if (name === "GirlHair20") return girlHair20;
+  return boyHair1;
+};
+
+const getBaseCharacterAsset = (gender) => {
+  if (gender === "female") return girlCharacter;
+  return boyCharacter;
+};
+
+const getAccessoryAsset = (name) => {
+  if (name === "UniHat1") return uniHat1;
+  if (name === "UniFlower1") return uniFlower1;
+  if (name === "UniGlass1") return uniGlass1;
+  if (name === "UniCrab1") return uniCrab1;
+  if (name === "UniHat2") return UniHat2;
+  if (name === "UniEyepatch") return UniEyepatch;
+  if (name === "UniEgg") return UniEgg;
+  if (name === "UniToast") return UniToast;
+  return null;
+};
+
+const getSelectedHairAsset = (gender, hairSelection) => {
+  return getHairAsset(hairSelection);
+};
+
+const getOutfitAsset = (name) => {
+  if (name === "girlDress1") return girlDress1;
+  if (name === "girlDress2") return girlDress2;
+  if (name === "girlDress3") return girlDress3;
+  if (name === "girlDress4") return girlDress4;
+  if (name === "BoyOutfit1") return BoyOutfit1;
+  if (name === "BoyOutfit2") return BoyOutfit2;
+  if (name === "BoyOutfit3") return BoyOutfit3;
+  if (name === "GirlOutfit1") return GirlOutfit1;
+  if (name === "girlDress5") return girlDress5;
+  return null;
+};
+
+const getTopAsset = (name, frame = 0) => {
+    if (name === "GirlTop1Animated") {
+    return GirlTop1Frames[frame % GirlTop1Frames.length];
+  }
+
+  if (name === "BoyTop1Animated") {
+    return BoyTop1Frames[frame % BoyTop1Frames.length];
+  }
+  if (name === "GirlTop1") return GirlTop1;
+  if (name === "GirlTop2") return GirlTop2;
+  if (name === "UniTop1") return UniTop1;
+  if (name === "BoyTop1") return BoyTop1;
+  if (name === "GirlTop9") return GirlTop9;
+  if (name === "BoyTop6") return BoyTop6;
+  if (name === "GirlTop10") return GirlTop10;
+  if (name === "BoyTop7") return BoyTop7;
+  if (name === "BoyTop8") return BoyTop8;
+  if (name === "UniTop2") return UniTop2;
+  if (name === "GirlTop11") return GirlTop11;
+  if (name === "UniTop3") return UniTop3;
+  return null;
+};
+
+const getBottomAsset = (name) => {
+  if (name === "GirlSkirt1") return GirlSkirt1;
+  if (name === "GirlSkirt2") return GirlSkirt2;
+  if (name === "UniShorts1") return UniShorts1;
+  if (name === "BoyShorts1") return BoyShorts1;
+  if (name === "BoyShorts2") return BoyShorts2;
+  if (name === "BoyShorts3") return BoyShorts3;
+  return null;
+};
+
+const getShoeAsset = (name) => {
+  if (name === "UniShoes1") return UniShoes1;
+  if (name === "UniShoes2") return UniShoes2;
+  if (name === "UniShoes3") return UniShoes3;
+  return null;
+};
+
+
+const composeCharacterAvatar = async (gender, hairSelection, accessorySelection) => {
+  const baseImg = new Image();
+  const hairImg = new Image();
+  const accessoryAsset = getAccessoryAsset(accessorySelection);
+  const accessoryImg = accessoryAsset ? new Image() : null;
+  baseImg.crossOrigin = "anonymous";
+  hairImg.crossOrigin = "anonymous";
+  if (accessoryImg) accessoryImg.crossOrigin = "anonymous";
+
+  const loadImage = (img, src) =>
+    new Promise((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = reject;
+      img.src = src;
+    });
+
+  const loads = [
+    loadImage(baseImg, getBaseCharacterAsset(gender)),
+    loadImage(hairImg, getSelectedHairAsset(gender, hairSelection)),
+  ];
+
+  if (accessoryImg && accessoryAsset) {
+    loads.push(loadImage(accessoryImg, accessoryAsset));
+  }
+
+  await Promise.all(loads);
+
+  const canvas = document.createElement("canvas");
+canvas.width = baseImg.naturalWidth || 300;
+canvas.height = baseImg.naturalHeight || 300;
+
+const ctx = canvas.getContext("2d");
+ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+ctx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
+ctx.drawImage(hairImg, 0, 0, canvas.width, canvas.height);
+
+if (accessoryImg) {
+  ctx.drawImage(accessoryImg, 0, 0, canvas.width, canvas.height);
+}
+
+return canvas.toDataURL("image/png");
+};
+
+export default function Store({ currentUser, onLoginSuccess, onClose }) {
+
+  const [animationFrame, setAnimationFrame] = useState(0);
+
+useEffect(() => {
+  const maxFrames = Math.max(
+    GirlTop1Frames.length,
+    BoyTop1Frames.length
+  );
+
+  const timer = setInterval(() => {
+    setAnimationFrame((prev) => (prev + 1) % maxFrames);
+  }, 150);
+
+  return () => clearInterval(timer);
+}, []);
+
+  const [activeGender, setActiveGender] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(LAST_GENDER_KEY) || "male";
+    }
+    return "male";
+  });
+  const [activeCategory, setActiveCategory] = useState("hair");
+  const [selectedItems, setSelectedItems] = useState(() => {
+    const initialGender = typeof window !== "undefined"
+      ? localStorage.getItem(LAST_GENDER_KEY) || "male"
+      : "male";
+
+    return {
+      hair: initialGender === "female" ? "GirlHair2" : "BoyHair1",
+      tops: "Top1",
+      bottoms: "Bottom1",
+      outfits: "Outfit1",
+      shoes: "Shoes1",
+      accessories: "Hat1",
+    };
+  });
+
+  const hasSelectedOutfit = !!getOutfitAsset(selectedItems.outfits);
+  const shouldShowBottoms = !hasSelectedOutfit;
+  const [ownedItems, setOwnedItems] = useState(new Set(["BoyHair1", "GirlHair2", "Top1", "Bottom1", "Shoes1", "Hat1"]));
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(LAST_GENDER_KEY, activeGender);
+    }
+  }, [activeGender]);
+  const [coins, setCoins] = useState(currentUser?.coins ?? 2000);
+  const [search, setSearch] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+useEffect(() => {
+  setCoins(currentUser?.coins ?? STARTING_COINS);
+}, [currentUser?.coins]);
+
+  const categoryItems = useMemo(() => {
+    return normalizedStoreItems[activeCategory].filter((item) => {
+      const matchesGender = item.gender === "all" || item.gender === activeGender;
+      const matchesSearch = item.label.toLowerCase().includes(search.toLowerCase());
+      return matchesGender && matchesSearch;
+    });
+  }, [activeCategory, activeGender, search]);
+
+  // const equippedCount = Object.values(selectedItems).filter(Boolean).length;
+  const ownedCount = Array.from(ownedItems).length;
+
+  const unequippableCategories = new Set([
+  "hair",
+  "tops",
+  "bottoms",
+  "outfits",
+  "shoes",
+  "accessories",
+]);
+
+const countEquippedWearables = (items) => {
+  return ["hair","tops","bottoms","outfits","shoes","accessories"]
+    .filter((cat) => !!items[cat])
+    .length;
+};
+
+const handleUnequip = (category) => {
+  const equippedCount = countEquippedWearables(selectedItems);
+
+  if (equippedCount <= 1) {
+    setError("You must keep at least one item equipped.");
+    return;
+  }
+
+  setSelectedItems((prev) => ({
+    ...prev,
+    [category]: ""
+  }));
+};
+
+  const handleTryOn = (category, itemId) => {
+    setSelectedItems((prev) => {
+      const next = { ...prev, [category]: itemId };
+
+      // If player picks a dress, remove bottoms
+      if (category === "outfits" && getOutfitAsset(itemId)) {
+        next.bottoms = "";
+      }
+
+      // If player picks bottoms, remove dress
+      if (category === "bottoms" && getBottomAsset(itemId)) {
+        next.outfits = "";
+      }
+
+      return next;
+    });
+
+    setMessage("");
+    setError("");
+  };
+
+  const handleBuyItem = async (item) => {
+  setMessage("");
+  setError("");
+
+  if (ownedItems.has(item.id)) {
+    setMessage(`${item.label} is already owned.`);
+    return;
+  }
+
+  if (coins < item.price) {
+    setError(`Not enough coins to buy ${item.label}.`);
+    return;
+  }
+
+  const newCoinTotal = coins - item.price;
+  setCoins(newCoinTotal);
+  setOwnedItems((prev) => new Set([...prev, item.id]));
+  setMessage(`${item.label} purchased successfully.`);
+
+  try {
+    const updatedUser = {
+      ...currentUser,
+      coins: newCoinTotal,
+    };
+
+    await userManager.saveUser(updatedUser);
+
+    const freshUser = await userManager.getCurrentUser();
+    if (freshUser && onLoginSuccess) onLoginSuccess(freshUser);
+  } catch (err) {
+    console.error("Failed to save updated coins:", err);
+  }
+};
+
+  const getOwnedSelection = () => {
+  const defaultOwnedHair = activeGender === "female" ? "GirlHair2" : "BoyHair1";
+
+  return {
+    hair: ownedItems.has(selectedItems.hair) ? selectedItems.hair : defaultOwnedHair,
+    tops: ownedItems.has(selectedItems.tops) ? selectedItems.tops : "Top1",
+    bottoms: ownedItems.has(selectedItems.bottoms) ? selectedItems.bottoms : "Bottom1",
+    outfits: ownedItems.has(selectedItems.outfits) ? selectedItems.outfits : "Outfit1",
+    shoes: ownedItems.has(selectedItems.shoes) ? selectedItems.shoes : "Shoes1",
+    accessories: ownedItems.has(selectedItems.accessories) ? selectedItems.accessories : "Hat1",
+  };
+};
+
+  const handleSave = async () => {
+  if (!currentUser) return;
+  setMessage("");
+  setError("");
+  setIsSaving(true);
+
+  const ownedSelection = getOwnedSelection();
+
+  const triedUnownedItem =
+    ownedSelection.hair !== selectedItems.hair ||
+    ownedSelection.tops !== selectedItems.tops ||
+    ownedSelection.bottoms !== selectedItems.bottoms ||
+    ownedSelection.shoes !== selectedItems.shoes ||
+    ownedSelection.accessories !== selectedItems.accessories ||
+    ownedSelection.outfits !== selectedItems.outfits;
+
+  try {
+    const avatarDataUrl = await composeCharacterAvatar(
+      activeGender,
+      ownedSelection.hair,
+      ownedSelection.accessories,
+      ownedSelection.outfits
+    );
+
+    const updated = await userManager.updateAvatar(
+      currentUser.username,
+      avatarDataUrl
+    );
+
+    if (!updated) throw new Error("Failed to save avatar.");
+
+    const freshUser = await userManager.getCurrentUser();
+    if (freshUser && onLoginSuccess) onLoginSuccess(freshUser);
+
+    setSelectedItems((prev) => ({
+      ...prev,
+      ...ownedSelection,
+    }));
+
+    setMessage(
+      triedUnownedItem
+        ? "Only owned items were saved."
+        : "Character saved successfully. Your avatar is now updated."
+    );
+  } catch (err) {
+    console.error("Store save error:", err);
+    setError("Could not save character. Try again.");
+  } finally {
+    setIsSaving(false);
+  }
+};
+
+const handleResetOutfit = () => {
+  setSelectedItems({
+    hair: activeGender === "female" ? "GirlHair2" : "BoyHair1",
+    tops: "Top1",
+    bottoms: "Bottom1",
+    outfits: "Outfit1",
+    shoes: "Shoes1",
+    accessories: "Hat1",
+  });
+
+  setMessage("");
+  setError("");
+};
+
+
+return (
+  <div className="storeOverlay">
+    <div className="storeShell">
+      <div className="storeTopbar">
+        <div>
+          <h1 className="storeHeading">Shop</h1>
+        </div>
+        <div className="topbarActions">
+          <div className="currencyPill">🪙 {coins.toLocaleString()} Coins</div>
+          <Button variant="secondary" onClick={onClose}>Back</Button>
+        </div>
+      </div>
+
+      <div className="genderTabs">
+        <button
+          className={`genderTab ${activeGender === "male" ? "active" : ""}`}
+          onClick={() => handleGenderChange("male")}
+          type="button"
+        >
+          Male
+        </button>
+        <button
+          className={`genderTab ${activeGender === "female" ? "active" : ""}`}
+          onClick={() => handleGenderChange("female")}
+          type="button"
+        >
+          Female
+        </button>
+      </div>
+
+      <div className="storeLayout">
+        <aside className="sidebarPanel">
+          <div className="playerMiniCard">
+            <div className="playerMiniAvatar">
+              {currentUser?.avatarData ? (
+                <img src={currentUser.avatarData} alt="Current avatar" />
+              ) : (
+                <div className="avatarFallback">?</div>
+              )}
+            </div>
+            <div>
+              <div className="miniLabel">PLAYER</div>
+              <div className="miniName">{currentUser?.username || "Guest"}</div>
+              <div className="miniMuted">Level 2 Stylist</div>
+            </div>
+          </div>
+
+          <div className="sidebarSectionTitle">Categories</div>
+          <div className="categoryList">
+            {Object.keys(normalizedStoreItems).map((category) => {
+              const isActive = activeCategory === category;
+              const meta = categoryMeta[category];
+              const availableCount = normalizedStoreItems[category].filter(
+                (item) => item.gender === "all" || item.gender === activeGender
+              ).length;
+
+              return (
+                <button
+                  key={category}
+                  className={`categoryButton ${isActive ? "active" : ""}`}
+                  onClick={() => {
+                    setActiveCategory(category);
+                    setSearch("");
+                  }}
+                >
+                  <span className="categoryEmoji">{meta.emoji}</span>
+                  <span className="categoryCopy">
+                    <span className="categoryTitle">{meta.label}</span>
+                    <span className="categoryCount">{availableCount} items</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="sidebarSummary">
+            <div className="summaryCard">
+              <span className="summaryLabel">Owned</span>
+              <strong>{ownedCount} items</strong>
+            </div>
+          </div>
+        </aside>
+
+        <main className="catalogPanel">
+          <div className="catalogHeader">
+            <div>
+              <div className="miniLabel">BROWSE</div>
+              <h2>{categoryMeta[activeCategory].label}</h2>
+            </div>
+            <div className="catalogTools">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="searchInput"
+                placeholder={`Search ${categoryMeta[activeCategory].label.toLowerCase()}...`}
+              />
+            </div>
+          </div>
+
+          <div className="catalogScroll">
+            <div className="catalogGrid">
+              {categoryItems.map((item) => {
+                const isSelected = selectedItems[activeCategory] === item.id;
+                const isOwned = ownedItems.has(item.id);
+
+                return (
+                  <div key={item.id} className={`itemCard ${isSelected ? "selected" : ""}`}>
+                    <div className="itemThumb">
+                      {item.asset ? (
+                        <img src={item.asset} alt={item.label} />
+                      ) : (
+                        <span>{categoryMeta[activeCategory].emoji}</span>
+                      )}
+                    </div>
+
+                    <div className="itemInfo">
+                      <div className="itemTopRow">
+                        <h3>{item.label}</h3>
+                        <span className={`rarityBadge ${rarityClass[item.rarity]}`}>
+                          {item.rarity}
+                        </span>
+                      </div>
+
+                      <div className="itemMetaLine">
+                        <span className="genderBadge">
+                          {item.gender === "all" ? "Unisex" : item.gender}
+                        </span>
+                        <span className="priceTag">🪙 {item.price}</span>
+                      </div>
+
+                      <div className="itemBottomRow">
+                        <span className={`ownershipBadge ${isOwned ? "owned" : "locked"}`}>
+                          {isOwned ? "Owned" : "Not owned"}
+                        </span>
+
+                        <div className="actionGroup">
+                          <button
+                            type="button"
+                            className="actionButton try"
+                            onClick={() =>
+                              isSelected
+                                ? handleUnequip(activeCategory)
+                                : handleTryOn(activeCategory, item.id)
+                            }
+                          >
+                            {isSelected ? "Unequip" : "Equip"}
+                          </button>
+
+                          {!isOwned && (
+                            <button
+                              type="button"
+                              className="actionButton buy"
+                              onClick={() => handleBuyItem(item)}
+                            >
+                              Buy {item.price}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {categoryItems.length === 0 && (
+                <div className="emptyState">
+                  No {activeGender} items found in this category yet.
+                </div>
+              )}
+            </div>
+          </div>
+        </main>
+
+        <aside className="previewPanel">
+          <Card title="Preview">
+            <div className="previewStage">
+              <img
+                src={getBaseCharacterAsset(activeGender)}
+                alt="Base character"
+                className="previewLayer"
+              />
+
+              {shouldShowBottoms && getBottomAsset(selectedItems.bottoms) && (
+                <img
+                  src={getBottomAsset(selectedItems.bottoms)}
+                  alt="Selected bottom"
+                  className="previewLayer"
+                />
+              )}
+
+              {getTopAsset(selectedItems.tops, animationFrame) && (
+                <img
+                  src={getTopAsset(selectedItems.tops, animationFrame)}
+                  alt="Selected top"
+                  className="previewLayer"
+                />
+              )}
+
+              {getOutfitAsset(selectedItems.outfits) && (
+                <img
+                  src={getOutfitAsset(selectedItems.outfits)}
+                  alt="Selected outfit"
+                  className="previewLayer"
+                />
+              )}
+
+              {getShoeAsset(selectedItems.shoes) && (
+                <img
+                  src={getShoeAsset(selectedItems.shoes)}
+                  alt="Selected shoe"
+                  className="previewLayer"
+                />
+              )}
+
+              <img
+                src={getSelectedHairAsset(activeGender, selectedItems.hair)}
+                alt="Selected hair"
+                className="previewLayer"
+              />
+
+              {getAccessoryAsset(selectedItems.accessories) && (
+                <img
+                  src={getAccessoryAsset(selectedItems.accessories)}
+                  alt="Selected accessory"
+                  className="previewLayer"
+                />
+              )}
+            </div>
+
+            <div className="previewActions">
+              <Button onClick={handleResetOutfit}>Reset Outfit</Button>
+              <Button
+                className="saveCharacterButton"
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                {isSaving ? "Saving..." : "Save Character"}
+              </Button>
+            </div>
+
+            {message && <div className="statusMessage success">{message}</div>}
+            {error && <div className="statusMessage error">{error}</div>}
+          </Card>
+        </aside>
+      </div>
+    </div>
+
+
+      <style>{`
+        :root{
+          --base: rgba(240, 231, 207, 0.94);
+          --cream:#f5eed7;
+          --cream-2:#f9f2d9;
+          --cream-3:#f0e3c1;
+          --tan:#dcc4a2;
+          --tan-2:#c8ad86;
+          --brown:#8d6b4f;
+          --brown-dark:#5b3f2a;
+          --brown-soft:#b19179;
+          --brown-light:#d8c1aa;
+          --gold:#cfa25f;
+          --gold-2:#d9b16a;
+          --gold-3:#e5c584;
+          --ink:#4c3826;
+          --muted:#8f7b63;
+          --card-border:#bea87f;
+          --success-bg: rgba(145, 115, 70, 0.12);
+          --success-border: rgba(145, 115, 70, 0.35);
+          --error-bg: rgba(168, 88, 72, 0.12);
+          --error-border: rgba(168, 88, 72, 0.3);
+          --glow-gold: 0 0 40px rgba(205, 162, 90, 0.14);
+          --glow-brown: 0 0 24px rgba(139, 107, 74, 0.18);
+          --olive: #8d6f4d;
+          --olive-soft: rgba(141, 111, 77, 0.16);
+        }
+
+      
+
+        .miniLabel, .sidebarSectionTitle, .summaryLabel { text-transform: uppercase; letter-spacing: 0.18em; font-size: 11px; color: var(--muted); }
+        .storeHeading { margin: 6px 0 8px; font-size: clamp(32px, 4vw, 48px); line-height: 1; font-weight: 900; color: var(--ink); }
+        .topbarActions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .currencyPill, .genderTab { padding: 12px 16px; border-radius: 999px; border: 1px solid rgba(107, 79, 52, 0.12); background: var(--brown); box-shadow: 0 10px 18px rgba(102, 69, 42, 0.18); font-weight: 700; color: #f9f1dd; }
+        .genderTab { cursor: pointer; transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease; }
+        .genderTab.active { background: var(--brown-soft); box-shadow: 0 10px 18px rgba(102, 69, 42, 0.18); }
+        .categoryCopy { display: flex; flex-direction: column; gap: 3px; }
+        .summaryCard { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 18px; background: rgba(255, 253, 244, 0.75); border: 1px solid rgba(93, 88, 63, 0.08); color: var(--ink); }
+        .catalogHeader { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+        .catalogHeader h2 { margin: 6px 0 0; font-size: 28px; color: var(--ink); }
+        .catalogTools { min-width: min(100%, 260px); }
+        .searchInput { width: 100%; padding: 12px 14px; border-radius: 16px; border: 1px solid rgba(93, 88, 63, 0.12); background: #fffdf5; color: var(--ink); outline: none; }
+        .searchInput::placeholder { color: var(--muted); }
+        .catalogGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 10px;}
+        .itemCard { display: grid; grid-template-columns: 84px 1fr; gap: 14px; align-items: center; min-height: 132px; padding: 14px; border-radius: 22px; border: 1px solid rgba(93, 88, 63, 0.08); background: linear-gradient(180deg, var(--cream-2), var(--base)); color: var(--ink); transition: 0.18s ease; position: relative; }
+        .itemCard::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; box-shadow: var(--glow-gold); transition: opacity 0.18s ease; }
+        .itemCard:hover, .itemCard.selected { border-color: rgba(107, 79, 52, 0.45); box-shadow: 0 12px 22px rgba(107, 79, 52, 0.16); transform: translateY(-1px); }
+        .itemCard:hover::after, .itemCard.selected::after { opacity: 1; }
+        .itemThumb { width: 84px; height: 84px; border-radius: 18px; background: radial-gradient(circle at top, var(--brown-soft), var(--brown-dark)); border: 1px solid rgba(107, 79, 52, 0.08); display: grid; place-items: center; overflow: hidden; }
+        .itemThumb img { width: 70px; height: 70px; object-fit: contain; image-rendering: pixelated; }
+        .itemInfo { display: flex; flex-direction: column; gap: 10px; }
+        .itemTopRow, .itemBottomRow, .itemMetaLine { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .itemTopRow h3 { margin: 0; font-size: 16px; color: var(--ink); }
+        .rarityBadge, .priceTag, .ownershipBadge, .genderBadge, .actionButton { padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; border: none; }
+        .rarityCommon { background: rgba(141, 111, 77, 0.12); color: var(--brown-dark); }
+        .rarityUncommon { background: rgba(182, 153, 110, 0.24); color: #7e5d3e; }
+        .rarityRare { background: rgba(206, 153, 89, 0.18); color: #7a532f; }
+        .rarityEpic { background: rgba(172, 111, 58, 0.25); color: #6b4327; }
+        .priceTag { background: rgba(194, 146, 71, 0.18); color: #7f5a29; }
+        .genderBadge { background: rgba(141, 111, 77, 0.1); color: var(--brown-dark); text-transform: capitalize; }
+        .ownershipBadge.owned { background: rgba(167, 214, 169, 0.42); color: #5f7b51; }
+        .ownershipBadge.locked { background: rgba(202, 166, 58, 0.16); color: #9a7a24; }
+        .actionGroup { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+        .actionButton { cursor: pointer; color: white; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+        .actionButton:hover { transform: translateY(-1px); }
+        .actionButton.try { background: linear-gradient(180deg, rgba(167, 120, 78, 0.95), rgba(133, 86, 52, 0.95)); box-shadow: 0 8px 14px rgba(119, 76, 43, 0.2); }
+        .actionButton.buy { background: linear-gradient(180deg, var(--gold-2), var(--gold)); box-shadow: 0 8px 14px rgba(186, 137, 56, 0.22); }
+        .actionButton.equip { background: linear-gradient(180deg, rgba(161, 118, 82, 0.95), rgba(137, 91, 61, 0.95)); box-shadow: 0 8px 14px rgba(120, 76, 46, 0.18); }
+        .emptyState { grid-column: 1 / -1; min-height: 200px; display: grid; place-items: center; border-radius: 22px; border: 1px dashed rgba(93, 88, 63, 0.16); color: var(--muted); background: rgba(255, 253, 244, 0.55); }
+.previewPanel {
+  padding: 12px;
+  color: var(--ink);
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.previewPanel .card {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.previewPanel .cardBody {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.previewStage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 280px;
+  margin: 0 auto 12px;
+  border-radius: 22px;
+  background: radial-gradient(circle at center, #fff6d8, #d9c79a);
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4);
+}
+.previewLayer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center 58%;
+  image-rendering: pixelated;
+  background: transparent;
+  transform: scale(1.06);
+  transform-origin: center;
+}
+
+.previewActions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.saveCharacterButton,
+.previewActions button,
+.previewActions .button,
+.previewActions [class*="button"] {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 14px;
+  border: none;
+  font-weight: 700;
+  font-size: 14px;
+  margin-top: 0;
+  background: linear-gradient(180deg, #e6c96a, #caa63a) !important;
+  color: #4a3b2a !important;
+  box-shadow: 0 6px 14px rgba(202,166,58,0.35);
+  cursor: pointer;
+}
+              // .equippedList { display: grid; gap: 10px; }
+        .card { background: linear-gradient(180deg, #fbf7e7, #e7d7b5); border: 2px solid #c7a87a; border-radius: 18px; box-shadow: 0 10px 24px rgba(95,70,48,0.18); padding: 16px; }
+        // .equippedRow { display: flex; justify-content: space-between; gap: 14px; padding: 12px 14px; border-radius: 16px; background: rgba(255, 253, 244, 0.8); border: 1px solid rgba(93, 88, 63, 0.08); font-size: 13px; color: var(--ink); }
+        // .equippedRow span { color: var(--muted); }
+        .statusMessage { margin-top: 12px; padding: 12px 14px; border-radius: 14px; font-size: 13px; }
+        .statusMessage.success { background: var(--success-bg); border: 1px solid var(--success-border); color: #5e7a58; }
+        .statusMessage.error { background: var(--error-bg); border: 1px solid var(--error-border); color: #b06c6c; }
+      `}</style>
+    </div>
+  );
+}
