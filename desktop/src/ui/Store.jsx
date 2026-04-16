@@ -593,7 +593,22 @@ const handleResetOutfit = () => {
   setError("");
 };
 
+const handleGenderChange = (gender) => {
+  setActiveGender(gender);
+  setActiveCategory("hair");
+  setSearch("");
+  setError("");
+  setMessage("");
 
+  setSelectedItems({
+    hair: gender === "female" ? "GirlHair2" : "BoyHair1",
+    tops: "Top1",
+    bottoms: "Bottom1",
+    outfits: "Outfit1",
+    shoes: "Shoes1",
+    accessories: "Hat1",
+  });
+};
 return (
   <div className="storeOverlay">
     <div className="storeShell">

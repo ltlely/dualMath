@@ -347,6 +347,20 @@ if (!result?.success) {
         {settingsError && (
           <div className="statusMessage error">{settingsError}</div>
         )}
+
+        <button
+  type="button"
+  className="roomNativeButton roomNativeButtonGhost"
+  onClick={async () => {
+    await userManager.logoutUser();
+    setShowSettings(false);
+    setSettingsMessage("");
+    setSettingsError("");
+    if (onLoginSuccess) onLoginSuccess(null);
+  }}
+>
+  Logout
+</button>
       </div>
     </div>
   </div>

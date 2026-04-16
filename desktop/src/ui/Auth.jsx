@@ -809,6 +809,24 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
         )}
         
         <style>{`
+.authModal button {
+  opacity: 1;
+  cursor: pointer;
+  transition: none;
+}
+
+.authModal button:disabled {
+  opacity: 1;
+  cursor: pointer;
+  filter: none;
+}
+
+.authModal button:hover,
+.authModal button:disabled:hover {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
           .forgotLink {
             text-align: center;
             font-size: 13px;
@@ -942,6 +960,22 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
           color: rgba(251,113,133,.9);
           font-weight: 600;
         }
+
+        .authModal button {
+  opacity: 1;
+}
+
+.authModal button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.15);
+}
+
+.authModal button:not(:disabled) {
+  opacity: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(107, 79, 52, 0.18);
+}
         
       `}</style>
     </div>
