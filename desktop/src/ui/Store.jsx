@@ -378,17 +378,13 @@ useEffect(() => {
   return () => clearInterval(timer);
 }, []);
 
-  const [activeGender, setActiveGender] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem(LAST_GENDER_KEY) || "male";
-    }
-    return "male";
-  });
+  // Determine gender from user's starterCharacter
+  const userGender = currentUser?.starterCharacter === "girl" ? "female" : "male";
+  const activeGender = userGender;
+
   const [activeCategory, setActiveCategory] = useState("hair");
   const [selectedItems, setSelectedItems] = useState(() => {
-    const initialGender = typeof window !== "undefined"
-      ? localStorage.getItem(LAST_GENDER_KEY) || "male"
-      : "male";
+    const initialGender = userGender;
 
     return {
       hair: initialGender === "female" ? "GirlHair2" : "BoyHair1",
@@ -404,11 +400,6 @@ useEffect(() => {
   const shouldShowBottoms = !hasSelectedOutfit;
   const [ownedItems, setOwnedItems] = useState(new Set(["BoyHair1", "GirlHair2", "Top1", "Bottom1", "Shoes1", "Hat1"]));
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(LAST_GENDER_KEY, activeGender);
-    }
-  }, [activeGender]);
   const [coins, setCoins] = useState(currentUser?.coins ?? 2000);
   const [search, setSearch] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -592,23 +583,6 @@ const handleResetOutfit = () => {
   setMessage("");
   setError("");
 };
-
-const handleGenderChange = (gender) => {
-  setActiveGender(gender);
-  setActiveCategory("hair");
-  setSearch("");
-  setError("");
-  setMessage("");
-
-  setSelectedItems({
-    hair: gender === "female" ? "GirlHair2" : "BoyHair1",
-    tops: "Top1",
-    bottoms: "Bottom1",
-    outfits: "Outfit1",
-    shoes: "Shoes1",
-    accessories: "Hat1",
-  });
-};
 return (
   <div className="storeOverlay">
     <div className="storeShell">
@@ -620,23 +594,6 @@ return (
           <div className="currencyPill">🪙 {coins.toLocaleString()} Coins</div>
           <Button variant="secondary" onClick={onClose}>Back</Button>
         </div>
-      </div>
-
-      <div className="genderTabs">
-        <button
-          className={`genderTab ${activeGender === "male" ? "active" : ""}`}
-          onClick={() => handleGenderChange("male")}
-          type="button"
-        >
-          Male
-        </button>
-        <button
-          className={`genderTab ${activeGender === "female" ? "active" : ""}`}
-          onClick={() => handleGenderChange("female")}
-          type="button"
-        >
-          Female
-        </button>
       </div>
 
       <div className="storeLayout">

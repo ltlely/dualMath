@@ -22,7 +22,7 @@ export default function Lobby({
   onOpenGame,
   setTestRankOverride,
   testRankOverride,
-
+  onOpenPickCharacter,
 }) {
 
   const [settingsTab, setSettingsTab] = useState("account");
@@ -76,8 +76,8 @@ const [isSavingUsername, setIsSavingUsername] = useState(false);
     return (
       <Auth
         onLoginSuccess={onLoginSuccess}
-        isLoggedIn={false}
-        currentUser={null}
+        isLoggedIn={!!currentUser}
+        currentUser={currentUser}
       />
     );
   }
@@ -195,6 +195,17 @@ if (!result?.success) {
     setIsSavingUsername(false);
   }
 };
+
+  // If no current user, show auth
+  if (!currentUser) {
+    return (
+      <Auth
+        onLoginSuccess={onLoginSuccess}
+        isLoggedIn={!!currentUser}
+        currentUser={currentUser}
+      />
+    );
+  }
 
   return (
     <div className="lobbyShell">
@@ -602,6 +613,8 @@ if (!result?.success) {
     >
       {isJoiningRandom ? "⏳ Searching..." : "🎲 Join Random"}
     </button>
+
+
   </div>
 </section>
           {error && <div className="statusMessage error">{error}</div>}
@@ -1671,6 +1684,8 @@ if (!result?.success) {
             justify-content: space-between;
           }
         }
+
+        
       `}</style>
     </div>
   );

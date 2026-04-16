@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Card, Button, Input } from "./components.jsx";
 import { userManager } from "../userManagerSupabase.js";
+import PickCharacter from "./PickCharacter.jsx";
 
-export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose }) {
-  const [mode, setMode] = useState("login"); // login, signup, forgot, verify, reset
+export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose, onOpenPickCharacter, }) {
+  const [mode, setMode] = useState("login"); // login, signup, forgot, verify, reset, pickCharacter
   const [emailOrUsername, setEmailOrUsername] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -17,6 +18,8 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
   const [avatarData, setAvatarData] = useState(null);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [checkingVerification, setCheckingVerification] = useState(false);
+  const [newUser, setNewUser] = useState(null);
+
 
   // Update avatar state when currentUser changes
   useEffect(() => {
@@ -147,14 +150,16 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
       }
 
       // Check if email verification is required
-      if (result.requiresVerification) {
-        setMode("verify");
-        setEmail(result.user.email);
-        if (onLoginSuccess) {
-          onLoginSuccess(result.user);
-        }
-        return;
-      }
+//    if (result.requiresVerification) {
+//   setMode("verify");
+//   setSuccess("Account created! Please verify your email, then create your character.");
+//   if (onLoginSuccess) {
+//     onLoginSuccess(result.user);
+//   }
+//   return;
+// }
+
+
 
       const freshUser = await userManager.getCurrentUser();
       setAvatarData(freshUser?.avatarData || result.user.avatarData);
@@ -171,79 +176,100 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
   };
 
   const handleSignup = async () => {
-    const trimmedUsername = username.trim();
-    const trimmedEmail = email.trim();
+  const trimmedUsername = username.trim();
+  const trimmedEmail = email.trim();
 
-    if (!trimmedUsername) {
-      setError("Please enter a username");
+  if (!trimmedUsername) {
+    setError("Please enter a username");
+    return;
+  }
+
+  if (trimmedUsername.length < 3) {
+    setError("Username must be at least 3 characters");
+    return;
+  }
+
+  if (!trimmedEmail) {
+    setError("Please enter an email");
+    return;
+  }
+
+
+  if (!validateEmail(trimmedEmail)) {
+    setError("Please enter a valid email address");
+    return;
+  }
+
+  if (!password) {
+    setError("Please enter a password");
+    return;
+  }
+
+  if (password.length < 6) {
+    setError("Password must be at least 6 characters");
+    return;
+  }
+
+  if (password !== passwordConfirm) {
+    setError("Passwords do not match");
+    return;
+  }
+
+  setIsLoading(true);
+  clearMessages();
+
+  try {
+    const result = await userManager.signupUser(trimmedUsername, trimmedEmail, password);
+    setIsLoading(false);
+
+    if (!result.success) {
+      setError(result.message);
       return;
     }
 
-    if (trimmedUsername.length < 3) {
-      setError("Username must be at least 3 characters");
-      return;
-    }
+    setAvatarData(result.user?.avatarData || null);
+    setUsername("");
+    setEmail("");
+    setPassword("");
+    setPasswordConfirm("");
 
-    if (!trimmedEmail) {
-      setError("Please enter an email");
-      return;
-    }
+    if (onOpenPickCharacter) {
+  onOpenPickCharacter(result.user);
+  return;
+}
 
-    if (!validateEmail(trimmedEmail)) {
-      setError("Please enter a valid email address");
-      return;
-    }
+setNewUser(result.user);
+setMode("pickCharacter");
+setSuccess("Account created! Now pick your character.");
+    // Set up for character selection
+    setNewUser(result.user);
+    setMode("pickCharacter");
+    setSuccess("Account created! Now pick your character.");
+  } catch (err) {
+    setIsLoading(false);
+    setError("Signup failed. Please try again.");
+    console.error("Signup error:", err);
+  }
+};
 
-    if (!password) {
-      setError("Please enter a password");
-      return;
-    }
+const handleCharacterComplete = (userWithAvatar) => {
+  setNewUser(null);
+  setMode("login");
+  setSuccess("");
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
-      return;
-    }
+  if (onLoginSuccess) {
+    onLoginSuccess(userWithAvatar);
+  }
 
-    if (password !== passwordConfirm) {
-      setError("Passwords do not match");
-      return;
-    }
+  if (onClose) {
+    onClose();
+  }
+};
 
-    setIsLoading(true);
-    clearMessages();
-
-    try {
-      const result = await userManager.signupUser(trimmedUsername, trimmedEmail, password);
-      setIsLoading(false);
-
-      if (!result.success) {
-        setError(result.message);
-        return;
-      }
-
-      // Show verification screen
-      if (result.requiresVerification) {
-        setMode("verify");
-        setSuccess("Account created! Please check your email to verify your account.");
-        if (onLoginSuccess) {
-          onLoginSuccess(result.user);
-        }
-        return;
-      }
-
-      setAvatarData(result.user.avatarData);
-      setUsername("");
-      setEmail("");
-      setPassword("");
-      setPasswordConfirm("");
-      if (onLoginSuccess) {
-        onLoginSuccess(result.user);
-      }
-    } catch (err) {
-      setIsLoading(false);
-      setError("Signup failed. Please try again.");
-      console.error("Signup error:", err);
-    }
+  const handleCharacterBack = () => {
+    setNewUser(null);
+    setMode("signup");
+    setSuccess("");
   };
 
   const handleForgotPassword = async () => {
@@ -683,6 +709,18 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
 
   // Not logged in - show login or signup
   if (!isLoggedIn) {
+    if (mode === "pickCharacter" && newUser) {
+      return (
+        <div className="authModal">
+          <PickCharacter
+            currentUser={newUser}
+            onComplete={handleCharacterComplete}
+            onBack={handleCharacterBack}
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="authModal">
         {mode === "login" ? (
@@ -737,6 +775,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
                 >
                   Sign up
                 </button>
+                
               </div>
             </div>
           </Card>
@@ -787,11 +826,25 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose 
               />
               {error && <div className="error">{error}</div>}
               <Button
-                onClick={handleSignup}
-                disabled={!username.trim() || !email.trim() || !password || !passwordConfirm || isLoading}
-              >
-                {isLoading ? "Creating account..." : "Sign Up"}
-              </Button>
+  onClick={handleSignup}
+  disabled={!username.trim() || !email.trim() || !password || !passwordConfirm || isLoading}
+>
+  {isLoading ? "Creating account..." : "Next"}
+</Button>
+{/* <Button
+  variant="secondary"
+  onClick={() => {
+    setNewUser({
+      id: "test-user",
+      username: "testuser",
+      email: "test@example.com",
+      avatarData: null,
+    });
+    setMode("pickCharacter");
+  }}
+>
+  Test Pick Character
+</Button> */}
               <div className="authToggle">
                 <span className="muted">Already have an account? </span>
                 <button

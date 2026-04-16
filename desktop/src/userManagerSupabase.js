@@ -313,9 +313,16 @@ export const userManager = {
     };
   }
 
+  if (message.includes("username_changed_at")) {
+    return {
+      success: false,
+      message: "Please complete the sign up form to continue.",
+    };
+  }
+
   return {
     success: false,
-    message: "Could not update username.",
+    message: "Please complete the sign up form to continue.",
   };
 }
 
@@ -574,13 +581,19 @@ export const userManager = {
   total_games: user.totalGames || 0,
   avatar_data: user.avatarData || null,
   coins: user.coins ?? 2000,
-  username_changed_at: user.usernameChangedAt || null,
+  // username_changed_at: user.usernameChangedAt || null,
   last_active: new Date().toISOString(),
 })
       .eq("id", user.id);
 
-    if (profileError) {
-      console.error("saveUser profile update error:", profileError);
+   if (profileError) {
+  console.error("signup profile insert error:", profileError);
+
+  return {
+    success: false,
+    message: profileError.message || "Could not create profile.",
+  };
+
 
       const message = String(profileError.message || "").toLowerCase();
 
@@ -605,8 +618,7 @@ export const userManager = {
     return { success: true, user };
   } catch (error) {
     console.error("saveUser error:", error);
-    return { success: false, message: "Could not update username." };
-  }
+return { success: false, message: "Please complete the sign up form to continue." };  }
 },
 
   // Update avatar
