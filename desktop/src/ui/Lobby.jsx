@@ -9,6 +9,7 @@ import {
 } from "../rankingSystem.js";
 // import { userManager } from "../userManagerSupabase.js";
 import Game from "./Game.jsx";
+import settingsIcon from '../../public/settingsicon.png'
 
 export default function Lobby({
   onCreate,
@@ -235,11 +236,7 @@ if (!result?.success) {
   title="Account Settings"
   type="button"
 >
-  <img
-  src="/settingsicon.png"
-  alt="Settings"
-  className="settingsIconImg"
-/>
+  <img src={settingsIcon} alt="Settings" className="settingsIconImg" />
 </button>
         </div>
       </div>
