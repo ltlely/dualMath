@@ -635,7 +635,6 @@ removeFriend: async (currentUserId, friendId) => {
     const normalizedUsername = username.trim().toLowerCase();
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Check username first
     const { data: existingUsername } = await supabase
       .from("profiles")
       .select("id")
@@ -646,7 +645,6 @@ removeFriend: async (currentUserId, friendId) => {
       return { success: false, message: "Username already taken" };
     }
 
-    // Check email in profiles too
     const { data: existingEmail } = await supabase
       .from("profiles")
       .select("id")
@@ -658,102 +656,72 @@ removeFriend: async (currentUserId, friendId) => {
     }
 
     const redirectUrl = getRedirectBaseUrl();
-    console.log("📧 Signup email redirect URL:", redirectUrl);
 
     const { data, error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
       options: {
-        data: {
-          username: username.trim(),
-        },
+        data: { username: username.trim() },
         emailRedirectTo: redirectUrl,
       },
     });
 
     if (error) {
       const msg = String(error.message || "").toLowerCase();
-
       if (msg.includes("already registered") || msg.includes("already exists")) {
-        return {
-          success: false,
-          message: "An account with this email already exists. Please login instead.",
-        };
+        return { success: false, message: "An account with this email already exists. Please login instead." };
       }
-
       return { success: false, message: error.message };
     }
 
-    if (!data.user) {
-      return { success: false, message: "Signup failed" };
-    }
+    if (!data.user) return { success: false, message: "Signup failed" };
 
-    // Supabase can return a user with no identities if email already exists
     if (data.user.identities && data.user.identities.length === 0) {
-      return {
-        success: false,
-        message: "An account with this email already exists. Please login instead.",
-      };
+      return { success: false, message: "An account with this email already exists. Please login instead." };
     }
 
-    const sessionToken = getOrCreateSessionToken();
+   // Trigger created the profile row — update it with our data
+const sessionToken = getOrCreateSessionToken();
 
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .insert({
-        id: data.user.id,
-        username: normalizedUsername,
-        display_name: username.trim(),
-        email: normalizedEmail,
-        rank_points: 0,
-        wins: 0,
-        losses: 0,
-        total_games: 0,
-        avatar_data: null,
-        starter_character: null,
-        equipped_hair: null,
-        equipped_top: null,
-        equipped_bottom: null,
-        equipped_shoes: null,
-        equipped_outfit: "",
-        equipped_accessory: "",
-        owned_items: [],
-        coins: 2000,
-        active_session_token: sessionToken,
-        last_active: new Date().toISOString(),
-      });
+// Retry up to 5 times in case the trigger hasn't fired yet
+let updateSuccess = false;
+for (let i = 0; i < 5; i++) {
+  await new Promise((res) => setTimeout(res, 300));
+  
+  const { error: profileError, data: updateData } = await supabase
+    .from("profiles")
+    .update({
+      username: normalizedUsername,
+      display_name: username.trim(),
+      email: normalizedEmail,
+      rank_points: 0,
+      wins: 0,
+      losses: 0,
+      total_games: 0,
+      avatar_data: null,
+      starter_character: null,
+      equipped_hair: null,
+      equipped_top: null,
+      equipped_bottom: null,
+      equipped_shoes: null,
+      equipped_outfit: "",
+      equipped_accessory: "",
+      owned_items: [],
+      coins: 2000,
+      active_session_token: sessionToken,
+      last_active: new Date().toISOString(),
+    })
+    .eq("id", data.user.id)
+    .select();
 
-    if (profileError) {
-  console.error("signup profile insert error:", profileError);
-
-  const rawMessage = String(profileError.message || "");
-  const message = rawMessage.toLowerCase();
-
-  if (
-    message.includes("duplicate key") ||
-    message.includes("unique constraint") ||
-    message.includes("profiles_username_key")
-  ) {
-    return {
-      success: false,
-      message: "Username already taken",
-    };
+  if (!profileError && updateData?.length > 0) {
+    updateSuccess = true;
+    break;
   }
+}
 
-  if (
-    message.includes("profiles_email_key") ||
-    message.includes("email")
-  ) {
-    return {
-      success: false,
-      message: "An account with this email already exists. Please login instead.",
-    };
-  }
-
-  return {
-    success: false,
-    message: rawMessage || "Could not create profile.",
-  };
+if (!updateSuccess) {
+  console.warn("Profile update after signup may have failed — trigger may be delayed");
 }
 
     const user = {
@@ -783,7 +751,7 @@ removeFriend: async (currentUserId, friendId) => {
     return {
       success: true,
       user,
-      message: "Account created! Please check your email to verify your account.",
+      message: "Account created!",
       requiresVerification: true,
     };
   } catch (error) {
@@ -791,7 +759,6 @@ removeFriend: async (currentUserId, friendId) => {
     return { success: false, message: "Signup failed. Please try again." };
   }
 },
-
   // Login user
   loginUser: async (emailOrUsername, password) => {
     try {
