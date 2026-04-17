@@ -797,16 +797,16 @@ onClick={async () => {
       )}
 
       <style>{`
-        :root {
-          --cream: #f5eed7;
-          --cream-2: #f9f2d9;
-          --cream-3: #f0e3c1;
-          --tan: #dcc4a2;
-          --brown: #8d6b4f;
-          --brown-dark: #5b3f2a;
-          --ink: #4c3826;
-          --muted: #8f7b63;
-        }
+      :root {
+  --cream: #fff2cf;
+  --cream-2: #ffedc0;
+  --cream-3: #f6dda2;
+  --tan: #e4bb74;
+  --brown: #9a682d;
+  --brown-dark: #6a4218;
+  --ink: #573411;
+  --muted: #a17345;
+}
 
         .friendsShell {
           box-sizing: border-box;

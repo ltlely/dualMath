@@ -658,17 +658,19 @@ const handleCharacterComplete = (userWithAvatar) => {
         <Card title="🔑 Forgot Password">
           <div className="stack">
             <p className="muted">Enter your email address and we'll send you a link to reset your password.</p>
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                clearMessages();
-              }}
-              placeholder="Email address"
-              onKeyPress={(e) => e.key === "Enter" && handleForgotPassword()}
-              disabled={isLoading}
-            />
+        
+          <Input
+  className="forgotEmailInput"
+  type="email"
+  value={email}
+  onChange={(e) => {
+    setEmail(e.target.value);
+    clearMessages();
+  }}
+  placeholder="Email address"
+  onKeyPress={(e) => e.key === "Enter" && handleForgotPassword()}
+  disabled={isLoading}
+/>
             {success && <div className="success">{success}</div>}
             {error && <div className="error">{error}</div>}
             <Button 
@@ -693,15 +695,52 @@ const handleCharacterComplete = (userWithAvatar) => {
         </Card>
         
         <style>{`
-          .success {
-            padding: 12px;
-            background: rgba(45,212,191,.08);
-            border: 1px solid rgba(45,212,191,.5);
-            border-radius: 8px;
-            color: rgba(45,212,191,.9);
-            font-size: 14px;
-            text-align: center;
-          }
+        .authModal .forgotEmailInput,
+  .authModal .forgotEmailInput input,
+  .authModal input.forgotEmailInput {
+    border: 2px solid #c9ab86 !important;
+    border-radius: 12px !important;
+    background: #fffaf2 !important;
+    color: #6b4f34 !important;
+    height: 46px;
+    padding: 0 14px;
+    box-shadow: inset 0 1px 2px rgba(107, 79, 52, 0.06) !important;
+  }
+
+  .authModal .forgotEmailInput:focus,
+  .authModal .forgotEmailInput input:focus,
+  .authModal input.forgotEmailInput:focus {
+    outline: none;
+    border-color: #b88e63 !important;
+    box-shadow: 0 0 0 3px rgba(201, 171, 134, 0.22) !important;
+  }
+
+  .authModal button:not(.linkBtn) {
+    border: 2px solid #c9ab86 !important;
+    border-radius: 12px !important;
+    background: linear-gradient(180deg, #fffaf2 0%, #f6ead8 100%) !important;
+    color: #6b4f34 !important;
+    font-weight: 700;
+    box-shadow: 0 4px 10px rgba(107, 79, 52, 0.08) !important;
+    width: 170px;
+    height: 42px;
+    align-self: center;
+  }
+
+  .authModal button:not(.linkBtn):hover {
+    background: linear-gradient(180deg, #fdf1df 0%, #ecd3ad 100%) !important;
+    border-color: #b88e63 !important;
+  }
+
+  .success {
+    padding: 12px;
+    background: rgba(45,212,191,.08);
+    border: 1px solid rgba(45,212,191,.5);
+    border-radius: 8px;
+    color: rgba(45,212,191,.9);
+    font-size: 14px;
+    text-align: center;
+  }
         `}</style>
       </div>
     );
@@ -782,7 +821,7 @@ const handleCharacterComplete = (userWithAvatar) => {
         ) : (
           <Card title="Create Account">
             <div className="stack">
-              <p className="muted">Create a new account</p>
+              
               <Input
                 value={username}
                 onChange={(e) => {
@@ -825,7 +864,8 @@ const handleCharacterComplete = (userWithAvatar) => {
                 disabled={isLoading}
               />
               {error && <div className="error">{error}</div>}
-              <Button
+<Button
+  className="nextBtn"
   onClick={handleSignup}
   disabled={!username.trim() || !email.trim() || !password || !passwordConfirm || isLoading}
 >
@@ -862,6 +902,34 @@ const handleCharacterComplete = (userWithAvatar) => {
         )}
         
         <style>{`
+  
+.authModal button {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.authModal .linkBtn {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.authModal button:not(.linkBtn) {
+  border: 2px solid #c9ab86 !important;
+  border-radius: 12px !important;
+  color: #6b4f34 !important;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(107, 79, 52, 0.08) !important;
+  width: 140px;
+  height: 38px;
+  align-self: center;
+}
+
+.authModal .nextBtn:hover {
+  background: linear-gradient(180deg, #fdf1df 0%, #ecd3ad 100%) !important;
+  border-color: #b88e63 !important;
+}
+        
 .authModal button {
   opacity: 1;
   cursor: pointer;
@@ -897,6 +965,20 @@ const handleCharacterComplete = (userWithAvatar) => {
             font-size: 14px;
             text-align: center;
           }
+.authModal input {
+  border: 2px solid #c9ab86 !important;
+  border-radius: 12px;
+  background: #fffaf2;
+  color: var(--ink);
+  box-shadow: inset 0 1px 2px rgba(107, 79, 52, 0.06);
+}
+
+.authModal input:focus {
+  outline: none;
+  border-color: #8d6b4f !important;
+  box-shadow: 0 0 0 3px rgba(201, 171, 134, 0.22);
+}
+          
         `}</style>
       </div>
     );
@@ -1029,7 +1111,12 @@ const handleCharacterComplete = (userWithAvatar) => {
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(107, 79, 52, 0.18);
 }
-        
+        .authModal > * {
+  border: 2px solid #c9ab86;
+  border-radius: 18px;
+}
+
+
       `}</style>
     </div>
   );

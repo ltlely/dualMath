@@ -516,35 +516,34 @@ const coinReward = getCoinReward();
 
       <style>{`
 :root{
-  --base: rgba(240, 231, 207, 0.94);
-  --cream:#f5eed7;
-  --cream-2:#f9f2d9;
-  --cream-3:#f0e3c1;
-  --tan:#dcc4a2;
-  --tan-2:#c8ad86;
-  --brown:#8d6b4f;
-  --brown-dark:#5b3f2a;
-  --brown-soft:#b19179;
-  --brown-light:#d8c1aa;
-  --gold:#cfa25f;
-  --gold-2:#d9b16a;
-  --gold-3:#e5c584;
-  --ink:#4c3826;
-  --muted:#8f7b63;
-  --card-border:#bea87f;
-  --success-bg: rgba(145, 115, 70, 0.12);
-  --success-border: rgba(145, 115, 70, 0.35);
-  --error-bg: rgba(168, 88, 72, 0.12);
-  --error-border: rgba(168, 88, 72, 0.3);
-  --glow-gold: 0 0 40px rgba(205, 162, 90, 0.14);
-  --glow-brown: 0 0 24px rgba(139, 107, 74, 0.18);
+  --base: rgba(250, 238, 200, 0.97);
+--cream:#fff3cf;
+--cream-2:#ffefc4;
+--cream-3:#f8de9d;
+--tan:#e7be76;
+--tan-2:#d7a052;
+--brown:#9d692d;
+--brown-dark:#6c4318;
+--brown-soft:#bf8544;
+--brown-light:#e4b67d;
+--gold:#e3aa32;
+--gold-2:#f0bd4b;
+--gold-3:#ffd36d;
+--ink:#5a3512;
+--muted:#a2703d;
+--card-border:#d6a04d;
+--success-bg: rgba(181, 131, 43, 0.16);
+--success-border: rgba(181, 131, 43, 0.42);
+--error-bg: rgba(186, 88, 68, 0.15);
+--error-border: rgba(186, 88, 68, 0.38);
+--glow-gold: 0 0 40px rgba(227, 170, 50, 0.24);
+--glow-brown: 0 0 24px rgba(157, 105, 45, 0.22);
 
-  --teamA:#93b96b;
-  --teamA-dark:#6f8f4f;
-  --teamB:#b495dc;
-  --teamB-dark:#8f72c1;
-  --bad:#c97a6b;
-}
+--teamA:#a4cc63;
+--teamA-dark:#739644;
+--teamB:#c09af0;
+--teamB-dark:#946fd0;
+--bad:#d97f6d;
 
 *{ box-sizing:border-box; }
 
@@ -552,7 +551,7 @@ body{
   margin:0;
   background:
     radial-gradient(circle at top, rgba(255, 248, 230, 0.75), transparent 35%),
-    linear-gradient(180deg, #f8f0dd 0%, #e6d2ac 100%);
+     linear-gradient(180deg, #f8f0dd 0%, #d3bd95 100%);
   color:var(--ink);
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
 }

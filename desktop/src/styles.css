@@ -5,11 +5,8 @@ body,
   height: 100%;
   margin: 0;
   overflow: hidden;
-  background:
-    radial-gradient(circle at top, rgba(255, 248, 230, 0.75), transparent 35%),
-    linear-gradient(180deg, #f8f0dd 0%, #e6d2ac 100%);
+  background: linear-gradient(180deg, #f8f0dd 0%, #d3bd95 100%);
 }
-
 *{ box-sizing:border-box; }
 body{
   margin:0;
@@ -641,7 +638,7 @@ max-width: 270px;
 
 .lobbyLayout > .sidebarPanel .categoryButton.active {
   border-color: rgba(107, 79, 52, 0.45);
-  background: linear-gradient(180deg, #f5eed7, #e1c89d);
+  background: linear-gradient(180deg, #f5eed7,var(--cream-3));
   transform: none;
   box-shadow: var(--glow-brown);
 }

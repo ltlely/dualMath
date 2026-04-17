@@ -245,16 +245,16 @@ export default function Room({
         }
 
         .page::before {
-          content: "";
-          position: fixed;
-          inset: 0;
-          background:
-            radial-gradient(circle at 50% 14%, rgba(255, 236, 184, 0.22), transparent 20%),
-            radial-gradient(circle at 18% 8%, rgba(255, 245, 220, 0.55), transparent 30%),
-            radial-gradient(circle at 82% 0%, rgba(229, 197, 132, 0.18), transparent 24%),
-            linear-gradient(180deg, #f8f0dd 0%, #e6d2ac 100%);
-          z-index: -2;
-        }
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 14%, rgba(255, 236, 184, 0.22), transparent 20%),
+    radial-gradient(circle at 18% 8%, rgba(255, 245, 220, 0.55), transparent 30%),
+    radial-gradient(circle at 82% 0%, rgba(229, 197, 132, 0.18), transparent 24%),
+    linear-gradient(180deg, #f8f0dd 0%, #d3bd95 100%);
+  z-index: -2;
+}
 
         .page::after {
           content: "";
@@ -639,31 +639,189 @@ export default function Room({
   background: linear-gradient(180deg, #efe7d6, #d9ccb4);
   color: #6f604f;
 }
+.page {
+  color: #5a3512;
+}
+
+
+
+.page::after {
+  background: radial-gradient(circle, rgba(243, 196, 94, 0.18), transparent 70%);
+}
+
+.roomLabel {
+  color: #ab7d42;
+}
+
+.page .roomTitle,
+.page .cardTop,
+.page .cardBody {
+  color: #5a3512;
+}
+
+.roomWord {
+  color: #6a4218;
+}
+
+.page .roomName {
+  color: #a06a2d;
+}
+
+.page .card {
+  border: 1px solid rgba(191, 145, 63, 0.22);
+  background: linear-gradient(180deg, rgba(255, 244, 214, 0.96), rgba(232, 196, 127, 0.94));
+  box-shadow:
+    0 18px 34px rgba(136, 94, 38, 0.10),
+    inset 0 1px 0 rgba(255,255,255,0.52);
+}
+
+.page .grid2 .card {
+  background: linear-gradient(180deg, rgba(250, 233, 186, 0.95), rgba(229, 191, 118, 0.92));
+}
+
+.page .cardTop {
+  border-bottom: 1px solid rgba(191, 145, 63, 0.16);
+}
+
+.page .cardTitle {
+  color: #6c4318;
+}
+
+.page .slot {
+  border: 1px solid rgba(191, 145, 63, 0.18);
+  background: linear-gradient(180deg, #fff2cf, #f1dfae);
+  box-shadow:
+    0 10px 18px rgba(136, 94, 38, 0.07),
+    inset 0 1px 0 rgba(255,255,255,0.5);
+}
+
+.page .slot:hover {
+  box-shadow:
+    0 16px 26px rgba(136, 94, 38, 0.11),
+    0 0 0 1px rgba(243, 196, 94, 0.18);
+  border-color: rgba(196, 139, 61, 0.34);
+}
+
+.page .slotTitle {
+  color: #b17634;
+}
+
+.page .slotName {
+  color: #603b18;
+}
+
+.page .slot .avatar {
+  color: #8a5b22;
+}
+
+.page .rankBadge {
+  background: linear-gradient(180deg, #ffe39e, #e5b84f);
+  border: 1px solid rgba(194, 140, 53, 0.28);
+  color: #6e4817;
+  box-shadow: 0 4px 10px rgba(194, 140, 53, 0.12);
+}
+
+.page .muted,
+.ruleItem {
+  color: #9d754c;
+}
+
+.page .label {
+  color: #a17142;
+}
+
+.page .select,
+.page select {
+  background: #fffbf3;
+  color: #5a3512;
+  border: 1px solid rgba(154, 104, 45, 0.2);
+}
+
+.page .select:focus,
+.page select:focus {
+  border-color: rgba(154, 104, 45, 0.45);
+  box-shadow: 0 0 0 3px rgba(227, 170, 50, 0.14);
+}
+
+.page .btn.primary {
+  background: linear-gradient(180deg, #ffd66f, #e1a928);
+  color: #5a3a11;
+  box-shadow:
+    0 10px 18px rgba(196, 139, 61, 0.22),
+    inset 0 1px 0 rgba(255,255,255,0.4);
+}
+
+.page .btn.secondary {
+  background: linear-gradient(180deg, #fff8e8, #f2dfb8);
+  border-color: rgba(191, 145, 63, 0.22);
+  color: #603b18;
+  box-shadow:
+    0 8px 14px rgba(136, 94, 38, 0.08),
+    inset 0 1px 0 rgba(255,255,255,0.52);
+}
+
+.page .pill {
+  border: 1px solid rgba(154, 104, 45, 0.18);
+  color: #9d754c;
+  background: rgba(255, 251, 240, 0.78);
+}
+
+.page .pill.code {
+  border-color: rgba(154, 104, 45, 0.24);
+  color: #74481d;
+  background: linear-gradient(180deg, #f9e0a4, #edc56d);
+}
+
+.page .pill.good {
+  border-color: rgba(194, 140, 53, 0.28);
+  color: #6a4917;
+  background: linear-gradient(180deg, #ffe39f, #efc04e);
+}
+
+.page .pill.neutral {
+  border-color: rgba(194, 168, 127, 0.28);
+  color: #9a7e56;
+  background: linear-gradient(180deg, #fff9ee, #efe2c5);
+}
+
+.emptySubtext {
+  color: #bc8e57;
+}
+
+.page .toast.bad {
+  border: 1px solid rgba(186, 88, 68, 0.3);
+  background: rgba(186, 88, 68, 0.12);
+  color: #9a4e41;
+}
+  .rankBadge.rank-novice {
+  background: linear-gradient(180deg, #f5ecdc, #decdb0);
+  color: #6f604f;
+}
 
 .rankBadge.rank-apprentice {
-  background: linear-gradient(180deg, #dff1d8, #b9ddb0);
-  color: #44613e;
+  background: linear-gradient(180deg, #e5f6c9, #b7de7a);
+  color: #45622f;
 }
 
 .rankBadge.rank-skilled {
-  background: linear-gradient(180deg, #d8ebf8, #afcfe7);
-  color: #35566d;
+  background: linear-gradient(180deg, #dff1ff, #8fc4e8);
+  color: #2f5874;
 }
 
 .rankBadge.rank-professional {
-  background: linear-gradient(180deg, #eadcf8, #ceb0eb);
-  color: #5a3b78;
+  background: linear-gradient(180deg, #efdfff, #c492f0);
+  color: #603985;
 }
 
 .rankBadge.rank-expert {
-  background: linear-gradient(180deg, #ffe3b3, #efc46e);
-  color: #6d4c11;
+  background: linear-gradient(180deg, #ffe6ae, #f0b848);
+  color: #714a07;
 }
 
 .rankBadge.rank-king {
-  background: linear-gradient(180deg, #ffe7a8, #f2bf2f);
-  color: #5b3d00;
-  box-shadow: 0 0 14px rgba(242, 191, 47, 0.35);
+  background: linear-gradient(180deg, #ffe78f, #f1b800);
+  color: #5f3c00;
+  box-shadow: 0 0 14px rgba(241, 184, 0, 0.35);
 }
       `}</style>
     </div>

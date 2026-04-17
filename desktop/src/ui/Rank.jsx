@@ -197,20 +197,20 @@ export default function Rank({ currentUser, onBack }) {
       </div>
 
       <style>{`
-        :root{
-          --base: rgba(240, 231, 207, 0.94);
-          --cream:#f5eed7;
-          --cream-2:#f9f2d9;
-          --cream-3:#f0e3c1;
-          --tan:#dcc4a2;
-          --brown:#8d6b4f;
-          --brown-dark:#5b3f2a;
-          --brown-soft:#b19179;
-          --gold:#cfa25f;
-          --gold-2:#d9b16a;
-          --ink:#4c3826;
-          --muted:#8f7b63;
-        }
+       :root{
+  --base: rgba(249, 236, 196, 0.97);
+  --cream:#fff2cf;
+  --cream-2:#ffedc1;
+  --cream-3:#f7dd9d;
+  --tan:#e4bb75;
+  --brown:#9a682d;
+  --brown-dark:#6a4218;
+  --brown-soft:#bc8346;
+  --gold:#e0a632;
+  --gold-2:#efbc4c;
+  --ink:#583511;
+  --muted:#a17142;
+}
 
         .rankShell {
           min-height: 100vh;

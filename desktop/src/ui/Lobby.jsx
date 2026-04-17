@@ -229,14 +229,18 @@ if (!result?.success) {
             <span>{isConnected ? "Online" : "Connecting..."}</span>
           </div>
 
-          <button
-            className="settingsIconBtn"
-            onClick={() => setShowSettings(!showSettings)}
-            title="Account Settings"
-            type="button"
-          >
-            ⚙️
-          </button>
+     <button
+  className="settingsIconBtn"
+  onClick={() => setShowSettings(!showSettings)}
+  title="Account Settings"
+  type="button"
+>
+  <img
+  src="/settingsicon.png"
+  alt="Settings"
+  className="settingsIconImg"
+/>
+</button>
         </div>
       </div>
 
@@ -481,7 +485,7 @@ if (!result?.success) {
     <span className="categoryCount">Open your friend list</span>
   </span>
 </button>
-
+{/* 
             <div className="summaryCard">
               <span className="summaryLabel">Rank</span>
               <strong>{stats.rank}</strong>
@@ -495,8 +499,9 @@ if (!result?.success) {
             <div className="summaryCard">
               <span className="summaryLabel">Win Rate</span>
               <strong>{stats.winRate}%</strong>
-            </div>
+            </div> */}
           </div>
+          
         </aside>
 
         <main className="mainPanel">
@@ -655,30 +660,29 @@ if (!result?.success) {
 
       <style>{`
         :root{
-          --base: rgba(240, 231, 207, 0.94);
-          --cream:#f5eed7;
-          --cream-2:#f9f2d9;
-          --cream-3:#f0e3c1;
-          --tan:#dcc4a2;
-          --tan-2:#c8ad86;
-          --brown:#8d6b4f;
-          --brown-dark:#5b3f2a;
-          --brown-soft:#b19179;
-          --brown-light:#d8c1aa;
-          --gold:#cfa25f;
-          --gold-2:#d9b16a;
-          --gold-3:#e5c584;
-          --ink:#4c3826;
-          --muted:#8f7b63;
-          --card-border:#bea87f;
-          --success-bg: rgba(145, 115, 70, 0.12);
-          --success-border: rgba(145, 115, 70, 0.35);
-          --error-bg: rgba(168, 88, 72, 0.12);
-          --error-border: rgba(168, 88, 72, 0.3);
-          --glow-gold: 0 0 40px rgba(205, 162, 90, 0.14);
-          --glow-brown: 0 0 24px rgba(139, 107, 74, 0.18);
+          --base: rgba(204, 173, 92, 0.96);
+          --cream:#fff3d6;
+          --cream-2:#ffefc8;
+          --cream-3:#f7e2ad;
+          --tan:#e5c28a;
+          --tan-2:#d6ae6b;
+          --brown:#9a6c34;
+          --brown-dark:#6b4520;
+          --brown-soft:#bf8d56;
+          --brown-light:#e4bc8e;
+          --gold:#e0ab3f;
+          --gold-2:#edbb57;
+          --gold-3:#f7cd76;
+          --ink:#5a3817;
+          --muted:#9d754c;
+          --card-border:#d2a75c;
+          --success-bg: rgba(179, 132, 55, 0.16);
+          --success-border: rgba(179, 132, 55, 0.42);
+          --error-bg: rgba(190, 92, 72, 0.15);
+          --error-border: rgba(190, 92, 72, 0.38);
+          --glow-gold: 0 0 40px rgba(224, 171, 63, 0.24);
+          --glow-brown: 0 0 24px rgba(154, 108, 52, 0.22);
         }
-
  .settingsCard {
   background: linear-gradient(180deg, var(--cream), var(--tan));
   border: 1px solid rgba(93, 88, 63, 0.08);
@@ -759,7 +763,7 @@ if (!result?.success) {
   overflow-x: hidden;
   background:
     radial-gradient(circle at top, rgba(255, 248, 230, 0.75), transparent 35%),
-    linear-gradient(180deg, #f8f0dd 0%, #e6d2ac 100%);
+    linear-gradient(180deg, #f8f0dd 0%, #d3bd95 100%);
   color: var(--ink);
   position: relative;
   height: 100%;
@@ -1003,7 +1007,7 @@ if (!result?.success) {
           gap: 14px;
           padding: 14px;
           border-radius: 22px;
-          background: linear-gradient(180deg, var(--cream-2), #e9e3b6);
+          background:linear-gradient(180deg,#f9f7ea 0%,var(--cream-3) 100%);
           border: 1px solid rgba(93, 88, 63, 0.08);
         }
 
@@ -1740,6 +1744,29 @@ if (!result?.success) {
   flex-shrink: 0;
 }
         
+.settingsIconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(107, 79, 52, 0.12);
+  background: var(--brown);
+  box-shadow: 0 10px 18px rgba(102, 69, 42, 0.18);
+  cursor: pointer;
+  transition: transform 0.18s ease;
+}
+
+.settingsIconBtn:hover {
+  transform: translateY(-1px);
+}
+
+.settingsIconImg {
+  display: block;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
       `}</style>
     </div>
   );
