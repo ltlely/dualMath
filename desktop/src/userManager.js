@@ -72,30 +72,27 @@ export const userManager = {
   },
 
   // Save/update a user
-  saveUser(user) {
-    if (!user || !user.id) {
-      console.error('Cannot save user: invalid user object');
-      return false;
-    }
+async saveUser(user) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .upsert(
+      {
+        id: user.id,
+        starterCharacter: user.starterCharacter,
+        avatarData: user.avatarData,
+      },
+      { onConflict: "id" }
+    )
+    .select()
+    .single();
 
-    try {
-      // Update in users collection (localStorage)
-      const users = this.getAllUsers();
-      users[user.id] = user;
-      const usersSuccess = safeSetItem(localStorage, USERS_KEY, JSON.stringify(users));
-      
-      // Update session if it's the current user
-      const currentUser = this.getCurrentUser();
-      if (currentUser && currentUser.id === user.id) {
-        // Session already points to this user, data will be fresh on next getCurrentUser()
-      }
-      
-      return usersSuccess;
-    } catch (e) {
-      console.error('Error saving user:', e);
-      return false;
-    }
-  },
+  if (error) {
+    return { success: false, message: error.message };
+  }
+
+  return { success: true, user: data };
+},
+
 
   // Check if email exists
   emailExists(email) {

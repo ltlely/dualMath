@@ -317,48 +317,53 @@ const getShoeAsset = (name) => {
 };
 
 
-const composeCharacterAvatar = async (gender, hairSelection, accessorySelection) => {
-  const baseImg = new Image();
-  const hairImg = new Image();
-  const accessoryAsset = getAccessoryAsset(accessorySelection);
-  const accessoryImg = accessoryAsset ? new Image() : null;
-  baseImg.crossOrigin = "anonymous";
-  hairImg.crossOrigin = "anonymous";
-  if (accessoryImg) accessoryImg.crossOrigin = "anonymous";
 
-  const loadImage = (img, src) =>
-    new Promise((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = reject;
-      img.src = src;
-    });
 
-  const loads = [
-    loadImage(baseImg, getBaseCharacterAsset(gender)),
-    loadImage(hairImg, getSelectedHairAsset(gender, hairSelection)),
-  ];
+const composeCharacterAvatar = async (
+  gender,
+  hairSelection,
+  topSelection,
+  bottomSelection,
+  outfitSelection,
+  shoeSelection,
+  accessorySelection
+) => {
+  const layerSources = [
+    getBaseCharacterAsset(gender),
+    !getOutfitAsset(outfitSelection) && getBottomAsset(bottomSelection),
+    getTopAsset(topSelection, 0),
+    getOutfitAsset(outfitSelection),
+    getShoeAsset(shoeSelection),
+    getSelectedHairAsset(gender, hairSelection),
+    getAccessoryAsset(accessorySelection),
+  ].filter(Boolean);
 
-  if (accessoryImg && accessoryAsset) {
-    loads.push(loadImage(accessoryImg, accessoryAsset));
-  }
+  const imgs = await Promise.all(
+    layerSources.map(
+      (src) =>
+        new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = src;
+        })
+    )
+  );
 
-  await Promise.all(loads);
-
+  const base = imgs[0];
   const canvas = document.createElement("canvas");
-canvas.width = baseImg.naturalWidth || 300;
-canvas.height = baseImg.naturalHeight || 300;
+  canvas.width = base.naturalWidth || 300;
+  canvas.height = base.naturalHeight || 300;
 
-const ctx = canvas.getContext("2d");
-ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-ctx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
-ctx.drawImage(hairImg, 0, 0, canvas.width, canvas.height);
+  imgs.forEach((img) => {
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  });
 
-if (accessoryImg) {
-  ctx.drawImage(accessoryImg, 0, 0, canvas.width, canvas.height);
-}
-
-return canvas.toDataURL("image/png");
+  return canvas.toDataURL("image/png");
 };
 
 export default function Store({ currentUser, onLoginSuccess, onClose }) {
@@ -383,23 +388,30 @@ useEffect(() => {
   const activeGender = userGender;
 
   const [activeCategory, setActiveCategory] = useState("hair");
-  const [selectedItems, setSelectedItems] = useState(() => {
-    const initialGender = userGender;
-
-    return {
-      hair: initialGender === "female" ? "GirlHair2" : "BoyHair1",
-      tops: "Top1",
-      bottoms: "Bottom1",
-      outfits: "Outfit1",
-      shoes: "Shoes1",
-      accessories: "Hat1",
-    };
-  });
+  const [selectedItems, setSelectedItems] = useState(() => ({
+  hair:
+    currentUser?.equippedHair ||
+    (userGender === "female" ? "GirlHair2" : "BoyHair1"),
+  tops:
+    currentUser?.equippedTop ||
+    (userGender === "female" ? "UniTop1" : "BoyTop6"),
+  bottoms: currentUser?.equippedBottom || "UniShorts1",
+  outfits: currentUser?.equippedOutfit || "",
+  shoes: currentUser?.equippedShoes || "UniShoes1",
+  accessories: currentUser?.equippedAccessory || "",
+}));
 
   const hasSelectedOutfit = !!getOutfitAsset(selectedItems.outfits);
   const shouldShowBottoms = !hasSelectedOutfit;
-  const [ownedItems, setOwnedItems] = useState(new Set(["BoyHair1", "GirlHair2", "Top1", "Bottom1", "Shoes1", "Hat1"]));
-
+  const [ownedItems, setOwnedItems] = useState(
+  new Set(
+    currentUser?.ownedItems?.length
+      ? currentUser.ownedItems
+      : userGender === "female"
+      ? ["GirlHair2", "UniTop1", "UniShorts1", "UniShoes1"]
+      : ["BoyHair1", "BoyTop6", "UniShorts1", "UniShoes1"]
+  )
+);
   const [coins, setCoins] = useState(currentUser?.coins ?? 2000);
   const [search, setSearch] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -486,40 +498,60 @@ const handleUnequip = (category) => {
   }
 
   const newCoinTotal = coins - item.price;
+  const nextOwnedItems = new Set([...ownedItems, item.id]);
+
   setCoins(newCoinTotal);
-  setOwnedItems((prev) => new Set([...prev, item.id]));
+  setOwnedItems(nextOwnedItems);
   setMessage(`${item.label} purchased successfully.`);
 
   try {
     const updatedUser = {
       ...currentUser,
       coins: newCoinTotal,
+      ownedItems: Array.from(nextOwnedItems),
     };
 
-    await userManager.saveUser(updatedUser);
+    const result = await userManager.saveUser(updatedUser);
 
-    const freshUser = await userManager.getCurrentUser();
-    if (freshUser && onLoginSuccess) onLoginSuccess(freshUser);
+    if (!result?.success) {
+      throw new Error(result?.message || "Failed to save purchase.");
+    }
+
+    // do NOT call onLoginSuccess here
+    // that can kick you out of the shop
+
   } catch (err) {
     console.error("Failed to save updated coins:", err);
+    setError("Could not save purchase.");
+    setCoins(currentUser?.coins ?? STARTING_COINS);
+    setOwnedItems(new Set(currentUser?.ownedItems || []));
   }
 };
 
-  const getOwnedSelection = () => {
-  const defaultOwnedHair = activeGender === "female" ? "GirlHair2" : "BoyHair1";
+const getOwnedSelection = () => {
+  const defaultHair = activeGender === "female" ? "GirlHair2" : "BoyHair1";
+  const defaultTop = activeGender === "female" ? "UniTop1" : "BoyTop6";
 
   return {
-    hair: ownedItems.has(selectedItems.hair) ? selectedItems.hair : defaultOwnedHair,
-    tops: ownedItems.has(selectedItems.tops) ? selectedItems.tops : "Top1",
-    bottoms: ownedItems.has(selectedItems.bottoms) ? selectedItems.bottoms : "Bottom1",
-    outfits: ownedItems.has(selectedItems.outfits) ? selectedItems.outfits : "Outfit1",
-    shoes: ownedItems.has(selectedItems.shoes) ? selectedItems.shoes : "Shoes1",
-    accessories: ownedItems.has(selectedItems.accessories) ? selectedItems.accessories : "Hat1",
+    hair: ownedItems.has(selectedItems.hair) ? selectedItems.hair : defaultHair,
+    tops: ownedItems.has(selectedItems.tops) ? selectedItems.tops : defaultTop,
+    bottoms: ownedItems.has(selectedItems.bottoms) ? selectedItems.bottoms : "UniShorts1",
+    outfits: ownedItems.has(selectedItems.outfits) ? selectedItems.outfits : "",
+    shoes: ownedItems.has(selectedItems.shoes) ? selectedItems.shoes : "UniShoes1",
+    accessories: ownedItems.has(selectedItems.accessories) ? selectedItems.accessories : "",
   };
 };
 
+const [localAvatarData, setLocalAvatarData] = useState(currentUser?.avatarData || null);
+
+useEffect(() => {
+  setLocalAvatarData(currentUser?.avatarData || null);
+}, [currentUser?.avatarData]);
+
+
   const handleSave = async () => {
   if (!currentUser) return;
+
   setMessage("");
   setError("");
   setIsSaving(true);
@@ -535,33 +567,71 @@ const handleUnequip = (category) => {
     ownedSelection.outfits !== selectedItems.outfits;
 
   try {
-    const avatarDataUrl = await composeCharacterAvatar(
-      activeGender,
-      ownedSelection.hair,
-      ownedSelection.accessories,
-      ownedSelection.outfits
-    );
+      const avatarDataUrl = await composeCharacterAvatar(
+        activeGender,
+        ownedSelection.hair,
+        ownedSelection.tops,
+        ownedSelection.bottoms,
+        ownedSelection.outfits,
+        ownedSelection.shoes,
+        ownedSelection.accessories
+      );
 
-    const updated = await userManager.updateAvatar(
-      currentUser.username,
-      avatarDataUrl
-    );
+    const updatedUser = {
+      ...currentUser,
+      avatarData: avatarDataUrl,
+      equippedHair: ownedSelection.hair,
+      equippedTop: ownedSelection.tops,
+      equippedBottom: ownedSelection.bottoms,
+      equippedOutfit: ownedSelection.outfits,
+      equippedShoes: ownedSelection.shoes,
+      equippedAccessory: ownedSelection.accessories,
+      ownedItems: Array.from(ownedItems),
+      coins,
+    };
 
-    if (!updated) throw new Error("Failed to save avatar.");
+   const result = await userManager.saveUser(updatedUser);
 
-    const freshUser = await userManager.getCurrentUser();
-    if (freshUser && onLoginSuccess) onLoginSuccess(freshUser);
+if (!result?.success) {
+  throw new Error(result?.message || "Failed to save character.");
+}
 
-    setSelectedItems((prev) => ({
-      ...prev,
-      ...ownedSelection,
-    }));
+const savedUser = result.user || updatedUser;
+
+setLocalAvatarData(savedUser.avatarData || avatarDataUrl);
+
+if (onLoginSuccess) {
+  onLoginSuccess(savedUser);
+}
+
+setSavedItems({
+  hair: ownedSelection.hair,
+  tops: ownedSelection.tops,
+  bottoms: ownedSelection.bottoms,
+  outfits: ownedSelection.outfits,
+  shoes: ownedSelection.shoes,
+  accessories: ownedSelection.accessories,
+});
+
+    // keep the current outfit visible in the shop
+    setSelectedItems({
+      hair: ownedSelection.hair,
+      tops: ownedSelection.tops,
+      bottoms: ownedSelection.bottoms,
+      outfits: ownedSelection.outfits,
+      shoes: ownedSelection.shoes,
+      accessories: ownedSelection.accessories,
+    });
 
     setMessage(
       triedUnownedItem
         ? "Only owned items were saved."
-        : "Character saved successfully. Your avatar is now updated."
+        : "Character saved successfully."
     );
+
+    // DO NOT call onLoginSuccess here
+    // that can reset/remount the shop view
+
   } catch (err) {
     console.error("Store save error:", err);
     setError("Could not save character. Try again.");
@@ -570,19 +640,26 @@ const handleUnequip = (category) => {
   }
 };
 
-const handleResetOutfit = () => {
-  setSelectedItems({
-    hair: activeGender === "female" ? "GirlHair2" : "BoyHair1",
-    tops: "Top1",
-    bottoms: "Bottom1",
-    outfits: "Outfit1",
-    shoes: "Shoes1",
-    accessories: "Hat1",
-  });
+const [savedItems, setSavedItems] = useState({
+  hair:
+    currentUser?.equippedHair ||
+    (userGender === "female" ? "GirlHair2" : "BoyHair1"),
+  tops:
+    currentUser?.equippedTop ||
+    (userGender === "female" ? "UniTop1" : "BoyTop6"),
+  bottoms: currentUser?.equippedBottom || "UniShorts1",
+  outfits: currentUser?.equippedOutfit || "",
+  shoes: currentUser?.equippedShoes || "UniShoes1",
+  accessories: currentUser?.equippedAccessory || "",
+});
 
+const handleResetOutfit = () => {
+  setSelectedItems(savedItems);
   setMessage("");
   setError("");
 };
+
+
 return (
   <div className="storeOverlay">
     <div className="storeShell">
@@ -600,16 +677,19 @@ return (
         <aside className="sidebarPanel">
           <div className="playerMiniCard">
             <div className="playerMiniAvatar">
-              {currentUser?.avatarData ? (
-                <img src={currentUser.avatarData} alt="Current avatar" />
-              ) : (
-                <div className="avatarFallback">?</div>
-              )}
+{localAvatarData || currentUser?.avatarData ? (
+  <img
+    src={localAvatarData || currentUser?.avatarData}
+    alt="Current avatar"
+  />
+) : (
+  <div className="avatarFallback">?</div>
+)}
             </div>
             <div>
               <div className="miniLabel">PLAYER</div>
               <div className="miniName">{currentUser?.username || "Guest"}</div>
-              <div className="miniMuted">Level 2 Stylist</div>
+              
             </div>
           </div>
 
@@ -812,6 +892,8 @@ return (
           </Card>
         </aside>
       </div>
+
+
     </div>
 
 
@@ -913,7 +995,7 @@ return (
   flex: 1;
   min-height: 0;
   width: 100%;
-  max-width: 280px;
+  max-width: 430px;
   margin: 0 auto 12px;
   border-radius: 22px;
   background: radial-gradient(circle at center, #fff6d8, #d9c79a);
@@ -921,17 +1003,18 @@ return (
   overflow: hidden;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4);
 }
+
 .previewLayer {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  width: 97%;
+  height: 97%;
+  margin: auto;
   object-fit: contain;
   object-position: center 58%;
   image-rendering: pixelated;
   background: transparent;
-  transform: scale(1.06);
-  transform-origin: center;
+  transform: none;
 }
 
 .previewActions {

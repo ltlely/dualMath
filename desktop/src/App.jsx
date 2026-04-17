@@ -8,6 +8,8 @@ import Store from "./ui/Store.jsx";
 import PickCharacter from "./ui/PickCharacter.jsx";
 import { userManager } from "./userManagerSupabase.js";
 import { updatePoints, getRank } from "./rankingSystem.js";
+import Rank from "./ui/Rank.jsx";
+import FriendList from "./ui/FriendList.jsx";
 
 const isDev = window.location.hostname === "localhost";
 const SOCKET_URL =
@@ -181,6 +183,8 @@ const createTinyThumbnail = async (src, size = 64) => {
   });
 };
 
+
+
 export default function App() {
   const [view, setView] = useState("lobby");
   const [roomCode, setRoomCode] = useState(null);
@@ -200,11 +204,47 @@ export default function App() {
   const [testRankOverride, setTestRankOverride] = useState(null);
   const [showPickCharacter, setShowPickCharacter] = useState(false);
   const [pendingNewUser, setPendingNewUser] = useState(null);
+const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+const loadUnreadChatCount = useCallback(async () => {
+  if (!currentUser?.id) {
+    setUnreadChatCount(0);
+    return;
+  }
+
+  const result = await userManager.getUnreadChatSummary(currentUser.id);
+  const senders = result?.unreadSenders || [];
+  setUnreadChatCount(senders.length);
+}, [currentUser?.id]);
+
+
+useEffect(() => {
+  if (!currentUser?.id) {
+    setUnreadChatCount(0);
+    return;
+  }
+
+  loadUnreadChatCount();
+
+  const interval = setInterval(() => {
+    loadUnreadChatCount();
+  }, 3000);
+
+  return () => clearInterval(interval);
+}, [currentUser?.id, loadUnreadChatCount]);
 
   const effectiveRankPoints =
     testRankOverride?.rankPoints ?? currentUser?.rankPoints ?? 0;
   const effectiveRankLevel =
     testRankOverride?.rankLevel ?? currentUser?.rank ?? "Novice";
+
+    const setUserPresence = useCallback(
+  async (nextStatus) => {
+    if (!currentUser?.id) return;
+    await userManager.updateStatus(currentUser.id, nextStatus);
+  },
+  [currentUser?.id]
+);
 
   const handlePreviewSubmit = useCallback(({ tens, ones }) => {
     setPreviewGame((prev) => {
@@ -366,16 +406,17 @@ export default function App() {
 
   useEffect(() => {
     socket.on("room:joined", ({ roomCode, selfId }) => {
-      console.log("✅ Room joined:", roomCode);
-      setPendingAction(null);
-      setRoomCode(roomCode);
-      setSelfId(selfId);
-      setView("room");
-      setError("");
-      setLastRound(null);
-      setRoundInfo(null);
-      setChat([]);
-    });
+  console.log("✅ Room joined:", roomCode);
+  setPendingAction(null);
+  setRoomCode(roomCode);
+  setSelfId(selfId);
+  setView("room");
+  setError("");
+  setLastRound(null);
+  setRoundInfo(null);
+  setChat([]);
+  if (currentUser?.id) userManager.updateStatus(currentUser.id, "in_match");
+});
 
     socket.on("room:update", (r) => {
       setRoom(r);
@@ -400,6 +441,10 @@ export default function App() {
       setRoundInfo(info);
       setLastRound(null);
       setView("game");
+
+      if (currentUser?.id) {
+  userManager.updateStatus(currentUser.id, "in_match");
+}
     });
 
     socket.on("game:roundEnd", (payload) => {
@@ -423,7 +468,11 @@ export default function App() {
         setCurrentUser(updated);
       }
 
+ if (currentUser?.id) userManager.updateStatus(currentUser.id, "online");
       setView("game");
+
+      
+
     });
 
     socket.on("chat:new", (m) => setChat((prev) => [...prev, m]));
@@ -479,6 +528,37 @@ export default function App() {
         console.log("➡️ Creating room:", roomData.name, "as", roomData.playerName);
         socket.emit("room:create", roomData);
       },
+
+//       updateStatus: async (userId, status) => {
+//   try {
+//     const { error } = await supabase
+//       .from("profiles")
+//       .update({
+//         status,
+//         last_active: new Date().toISOString(),
+//       })
+//       .eq("id", userId);
+
+//     if (error) {
+//       console.error("updateStatus error:", error);
+//       return false;
+//     }
+
+//     const cached = localStorage.getItem("dualmath_current_user");
+//     if (cached) {
+//       const user = JSON.parse(cached);
+//       if (user.id === userId) {
+//         user.status = status;
+//         localStorage.setItem("dualmath_current_user", JSON.stringify(user));
+//       }
+//     }
+
+//     return true;
+//   } catch (error) {
+//     console.error("updateStatus catch error:", error);
+//     return false;
+//   }
+// },
 
       joinRoom: async ({ roomCode: joinCode }) => {
         if (currentUser && !currentUser.emailVerified) {
@@ -557,14 +637,17 @@ export default function App() {
       leaveRoom: async () => {
         console.log("➡️ leaving room", roomCode);
 
-        const isInLiveMatch = room?.state?.phase === "playing";
+       const isInLiveMatch = room?.state?.phase === "playing";
 
-        if (isInLiveMatch) {
-          socket.emit("game:forfeit", { roomCode: room?.roomCode });
-          return;
-        }
+  if (isInLiveMatch) {
+    socket.emit("game:forfeit", { roomCode: room?.roomCode });
+    return;
+  }
 
-        socket.emit("room:leave", { roomCode });
+  socket.emit("room:leave", { roomCode });
+  if (currentUser?.id) userManager.updateStatus(currentUser.id, "online");
+
+        
 
         setView("lobby");
         setRoomCode(null);
@@ -599,6 +682,10 @@ export default function App() {
       return;
     }
 
+    if (user?.id) {
+  userManager.updateStatus(user.id, "online");
+}
+
     const needsStarterPick = !user.avatarData;
 
     if (needsStarterPick) {
@@ -614,6 +701,23 @@ export default function App() {
     setSessionError(null);
     setView("lobby");
   };
+
+  
+
+  if (showPickCharacter && pendingNewUser) {
+  return (
+    <PickCharacter
+      currentUser={pendingNewUser}
+      onComplete={(user) => {
+        setCurrentUser(user);
+        setPendingNewUser(null);
+        setShowPickCharacter(false);
+        setView("lobby");
+      }}
+      onBack={() => setShowPickCharacter(false)}
+    />
+  );
+}
 
   const handleUserUpdate = (updatedUser) => {
     console.log("📥 Received user update from child component:", updatedUser);
@@ -729,18 +833,38 @@ export default function App() {
   );
 }
 
-  if (screen === "game") {
-    return (
-      <Game
-        room={previewGame}
-        selfId="self"
-        currentUser={currentUser}
-        onSubmit={handlePreviewSubmit}
-        onBack={() => setScreen("lobby")}
-        onLeaveRoom={() => setScreen("lobby")}
-      />
-    );
-  }
+  // if (screen === "game") {
+  //   return (
+  //     <Game
+  //       room={previewGame}
+  //       selfId="self"
+  //       currentUser={currentUser}
+  //       onSubmit={handlePreviewSubmit}
+  //       onBack={() => setScreen("lobby")}
+  //       onLeaveRoom={() => setScreen("lobby")}
+  //     />
+  //   );
+  // }
+
+  if (view === "friends") {
+  return (
+    <FriendList
+      currentUser={currentUser}
+      onBack={() => setView("lobby")}
+      onUnreadCountChange={setUnreadChatCount}
+      refreshUnreadCount={loadUnreadChatCount}
+    />
+  );
+}
+
+    if (view === "rank") {
+      return (
+        <Rank
+          currentUser={currentUser}
+          onBack={() => setView("lobby")}
+        />
+      );
+    }
 
   if (view === "lobby" || view === "store") {
     return (
@@ -751,7 +875,13 @@ export default function App() {
           onCreate={actions.createRoom}
           onJoin={actions.joinRoom}
           onJoinRandom={actions.joinRandomRoom}
-          onOpenStore={() => setView("store")}
+          onOpenStore={() => {
+            setScreen("lobby");
+            setView("store");
+            if (currentUser?.id) {
+  userManager.updateStatus(currentUser.id, "online");
+}
+          }}
           error={error}
           currentUser={currentUser}
           onLoginSuccess={handleLoginSuccess}
@@ -765,8 +895,25 @@ export default function App() {
           onOpenGame={() => {
             setPreviewGame(createPreviewGame(currentUser?.avatarData));
             setScreen("game");
+            if (currentUser?.id) userManager.updateStatus(currentUser.id, "in_match");
+          }}
+          onOpenRank={() => {
+            setScreen("lobby");
+            setView("rank");
+            if (currentUser?.id) {
+  userManager.updateStatus(currentUser.id, "online");
+}
+          }}
+          friendChatBadgeCount={unreadChatCount}
+          onOpenFriends={() => {
+            setScreen("lobby");
+            setView("friends");
+            if (currentUser?.id) {
+  userManager.updateStatus(currentUser.id, "online");
+}
           }}
         />
+        
 
         {view === "store" && (
           <Store
@@ -778,6 +925,7 @@ export default function App() {
       </>
     );
   }
+
 
   if (view === "room") {
     return (

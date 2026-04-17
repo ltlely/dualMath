@@ -38,6 +38,388 @@ const getRedirectBaseUrl = () => {
 
 
 export const userManager = {
+  sendFriendMessage: async (senderId, receiverId, text) => {
+  try {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return { success: false, message: "Message cannot be empty." };
+    }
+
+    const { error } = await supabase
+      .from("friend_messages")
+      .insert({
+        sender_id: senderId,
+        receiver_id: receiverId,
+        message_text: trimmed,
+        is_read: false,
+      });
+
+    if (error) {
+      console.error("sendFriendMessage error:", error);
+      return {
+        success: false,
+        message: error.message || "Could not send message.",
+      };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("sendFriendMessage catch error:", error);
+    return { success: false, message: "Could not send message." };
+  }
+},
+
+getFriendMessages: async (
+  currentUserId,
+  otherUserId,
+  currentUsername = "You",
+  otherUsername = "Friend"
+) => {
+  try {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const { data, error } = await supabase
+      .from("friend_messages")
+      .select("id, sender_id, receiver_id, message_text, created_at")
+      .or(
+        `and(sender_id.eq.${currentUserId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUserId})`
+      )
+      .gte("created_at", sevenDaysAgo.toISOString())
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("getFriendMessages error:", error);
+      return [];
+    }
+
+    return (data || []).map((msg) => ({
+      id: msg.id,
+      sender: msg.sender_id === currentUserId ? currentUsername : otherUsername,
+      text: msg.message_text,
+      side: msg.sender_id === currentUserId ? "right" : "left",
+      senderId: msg.sender_id,
+      receiverId: msg.receiver_id,
+      createdAt: msg.created_at,
+    }));
+  } catch (error) {
+    console.error("getFriendMessages catch error:", error);
+    return [];
+  }
+},
+
+deleteExpiredMessages: async () => {
+  try {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const { error } = await supabase
+      .from("friend_messages")
+      .delete()
+      .lt("created_at", sevenDaysAgo.toISOString());
+
+    if (error) {
+      console.error("deleteExpiredMessages error:", error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("deleteExpiredMessages catch error:", error);
+    return false;
+  }
+},
+
+  sendFriendRequest: async (senderId, username) => {
+  try {
+    const normalizedUsername = username.trim().toLowerCase();
+
+    const { data: receivers, error: receiverError } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .ilike("username", normalizedUsername)
+      .limit(1);
+
+    const receiver = receivers?.[0] || null;
+
+    if (receiverError) {
+      return { success: false, message: "Could not find user." };
+    }
+
+    if (!receiver) {
+      return { success: false, message: "User not found." };
+    }
+
+    if (receiver.id === senderId) {
+      return { success: false, message: "You cannot add yourself." };
+    }
+
+    const { data: existingFriend } = await supabase
+      .from("friends")
+      .select("id")
+      .eq("user_id", senderId)
+      .eq("friend_id", receiver.id)
+      .maybeSingle();
+
+    if (existingFriend) {
+      return { success: false, message: "Already friends." };
+    }
+
+    const { data: existingRequest } = await supabase
+      .from("friend_requests")
+      .select("id, status")
+      .eq("sender_id", senderId)
+      .eq("receiver_id", receiver.id)
+      .maybeSingle();
+
+    if (existingRequest?.status === "pending") {
+      return { success: false, message: "Friend request already sent." };
+    }
+
+    // clear old non-pending request so user can add again later
+    if (existingRequest && existingRequest.status !== "pending") {
+      await supabase
+        .from("friend_requests")
+        .delete()
+        .eq("id", existingRequest.id);
+    }
+
+    const { error } = await supabase
+      .from("friend_requests")
+      .insert({
+        sender_id: senderId,
+        receiver_id: receiver.id,
+        status: "pending",
+      });
+
+    if (error) {
+      return { success: false, message: error.message || "Could not send request." };
+    }
+
+    return { success: true, message: `Friend request sent to ${receiver.username}.` };
+  } catch (error) {
+    console.error("sendFriendRequest error:", error);
+    return { success: false, message: "Could not send request." };
+  }
+},
+
+getFriendRequests: async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from("friend_requests")
+      .select(`
+        id,
+        sender_id,
+        receiver_id,
+        status,
+        created_at,
+        sender:profiles!friend_requests_sender_id_fkey (
+          id,
+          username,
+          avatar_data,
+          wins,
+          losses,
+          total_games,
+          rank_points,
+           status
+        )
+      `)
+      .eq("receiver_id", userId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("getFriendRequests error:", error);
+      return [];
+    }
+
+    return (data || []).map((row) => {
+      const sender = Array.isArray(row.sender) ? row.sender[0] : row.sender;
+      const wins = sender?.wins || 0;
+      const losses = sender?.losses || 0;
+      const totalGames = sender?.total_games || 0;
+      const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
+
+      return {
+        id: row.id,
+        senderId: row.sender_id,
+        username: sender?.username || "Unknown",
+        avatarData: sender?.avatar_data || null,
+        wins,
+        losses,
+        totalGames,
+        rankPoints: sender?.rank_points || 0,
+        winRate,
+        status: sender?.status || "offline",
+      };
+    });
+  } catch (error) {
+    console.error("getFriendRequests error:", error);
+    return [];
+  }
+},
+
+acceptFriendRequest: async (requestId, currentUserId, senderId) => {
+  try {
+    const { error: updateError } = await supabase
+      .from("friend_requests")
+      .update({ status: "accepted" })
+      .eq("id", requestId);
+
+    if (updateError) {
+      return { success: false, message: "Could not accept request." };
+    }
+
+    const { error: friendsError } = await supabase
+      .from("friends")
+      .insert([
+        { user_id: currentUserId, friend_id: senderId },
+        { user_id: senderId, friend_id: currentUserId },
+      ]);
+
+    if (friendsError) {
+      console.error("acceptFriendRequest insert error:", friendsError);
+      return {
+        success: false,
+        message: friendsError.message || "Could not create friendship.",
+      };
+    }
+
+    return { success: true, message: "Friend added." };
+  } catch (error) {
+    console.error("acceptFriendRequest error:", error);
+    return { success: false, message: "Could not accept request." };
+  }
+},
+
+declineFriendRequest: async (requestId) => {
+  try {
+    const { error } = await supabase
+      .from("friend_requests")
+      .update({ status: "declined" })
+      .eq("id", requestId);
+
+    if (error) {
+      return { success: false, message: "Could not decline request." };
+    }
+
+    return { success: true, message: "Request declined." };
+  } catch (error) {
+    console.error("declineFriendRequest error:", error);
+    return { success: false, message: "Could not decline request." };
+  }
+},
+
+getFriends: async (userId) => {
+  try {
+  const { data, error } = await supabase
+  .from("friends")
+  .select(`
+    id,
+    friend_id,
+    friend:profiles!friends_friend_id_fkey (
+       id,
+  username,
+  avatar_data,
+  wins,
+  losses,
+  total_games,
+  rank_points,
+  status
+    )
+  `)
+  .eq("user_id", userId)
+  .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("getFriends error:", error);
+      return [];
+    }
+
+    return (data || []).map((row) => {
+      const friend = Array.isArray(row.friend) ? row.friend[0] : row.friend;
+      const wins = friend?.wins || 0;
+      const losses = friend?.losses || 0;
+      const totalGames = friend?.total_games || 0;
+      const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
+
+      return {
+        id: friend?.id,
+        username: friend?.username || "Unknown",
+        avatarData: friend?.avatar_data || null,
+        wins,
+        losses,
+        totalGames,
+        rankPoints: friend?.rank_points || 0,
+        winRate,
+        status: friend?.status || "offline",
+      };
+    });
+  } catch (error) {
+    console.error("getFriends error:", error);
+    return [];
+  }
+},
+
+removeFriend: async (currentUserId, friendId) => {
+  try {
+    const { error: errorA } = await supabase
+      .from("friends")
+      .delete()
+      .eq("user_id", currentUserId)
+      .eq("friend_id", friendId);
+
+    const { error: errorB } = await supabase
+      .from("friends")
+      .delete()
+      .eq("user_id", friendId)
+      .eq("friend_id", currentUserId);
+
+    if (errorA || errorB) {
+      console.error("removeFriend error:", errorA || errorB);
+      return { success: false, message: "Could not remove friend." };
+    }
+
+    return { success: true, message: "Friend removed." };
+  } catch (error) {
+    console.error("removeFriend catch error:", error);
+    return { success: false, message: "Could not remove friend." };
+  }
+},
+
+  getLeaderboard: async () => {
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select(`
+        id,
+        username,
+        avatar_data,
+        wins,
+        losses,
+        total_games,
+        rank_points
+      `);
+
+    if (error) {
+      console.error("getLeaderboard error:", error);
+      return [];
+    }
+
+    return (data || []).map((player) => ({
+      id: player.id,
+      username: player.username || "Unknown",
+      avatarData: player.avatar_data || null,
+      wins: player.wins || 0,
+      losses: player.losses || 0,
+      totalGames: player.total_games || 0,
+      rankPoints: player.rank_points || 0,
+    }));
+  } catch (error) {
+    console.error("getLeaderboard error:", error);
+    return [];
+  }
+},
   // Get current user from Supabase auth session
   getCurrentUser: async () => {
     try {
@@ -99,18 +481,29 @@ export const userManager = {
           .eq('id', userId);
       }
 
-      const user = {
-        id: userId,
-        username: profile?.username || session.user.user_metadata?.username || 'Player',
-        email: session.user.email,
-        emailVerified: emailVerified,
-        avatarData: profile?.avatar_data || null,
-        rankPoints: profile?.rank_points || 0,
-        wins: profile?.wins || 0,
-        losses: profile?.losses || 0,
-        totalGames: profile?.total_games || 0,
-        createdAt: profile?.created_at || session.user.created_at,
-      };
+ const user = {
+  id: userId,
+  username: profile?.username || session.user.user_metadata?.username || 'Player',
+  email: session.user.email,
+  emailVerified: emailVerified,
+  avatarData: profile?.avatar_data || null,
+
+  starterCharacter: profile?.starter_character || null,
+  equippedHair: profile?.equipped_hair || null,
+  equippedTop: profile?.equipped_top || null,
+  equippedBottom: profile?.equipped_bottom || null,
+  equippedOutfit: profile?.equipped_outfit || "",
+  equippedShoes: profile?.equipped_shoes || null,
+  equippedAccessory: profile?.equipped_accessory || "",
+  ownedItems: profile?.owned_items || [],
+
+  coins: profile?.coins ?? 2000,
+  rankPoints: profile?.rank_points || 0,
+  wins: profile?.wins || 0,
+  losses: profile?.losses || 0,
+  totalGames: profile?.total_games || 0,
+  createdAt: profile?.created_at || session.user.created_at,
+};
 
       // Cache locally for quick access
       localStorage.setItem('dualmath_current_user', JSON.stringify(user));
@@ -237,70 +630,104 @@ export const userManager = {
   },
 
   // Sign up new user
-  signupUser: async (username, email, password) => {
-    try {
-      // First check if username is already taken
-      const { data: existingUser } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('username', username.toLowerCase())
-        .single();
+ signupUser: async (username, email, password) => {
+  try {
+    const normalizedUsername = username.trim().toLowerCase();
+    const normalizedEmail = email.trim().toLowerCase();
 
-      if (existingUser) {
-        return { success: false, message: 'Username already taken' };
+    // Check username first
+    const { data: existingUsername } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("username", normalizedUsername)
+      .maybeSingle();
+
+    if (existingUsername) {
+      return { success: false, message: "Username already taken" };
+    }
+
+    // Check email in profiles too
+    const { data: existingEmail } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+
+    if (existingEmail) {
+      return { success: false, message: "An account with this email already exists. Please login instead." };
+    }
+
+    const redirectUrl = getRedirectBaseUrl();
+    console.log("📧 Signup email redirect URL:", redirectUrl);
+
+    const { data, error } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+      options: {
+        data: {
+          username: username.trim(),
+        },
+        emailRedirectTo: redirectUrl,
+      },
+    });
+
+    if (error) {
+      const msg = String(error.message || "").toLowerCase();
+
+      if (msg.includes("already registered") || msg.includes("already exists")) {
+        return {
+          success: false,
+          message: "An account with this email already exists. Please login instead.",
+        };
       }
 
-      // Get the redirect URL dynamically based on current deployment
-      const redirectUrl = getRedirectBaseUrl();
-      console.log('📧 Signup email redirect URL:', redirectUrl);
+      return { success: false, message: error.message };
+    }
 
-      // Sign up with Supabase Auth - this sends verification email automatically
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            username: username,
-          },
-          emailRedirectTo: redirectUrl,
-        },
+    if (!data.user) {
+      return { success: false, message: "Signup failed" };
+    }
+
+    // Supabase can return a user with no identities if email already exists
+    if (data.user.identities && data.user.identities.length === 0) {
+      return {
+        success: false,
+        message: "An account with this email already exists. Please login instead.",
+      };
+    }
+
+    const sessionToken = getOrCreateSessionToken();
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .insert({
+        id: data.user.id,
+        username: normalizedUsername,
+        display_name: username.trim(),
+        email: normalizedEmail,
+        rank_points: 0,
+        wins: 0,
+        losses: 0,
+        total_games: 0,
+        avatar_data: null,
+        starter_character: null,
+        equipped_hair: null,
+        equipped_top: null,
+        equipped_bottom: null,
+        equipped_shoes: null,
+        equipped_outfit: "",
+        equipped_accessory: "",
+        owned_items: [],
+        coins: 2000,
+        active_session_token: sessionToken,
+        last_active: new Date().toISOString(),
       });
 
-      if (error) {
-        return { success: false, message: error.message };
-      }
+    if (profileError) {
+  console.error("signup profile insert error:", profileError);
 
-      if (!data.user) {
-        return { success: false, message: 'Signup failed' };
-      }
-
-      // Check if user already exists (Supabase returns user but with identities = [] if email exists)
-      if (data.user.identities && data.user.identities.length === 0) {
-        return { success: false, message: 'An account with this email already exists. Please login instead.' };
-      }
-
-      const sessionToken = getOrCreateSessionToken();
-
-      // Create profile in profiles table
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: data.user.id,
-          username: username.toLowerCase(),
-          display_name: username,
-          email: email, // Store email for username login lookup
-          rank_points: 0,
-          wins: 0,
-          losses: 0,
-          total_games: 0,
-          active_session_token: sessionToken,
-          last_active: new Date().toISOString(),
-        });
-
-      if (profileError) {
-  console.error("saveUser profile update error:", profileError);
-
-  const message = String(profileError.message || "").toLowerCase();
+  const rawMessage = String(profileError.message || "");
+  const message = rawMessage.toLowerCase();
 
   if (
     message.includes("duplicate key") ||
@@ -309,50 +736,61 @@ export const userManager = {
   ) {
     return {
       success: false,
-      message: "That username is already taken.",
+      message: "Username already taken",
     };
   }
 
-  if (message.includes("username_changed_at")) {
+  if (
+    message.includes("profiles_email_key") ||
+    message.includes("email")
+  ) {
     return {
       success: false,
-      message: "Please complete the sign up form to continue.",
+      message: "An account with this email already exists. Please login instead.",
     };
   }
 
   return {
     success: false,
-    message: "Please complete the sign up form to continue.",
+    message: rawMessage || "Could not create profile.",
   };
 }
 
-      const user = {
-        id: data.user.id,
-        username: username,
-        email: email,
-        emailVerified: false, // Not verified yet - ALWAYS false on signup
-        avatarData: null,
-        rankPoints: 0,
-        wins: 0,
-        losses: 0,
-        totalGames: 0,
-      };
+    const user = {
+      id: data.user.id,
+      username: username.trim(),
+      email: normalizedEmail,
+      emailVerified: false,
+      avatarData: null,
+      starterCharacter: null,
+      equippedHair: null,
+      equippedTop: null,
+      equippedBottom: null,
+      equippedOutfit: "",
+      equippedShoes: null,
+      equippedAccessory: "",
+      ownedItems: [],
+      coins: 2000,
+      rankPoints: 0,
+      wins: 0,
+      losses: 0,
+      totalGames: 0,
+    };
 
-      localStorage.setItem('dualmath_current_user', JSON.stringify(user));
-      // Store email for resend verification (in case session isn't available)
-      localStorage.setItem('dualmath_pending_verification_email', email);
+    localStorage.setItem("dualmath_current_user", JSON.stringify(user));
+    localStorage.setItem("dualmath_pending_verification_email", normalizedEmail);
 
-      return { 
-        success: true, 
-        user, 
-        message: 'Account created! Please check your email to verify your account.',
-        requiresVerification: true
-      };
-    } catch (error) {
-      console.error('Signup error:', error);
-      return { success: false, message: 'Signup failed. Please try again.' };
-    }
-  },
+    return {
+      success: true,
+      user,
+      message: "Account created! Please check your email to verify your account.",
+      requiresVerification: true,
+    };
+  } catch (error) {
+    console.error("Signup error:", error);
+    return { success: false, message: "Signup failed. Please try again." };
+  }
+},
 
   // Login user
   loginUser: async (emailOrUsername, password) => {
@@ -362,22 +800,25 @@ export const userManager = {
       // If not an email, look up by username
       if (!emailOrUsername.includes('@')) {
         // Get email from profiles table (we store it there during signup)
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('email')
-          .eq('username', emailOrUsername.toLowerCase())
-          .single();
+    
+  const normalizedUsername = emailOrUsername.trim().toLowerCase();
 
-        if (profileError || !profile) {
-          return { success: false, message: 'User not found' };
-        }
-        
-        if (!profile.email) {
-          return { success: false, message: 'Please login with your email address' };
-        }
-        
-        email = profile.email;
-      }
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, email")
+    .eq("username", normalizedUsername)
+    .maybeSingle();
+
+  if (profileError || !profile) {
+    return { success: false, message: "User not found" };
+  }
+
+  if (!profile.email) {
+    return { success: false, message: "Please login with your email address" };
+  }
+
+  email = profile.email;
+}
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -425,16 +866,26 @@ export const userManager = {
         .single();
 
       const user = {
-        id: data.user.id,
-        username: profile?.username || data.user.user_metadata?.username || 'Player',
-        email: data.user.email,
-        emailVerified: emailVerified, // Use the value from auth, not profile
-        avatarData: profile?.avatar_data || null,
-        rankPoints: profile?.rank_points || 0,
-        wins: profile?.wins || 0,
-        losses: profile?.losses || 0,
-        totalGames: profile?.total_games || 0,
-      };
+  id: data.user.id,
+  username: profile?.username || data.user.user_metadata?.username || 'Player',
+  email: data.user.email,
+  emailVerified: emailVerified,
+  avatarData: profile?.avatar_data || null,
+
+  starterCharacter: profile?.starter_character || null,
+  equippedHair: profile?.equipped_hair || null,
+  equippedTop: profile?.equipped_top || null,
+  equippedBottom: profile?.equipped_bottom || null,
+  equippedOutfit: profile?.equipped_outfit || "",
+  equippedShoes: profile?.equipped_shoes || null,
+  equippedAccessory: profile?.equipped_accessory || "",
+  ownedItems: profile?.owned_items || [],
+  coins: profile?.coins ?? 2000,
+  rankPoints: profile?.rank_points || 0,
+  wins: profile?.wins || 0,
+  losses: profile?.losses || 0,
+  totalGames: profile?.total_games || 0,
+};
 
       localStorage.setItem('dualmath_current_user', JSON.stringify(user));
       
@@ -465,9 +916,12 @@ export const userManager = {
       if (session?.user?.id) {
         // Clear the active session token
         await supabase
-          .from('profiles')
-          .update({ active_session_token: null })
-          .eq('id', session.user.id);
+           .from("profiles")
+  .update({
+    active_session_token: null,
+    status: "offline",
+  })
+  .eq("id", session.user.id);
       }
 
       await supabase.auth.signOut();
@@ -568,57 +1022,64 @@ export const userManager = {
   },
 
   // Save/update user data
-  saveUser: async (user) => {
+saveUser: async (user) => {
   try {
+    const payload = {
+      username: (user.username || "").trim().toLowerCase(),
+      display_name: (user.username || "").trim(),
+      rank_points: user.rankPoints || 0,
+      wins: user.wins || 0,
+      losses: user.losses || 0,
+      total_games: user.totalGames || 0,
+      avatar_data: user.avatarData || null,
+      coins: user.coins ?? 2000,
+
+      starter_character: user.starterCharacter || null,
+      equipped_hair: user.equippedHair || null,
+      equipped_top: user.equippedTop || null,
+      equipped_bottom: user.equippedBottom || null,
+      equipped_outfit: user.equippedOutfit || "",
+      equipped_shoes: user.equippedShoes || null,
+      equipped_accessory: user.equippedAccessory || "",
+      owned_items: user.ownedItems || [],
+
+      last_active: new Date().toISOString(),
+    };
+
     const { error: profileError } = await supabase
       .from("profiles")
-.update({
-  username: (user.username || "").trim().toLowerCase(),
-  display_name: (user.username || "").trim(),
-  rank_points: user.rankPoints || 0,
-  wins: user.wins || 0,
-  losses: user.losses || 0,
-  total_games: user.totalGames || 0,
-  avatar_data: user.avatarData || null,
-  coins: user.coins ?? 2000,
-  // username_changed_at: user.usernameChangedAt || null,
-  last_active: new Date().toISOString(),
-})
+      .update(payload)
       .eq("id", user.id);
 
-   if (profileError) {
-  console.error("signup profile insert error:", profileError);
-
-  return {
-    success: false,
-    message: profileError.message || "Could not create profile.",
-  };
-
-
-      const message = String(profileError.message || "").toLowerCase();
-
-      if (
-        message.includes("duplicate key") ||
-        message.includes("unique constraint") ||
-        message.includes("profiles_username_key")
-      ) {
-        return {
-          success: false,
-          message: "That username is already taken.",
-        };
-      }
+    if (profileError) {
+      console.error("saveUser profile update error:", profileError);
 
       return {
         success: false,
-        message: "Could not update username.",
+        message: profileError.message || "Could not save profile.",
       };
     }
 
-    localStorage.setItem("dualmath_current_user", JSON.stringify(user));
-    return { success: true, user };
+   const mergedUser = {
+  ...user,
+  avatarData: payload.avatar_data,
+  coins: payload.coins,
+  starterCharacter: payload.starter_character,
+  equippedHair: payload.equipped_hair,
+  equippedTop: payload.equipped_top,
+  equippedBottom: payload.equipped_bottom,
+  equippedOutfit: payload.equipped_outfit,
+  equippedShoes: payload.equipped_shoes,
+  equippedAccessory: payload.equipped_accessory,
+  ownedItems: payload.owned_items,
+};
+
+localStorage.setItem("dualmath_current_user", JSON.stringify(mergedUser));
+return { success: true, user: mergedUser };
   } catch (error) {
     console.error("saveUser error:", error);
-return { success: false, message: "Please complete the sign up form to continue." };  }
+    return { success: false, message: "Please complete the sign up form to continue." };
+  }
 },
 
   // Update avatar
@@ -836,6 +1297,218 @@ return { success: false, message: "Please complete the sign up form to continue.
     return null;
   }
 },
+
+getAllPlayers: async () => {
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select(`
+        id,
+        username,
+        avatar_data,
+        wins,
+        losses,
+        total_games,
+        rank_points
+      `)
+      .order("username", { ascending: true });
+
+    if (error) {
+      console.error("getAllPlayers error:", error);
+      return [];
+    }
+
+    return (data || []).map((player) => {
+      const wins = player.wins || 0;
+      const losses = player.losses || 0;
+      const totalGames = player.total_games || 0;
+      const winRate =
+        totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
+
+      return {
+        id: player.id,
+        username: player.username || "Unknown",
+        avatarData: player.avatar_data || null,
+        wins,
+        losses,
+        totalGames,
+        rankPoints: player.rank_points || 0,
+        winRate,
+      };
+    });
+  } catch (error) {
+    console.error("getAllPlayers error:", error);
+    return [];
+  }
+},
+updateStatus: async (userId, status) => {
+  try {
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        status,
+        last_active: new Date().toISOString(),
+      })
+      .eq("id", userId);
+
+    if (error) {
+      console.error("updateStatus error:", error);
+      return false;
+    }
+
+    const cached = localStorage.getItem("dualmath_current_user");
+    if (cached) {
+      const user = JSON.parse(cached);
+      if (user.id === userId) {
+        user.status = status;
+        localStorage.setItem("dualmath_current_user", JSON.stringify(user));
+      }
+    }
+
+    return true;
+  } catch (err) {
+    console.error("updateStatus catch:", err);
+    return false;
+  }
+},
+
+getUnreadChatSummary: async (currentUserId) => {
+  try {
+    const { data, error } = await supabase
+      .from("friend_messages")
+      .select("sender_id")
+      .eq("receiver_id", currentUserId)
+      .eq("is_read", false);
+
+    if (error) {
+      console.error("getUnreadChatSummary error:", error);
+      return { unreadSenders: [], unreadCount: 0 };
+    }
+
+    const senderIds = [...new Set((data || []).map((row) => row.sender_id))];
+
+    return {
+      unreadSenders: senderIds,
+      unreadCount: senderIds.length,
+    };
+  } catch (error) {
+    console.error("getUnreadChatSummary catch error:", error);
+    return { unreadSenders: [], unreadCount: 0 };
+  }
+},
+
+markChatAsRead: async (currentUserId, otherUserId) => {
+  try {
+    const { error } = await supabase
+      .from("friend_messages")
+      .update({ is_read: true })
+      .eq("receiver_id", currentUserId)
+      .eq("sender_id", otherUserId)
+      .eq("is_read", false);
+
+    if (error) {
+      console.error("markChatAsRead error:", error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("markChatAsRead catch error:", error);
+    return false;
+  }
+},
+
+markAllChatsAsRead: async (currentUserId) => {
+  try {
+    const { error, data } = await supabase
+      .from("friend_messages")
+      .update({ is_read: true })
+      .eq("receiver_id", currentUserId)
+      .eq("is_read", false)
+      .select();
+
+    console.log("markAllChatsAsRead result:", { currentUserId, data, error });
+
+    if (error) {
+      console.error("markAllChatsAsRead error:", error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("markAllChatsAsRead catch error:", error);
+    return false;
+  }
+},
+
+
+markChatAsRead: async (currentUserId, otherUserId) => {
+  try {
+    const { error, data } = await supabase
+      .from("friend_messages")
+      .update({ is_read: true })
+      .eq("receiver_id", currentUserId)
+      .eq("sender_id", otherUserId)
+      .eq("is_read", false)
+      .select();
+
+    console.log("markChatAsRead result:", { currentUserId, otherUserId, data, error });
+
+    if (error) {
+      console.error("markChatAsRead error:", error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("markChatAsRead catch error:", error);
+    return false;
+  }
+},
+
+getFriendLastMessages: async (currentUserId, friendIds = []) => {
+  try {
+    if (!currentUserId || !friendIds.length) return {};
+
+    const { data, error } = await supabase
+      .from("friend_messages")
+      .select("sender_id, receiver_id, message_text, created_at")
+      .or(
+        friendIds
+          .map(
+            (friendId) =>
+              `and(sender_id.eq.${currentUserId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${currentUserId})`
+          )
+          .join(",")
+      )
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("getFriendLastMessages error:", error);
+      return {};
+    }
+
+    const map = {};
+
+    for (const row of data || []) {
+      const otherId =
+        row.sender_id === currentUserId ? row.receiver_id : row.sender_id;
+
+      if (!map[otherId]) {
+        map[otherId] = {
+          text: row.message_text,
+          createdAt: row.created_at,
+        };
+      }
+    }
+
+    return map;
+  } catch (error) {
+    console.error("getFriendLastMessages catch error:", error);
+    return {};
+  }
+},
+
 };
 
 export { supabase };

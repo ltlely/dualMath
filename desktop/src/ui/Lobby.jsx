@@ -23,6 +23,9 @@ export default function Lobby({
   setTestRankOverride,
   testRankOverride,
   onOpenPickCharacter,
+   onOpenRank,
+   onOpenFriends,
+   friendChatBadgeCount = 0,
 }) {
 
   const [settingsTab, setSettingsTab] = useState("account");
@@ -212,10 +215,10 @@ if (!result?.success) {
       <div className="lobbyTopbar">
         <div>
           <div className="miniLabel">Lobby</div>
-          <h1 className="lobbyHeading">Dual Math</h1>
+          {/* <h1 className="lobbyHeading">Dual Math</h1>
           <div className="welcomeText">
             Playing as <strong>{currentUser.username}</strong>
-          </div>
+          </div> */}
         </div>
 
         <div className="topbarActions">
@@ -449,6 +452,35 @@ if (!result?.success) {
                 <span className="categoryCount">Customize your look</span>
               </span>
             </button>
+
+            <button
+              className="categoryButton"
+              type="button"
+              onClick={onOpenRank}
+            >
+              <span className="categoryEmoji">🏆</span>
+              <span className="categoryCopy">
+                <span className="categoryTitle">Open Rank</span>
+                <span className="categoryCount">View your rank details</span>
+              </span>
+            </button>
+
+<button
+  className="categoryButton"
+  type="button"
+  onClick={onOpenFriends}
+>
+  <span className="categoryEmoji">👥</span>
+  <span className="categoryCopy">
+    <span className="categoryTitleRow">
+      <span className="categoryTitle">Friends</span>
+      {friendChatBadgeCount > 0 && (
+        <span className="lobbyChatBadge">{friendChatBadgeCount}</span>
+      )}
+    </span>
+    <span className="categoryCount">Open your friend list</span>
+  </span>
+</button>
 
             <div className="summaryCard">
               <span className="summaryLabel">Rank</span>
@@ -975,17 +1007,17 @@ if (!result?.success) {
           border: 1px solid rgba(93, 88, 63, 0.08);
         }
 
-        .playerMiniAvatar,
-        .avatarFallback {
-          width: 64px;
-          height: 64px;
-          border-radius: 18px;
-          overflow: hidden;
-          display: grid;
-          place-items: center;
-          background: #fffdf4;
-          border: 1px solid rgba(93, 88, 63, 0.08);
-        }
+       .playerMiniAvatar,
+.avatarFallback {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+}
 
         .playerMiniAvatar img {
           width: 100%;
@@ -1685,6 +1717,28 @@ if (!result?.success) {
           }
         }
 
+        .categoryTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lobbyChatBadge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #d96a6a;
+  color: #fff8ee;
+  font-size: 10px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(217, 106, 106, 0.35);
+  flex-shrink: 0;
+}
         
       `}</style>
     </div>

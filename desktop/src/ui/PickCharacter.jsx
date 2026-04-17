@@ -59,9 +59,9 @@ export default function PickCharacter({ currentUser, onComplete, onBack }) {
     },
   };
 
- const handleContinue = async () => {
-  if (!currentUser?.id) {
-    setError("Please complete sign up or login first.");
+const handleContinue = async () => {
+  if (!currentUser || !currentUser.id) {
+    setError("Please complete sign up first.");
     return;
   }
 
@@ -71,29 +71,56 @@ export default function PickCharacter({ currentUser, onComplete, onBack }) {
   try {
     const avatarData = await composeStarterAvatar(choices[selected].layers);
 
-    const updatedUser = {
-      ...currentUser,
-      avatarData,
-      starterCharacter: selected,
-    };
+    const starterLoadout =
+  selected === "girl"
+    ? {
+        starterCharacter: "girl",
+        equippedHair: "GirlHair2",
+        equippedTop: "UniTop1",
+        equippedBottom: "UniShorts1",
+        equippedShoes: "UniShoes1",
+        equippedOutfit: "",
+        equippedAccessory: "",
+        ownedItems: ["GirlHair2", "UniTop1", "UniShorts1", "UniShoes1"],
+      }
+    : {
+        starterCharacter: "boy",
+        equippedHair: "BoyHair1",
+        equippedTop: "BoyTop6",
+        equippedBottom: "UniShorts1",
+        equippedShoes: "UniShoes1",
+        equippedOutfit: "",
+        equippedAccessory: "",
+        ownedItems: ["BoyHair1", "BoyTop6", "UniShorts1", "UniShoes1"],
+      };
+
+const updatedUser = {
+  ...currentUser,
+  avatarData,
+  ...starterLoadout,
+};
+
+    console.log("Saving character for user:", currentUser.id, updatedUser);
 
     const result = await userManager.saveUser(updatedUser);
 
     if (!result?.success) {
+      console.error("saveUser failed:", result);
       setError(result?.message || "Could not save character.");
       return;
     }
 
-    const freshUser = await userManager.getCurrentUser();
-    onComplete?.(freshUser || updatedUser);
+    onComplete?.({
+      ...updatedUser,
+      ...(result?.user || {}),
+    });
   } catch (err) {
     console.error("Pick character save error:", err);
-    setError("Please complete sign up or login first.");
+    setError("Could not save character. Please try again.");
   } finally {
     setIsSaving(false);
   }
 };
-
 
 
   return (
