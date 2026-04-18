@@ -27,16 +27,29 @@ const hasLoadedOnceRef = useRef(false);
   const chatMessagesRef = useRef(null);
 const chatBottomRef = useRef(null);
 
-const loadUnreadChatSummary = useCallback(async () => {
-  if (!currentUser?.id) return;
+const getResolvedUser = useCallback(async () => {
+  if (currentUser?.id) return currentUser;
 
-  const result = await userManager.getUnreadChatSummary(currentUser.id);
+  try {
+    const freshUser = await userManager.getCurrentUser();
+    return freshUser || null;
+  } catch (err) {
+    console.error("Could not resolve current user:", err);
+    return null;
+  }
+}, [currentUser]);
+
+const loadUnreadChatSummary = useCallback(async () => {
+  const resolvedUser = await getResolvedUser();
+  if (!resolvedUser?.id) return;
+
+  const result = await userManager.getUnreadChatSummary(resolvedUser.id);
   const senders = result?.unreadSenders || [];
 
   setUnreadSenders(senders);
   setUnreadChatCount(senders.length);
   onUnreadCountChange?.(senders.length);
-}, [currentUser?.id, onUnreadCountChange]);
+}, [getResolvedUser, onUnreadCountChange]);
 
   const loadFriendMessageMeta = useCallback(async () => {
     if (!currentUser?.id || !friends.length) {
@@ -79,23 +92,39 @@ const loadUnreadChatSummary = useCallback(async () => {
     return () => clearInterval(interval);
   }, [currentUser?.id, loadUnreadChatSummary]);
 
-  const loadData = useCallback(
+ const loadData = useCallback(
   async (showLoading = false) => {
-    if (!currentUser?.id) return;
+    if (showLoading && !hasLoadedOnceRef.current) setIsLoading(true);
+
+    const resolvedUser = await getResolvedUser();
+
+    if (!resolvedUser?.id) {
+      setFriends([]);
+      setRequests([]);
+      setIsLoading(false);
+      return;
+    }
 
     try {
-      if (showLoading && !hasLoadedOnceRef.current) setIsLoading(true);
-
-      const [friendsData, requestsData] = await Promise.all([
-        userManager.getFriends(currentUser.id),
-        userManager.getFriendRequests(currentUser.id),
+      const [friendsResult, requestsData] = await Promise.all([
+        userManager.getFriends(resolvedUser.id),
+        userManager.getFriendRequests(resolvedUser.id),
       ]);
 
-      setFriends(friendsData || []);
+      const friendsData = Array.isArray(friendsResult)
+        ? friendsResult
+        : (friendsResult?.data || []);
+
+      setFriends(friendsData);
       setRequests(requestsData || []);
       hasLoadedOnceRef.current = true;
-setHasLoadedOnce(true);
-      setError("");
+      setHasLoadedOnce(true);
+
+      if (!Array.isArray(friendsResult) && friendsResult?.success === false) {
+        setError(friendsResult.message || "Could not load friends.");
+      } else {
+        setError("");
+      }
     } catch (err) {
       console.error("Friend list load error:", err);
       setError("Could not load friends.");
@@ -103,16 +132,14 @@ setHasLoadedOnce(true);
       setIsLoading(false);
     }
   },
-  [currentUser?.id]
+  [getResolvedUser]
 );
 
-  useEffect(() => {
-    if (!currentUser?.id) return;
-
-    loadData(true);
-    const interval = setInterval(() => loadData(false), 3000);
-    return () => clearInterval(interval);
-  }, [currentUser?.id, loadData]);
+useEffect(() => {
+  loadData(true);
+  const interval = setInterval(() => loadData(false), 3000);
+  return () => clearInterval(interval);
+}, [loadData]);
 
   useEffect(() => {
     const loadChatMessages = async (showLoading = false) => {
@@ -159,55 +186,65 @@ setHasLoadedOnce(true);
     return () => clearInterval(interval);
   }, [currentUser?.id, currentUser?.username, chatTarget?.id, chatTarget?.username]);
 
-  const filteredFriends = useMemo(
-    () =>
-      friends.filter((f) =>
-        f.username.toLowerCase().includes(searchUsername.toLowerCase())
-      ),
-    [friends, searchUsername]
-  );
+  const filteredFriends = useMemo(() => friends, [friends]);
+    
 
   const handleSendRequest = async () => {
-    if (!searchUsername.trim()) return;
+  if (!searchUsername.trim()) return;
 
-    setMessage("");
-    setError("");
-    setIsSending(true);
+  setMessage("");
+  setError("");
+  setIsSending(true);
 
-    const result = await userManager.sendFriendRequest(
-      currentUser.id,
-      searchUsername
-    );
+  const resolvedUser = await getResolvedUser();
 
-    if (!result?.success) {
-      setError(result?.message || "Could not send request.");
-      setIsSending(false);
-      return;
-    }
-
-    setMessage(result.message || "Friend request sent.");
-    setSearchUsername("");
+  if (!resolvedUser?.id) {
+    setError("You need to be logged in to send a friend request.");
     setIsSending(false);
-  };
+    return;
+  }
 
-  const handleAccept = async (request) => {
-    setMessage("");
-    setError("");
+  const result = await userManager.sendFriendRequest(
+    resolvedUser.id,
+    searchUsername.trim()
+  );
 
-    const result = await userManager.acceptFriendRequest(
-      request.id,
-      currentUser.id,
-      request.senderId
-    );
+  if (!result?.success) {
+    setError(result?.message || "Could not send request.");
+    setIsSending(false);
+    return;
+  }
 
-    if (!result?.success) {
-      setError(result?.message || "Could not accept request.");
-      return;
-    }
+  setMessage(result.message || "Friend request sent.");
+  setSearchUsername("");
+  setIsSending(false);
+};
 
-    setMessage(result.message || "Friend added.");
-    loadData(false);
-  };
+ const handleAccept = async (request) => {
+  setMessage("");
+  setError("");
+
+  const resolvedUser = await getResolvedUser();
+
+  if (!resolvedUser?.id) {
+    setError("You need to be logged in to accept a friend request.");
+    return;
+  }
+
+  const result = await userManager.acceptFriendRequest(
+    request.id,
+    resolvedUser.id,
+    request.senderId
+  );
+
+  if (!result?.success) {
+    setError(result?.message || "Could not accept request.");
+    return;
+  }
+
+  setMessage(result.message || "Friend added.");
+  loadData(false);
+};
 
   const handleDecline = async (requestId) => {
     setMessage("");
@@ -228,64 +265,81 @@ setHasLoadedOnce(true);
     setRemoveTarget({ id: friendId, username: friendUsername });
   };
 
-  const confirmRemoveFriend = async () => {
-    if (!removeTarget) return;
+ const confirmRemoveFriend = async () => {
+  if (!removeTarget) return;
 
-    setMessage("");
-    setError("");
+  setMessage("");
+  setError("");
 
-    const result = await userManager.removeFriend(currentUser.id, removeTarget.id);
+  const resolvedUser = await getResolvedUser();
 
-    if (!result?.success) {
-      setError(result?.message || "Could not remove friend.");
-      return;
-    }
+  if (!resolvedUser?.id) {
+    setError("You need to be logged in to remove a friend.");
+    return;
+  }
 
-    if (chatTarget?.id === removeTarget.id) {
-      setChatTarget(null);
-      setChatMessages([]);
-      setChatInput("");
-    }
+  const result = await userManager.removeFriend(resolvedUser.id, removeTarget.id);
 
-    setMessage(`${removeTarget.username} was removed from your friend list.`);
-    setRemoveTarget(null);
-    loadData(false);
-  };
+  if (!result?.success) {
+    setError(result?.message || "Could not remove friend.");
+    return;
+  }
+
+  if (chatTarget?.id === removeTarget.id) {
+    setChatTarget(null);
+    setChatMessages([]);
+    setChatInput("");
+  }
+
+  setMessage(`${removeTarget.username} was removed from your friend list.`);
+  setRemoveTarget(null);
+  loadData(false);
+};
 
   const handleSendChat = async () => {
-    const trimmed = chatInput.trim();
-    if (!trimmed || !chatTarget?.id || !currentUser?.id) return;
+  const trimmed = chatInput.trim();
+  if (!trimmed || !chatTarget?.id) return;
 
-    setError("");
-    setIsChatSending(true);
+  setError("");
+  setIsChatSending(true);
 
-    const result = await userManager.sendFriendMessage(
-      currentUser.id,
-      chatTarget.id,
-      trimmed
-    );
+  const resolvedUser = await getResolvedUser();
 
-    if (!result?.success) {
-      setError(result?.message || "Could not send message.");
-      setIsChatSending(false);
-      return;
-    }
-
-    setChatMessages((prev) => [
-  ...prev,
-  {
-    id: Date.now(),
-    sender: currentUser?.username || "You",
-    text: trimmed,
-    side: "right",
-    createdAt: new Date().toISOString(),
-  },
-]);
-
-    setChatInput("");
+  if (!resolvedUser?.id) {
+    setError("You need to be logged in to send a message.");
     setIsChatSending(false);
-    scrollChatToBottom(true);
-  };
+    return;
+  }
+
+  const result = await userManager.sendFriendMessage(
+    resolvedUser.id,
+    chatTarget.id,
+    trimmed
+  );
+
+  if (!result?.success) {
+    setError(result?.message || "Could not send message.");
+    setIsChatSending(false);
+    return;
+  }
+
+  setChatMessages((prev) => [
+    ...prev,
+    {
+      id: Date.now(),
+      sender: resolvedUser?.username || "You",
+      text: trimmed,
+      side: "right",
+      createdAt: new Date().toISOString(),
+    },
+  ]);
+
+  setChatInput("");
+  setIsChatSending(false);
+  scrollChatToBottom(true);
+};
+
+    
 
 const openChat = async (friend) => {
   setChatTarget(friend);
@@ -293,8 +347,10 @@ const openChat = async (friend) => {
   setMessage("");
   setError("");
 
-  if (currentUser?.id && friend?.id) {
-    await userManager.markChatAsRead(currentUser.id, friend.id);
+  const resolvedUser = await getResolvedUser();
+
+  if (resolvedUser?.id && friend?.id) {
+    await userManager.markChatAsRead(resolvedUser.id, friend.id);
     await loadUnreadChatSummary();
     await refreshUnreadCount?.();
   }
@@ -494,14 +550,14 @@ useEffect(() => {
                     value={searchUsername}
                     onChange={(e) => setSearchUsername(e.target.value)}
                   />
-                  <button
-                    className="actionButton"
-                    type="button"
-                    onClick={handleSendRequest}
-                    disabled={isSending}
-                  >
-                    {isSending ? "Sending..." : "Send Request"}
-                  </button>
+                 <button
+  className="actionButton"
+  type="button"
+  onClick={handleSendRequest}
+  disabled={isSending}
+>
+  {isSending ? "Sending..." : "Send Request"}
+</button>
                 </div>
 
                 {message && <div className="statusMessage success">{message}</div>}
@@ -517,10 +573,10 @@ useEffect(() => {
                 </div>
 
                <div className="friendsList friendsScroll">
-  {isLoading && !hasLoadedOnce ? (
-    <div className="emptyState">Loading friends...</div>
-  )  : filteredFriends.length > 0 ? (
-                    filteredFriends.map((friend) => (
+{isLoading && !hasLoadedOnce ? (
+  <div className="emptyState">Loading friends...</div>
+) : friends.length > 0 ? (
+  friends.map((friend) => (
                       <div className="friendRow" key={friend.id}>
                         <div className="friendLeft">
                           <div className="friendAvatar">
@@ -577,7 +633,8 @@ useEffect(() => {
                 {isLoading ? (
                   <div className="emptyState">Loading requests...</div>
                 ) : requests.length > 0 ? (
-                  requests.map((request) => (
+                   requests
+                  .map((request) => (
                     <div className="friendRow" key={request.id}>
                       <div className="friendLeft">
                         <div className="friendAvatar">
@@ -657,7 +714,7 @@ onClick={async () => {
                 <div className="friendsList friendsScroll">
                {isLoading && !hasLoadedOnce ? (
     <div className="emptyState">Loading requests...</div>
-  ) : requests.length > 0 ? (
+  ) : friends.length > 0 ? (
   [...friends]
                       .sort((a, b) => {
                         const aTime = friendLastMessageMap[a.id]?.createdAt || "";

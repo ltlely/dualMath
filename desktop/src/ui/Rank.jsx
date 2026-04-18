@@ -47,6 +47,47 @@ export default function Rank({ currentUser, onBack }) {
   const [players, setPlayers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const MIN_GAMES_FOR_RATIO = 5;
+  const [friendIds, setFriendIds] = useState([]);
+
+ useEffect(() => {
+  let isMounted = true;
+
+  const loadFriends = async () => {
+    try {
+      const resolvedUser =
+        currentUser?.id ? currentUser : await userManager.getCurrentUser();
+
+      if (!resolvedUser?.id) {
+        if (isMounted) setFriendIds([]);
+        return;
+      }
+
+      const friendsResult = await userManager.getFriends(resolvedUser.id);
+
+      if (!isMounted) return;
+
+      const friendsArray = Array.isArray(friendsResult)
+        ? friendsResult
+        : (friendsResult?.data || []);
+
+      const ids = friendsArray
+        .map((friend) => String(friend.id))
+        .filter(Boolean);
+
+      setFriendIds(ids);
+      console.log("friendIds:", ids);
+    } catch (err) {
+      console.error("Failed to load friends for rank page:", err);
+      if (isMounted) setFriendIds([]);
+    }
+  };
+
+  loadFriends();
+
+  return () => {
+    isMounted = false;
+  };
+}, [currentUser?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -174,6 +215,10 @@ export default function Rank({ currentUser, onBack }) {
                  <div className="leaderNameRow">
     <div className="leaderName">{player.username}</div>
     <div className="nameRankBadge">{userManager.getUserRank(player)}</div>
+     {String(player.id) !== String(currentUser?.id) &&
+    friendIds.includes(String(player.id)) && (
+      <div className="friendBadge">Friend</div>
+    )}
   </div>
                 <div className="leaderSub">
                   {player.totalGames} games • {player.rankPoints} RP
@@ -219,6 +264,19 @@ export default function Rank({ currentUser, onBack }) {
   --gold-2:#efbc4c;
   --ink:#583511;
   --muted:#a17142;
+}
+
+.friendBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #efe9ff, #d9cfff);
+  border: 1px solid rgba(138, 116, 201, 0.28);
+  color: #6b57a6;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 4px 10px rgba(138, 116, 201, 0.12);
 }
 
         .rankShell {

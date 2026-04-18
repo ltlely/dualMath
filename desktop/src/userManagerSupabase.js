@@ -138,7 +138,7 @@ deleteExpiredMessages: async () => {
     if (!session?.user) {
       return { success: false, message: "Not logged in." };
     }
-    
+
     const normalizedUsername = username.trim().toLowerCase();
 
     const { data: receivers, error: receiverError } = await supabase
@@ -268,15 +268,6 @@ getFriendRequests: async (userId) => {
 
 acceptFriendRequest: async (requestId, currentUserId, senderId) => {
   try {
-    const { error: updateError } = await supabase
-      .from("friend_requests")
-      .update({ status: "accepted" })
-      .eq("id", requestId);
-
-    if (updateError) {
-      return { success: false, message: "Could not accept request." };
-    }
-
     const { error: friendsError } = await supabase
       .from("friends")
       .insert([
@@ -290,6 +281,24 @@ acceptFriendRequest: async (requestId, currentUserId, senderId) => {
         success: false,
         message: friendsError.message || "Could not create friendship.",
       };
+    }
+
+    const { error: updateError } = await supabase
+      .from("friend_requests")
+      .update({ status: "accepted" })
+      .eq("id", requestId);
+
+    if (updateError) {
+      console.error("acceptFriendRequest update error:", updateError);
+
+      await supabase
+        .from("friends")
+        .delete()
+        .or(
+          `and(user_id.eq.${currentUserId},friend_id.eq.${senderId}),and(user_id.eq.${senderId},friend_id.eq.${currentUserId})`
+        );
+
+      return { success: false, message: "Could not accept request." };
     }
 
     return { success: true, message: "Friend added." };
@@ -319,31 +328,31 @@ declineFriendRequest: async (requestId) => {
 
 getFriends: async (userId) => {
   try {
-  const { data, error } = await supabase
-  .from("friends")
-  .select(`
-    id,
-    friend_id,
-    friend:profiles!friends_friend_id_fkey (
-       id,
-  username,
-  avatar_data,
-  wins,
-  losses,
-  total_games,
-  rank_points,
-  status
-    )
-  `)
-  .eq("user_id", userId)
-  .order("created_at", { ascending: false });
+    const { data, error } = await supabase
+      .from("friends")
+      .select(`
+        id,
+        friend_id,
+        friend:profiles!friends_friend_id_fkey (
+          id,
+          username,
+          avatar_data,
+          wins,
+          losses,
+          total_games,
+          rank_points,
+          status
+        )
+      `)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
 
     if (error) {
       console.error("getFriends error:", error);
-      return [];
+      return { success: false, data: [], message: error.message || "Could not load friends." };
     }
 
-    return (data || []).map((row) => {
+    const mapped = (data || []).map((row) => {
       const friend = Array.isArray(row.friend) ? row.friend[0] : row.friend;
       const wins = friend?.wins || 0;
       const losses = friend?.losses || 0;
@@ -362,9 +371,11 @@ getFriends: async (userId) => {
         status: friend?.status || "offline",
       };
     });
+
+    return { success: true, data: mapped };
   } catch (error) {
-    console.error("getFriends error:", error);
-    return [];
+    console.error("getFriends catch error:", error);
+    return { success: false, data: [], message: "Could not load friends." };
   }
 },
 
