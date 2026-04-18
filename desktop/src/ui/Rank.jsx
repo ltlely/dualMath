@@ -25,9 +25,15 @@ function normalizePlayer(player, index) {
       ? safeNumber(player?.totalGames)
       : wins + losses;
 
+  const username =
+    player?.username ||
+    player?.name ||
+    player?.displayName ||
+    `Player ${index + 1}`;
+
   return {
     id: player?.id || `player-${index}`,
-    username: player?.username || "Unknown",
+    username,
     avatarData: player?.avatarData || null,
     wins,
     losses,
@@ -165,7 +171,10 @@ export default function Rank({ currentUser, onBack }) {
               </div>
 
               <div>
-                <div className="leaderName">{player.username}</div>
+                 <div className="leaderNameRow">
+    <div className="leaderName">{player.username}</div>
+    <div className="nameRankBadge">{userManager.getUserRank(player)}</div>
+  </div>
                 <div className="leaderSub">
                   {player.totalGames} games • {player.rankPoints} RP
                 </div>
@@ -465,6 +474,26 @@ export default function Rank({ currentUser, onBack }) {
   .leaderStats {
     justify-content: flex-end;
   }
+}
+
+.leaderNameRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nameRankBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f3dfb1, #e8c983);
+  border: 1px solid rgba(183, 143, 90, 0.28);
+  color: var(--brown-dark);
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 4px 10px rgba(183, 143, 90, 0.12);
 }
       `}</style>
     </div>
