@@ -6,10 +6,13 @@ import {
   getRankProgress,
   getNextRank,
   getPointsToNextRank,
+  getWinPoints,
+  getLossPoints,
 } from "../rankingSystem.js";
 // import { userManager } from "../userManagerSupabase.js";
 import Game from "./Game.jsx";
 import settingsIcon from '../../public/settingsicon.png'
+
 
 export default function Lobby({
   onCreate,
@@ -27,6 +30,8 @@ export default function Lobby({
    onOpenRank,
    onOpenFriends,
    friendChatBadgeCount = 0,
+    onlineFriends = [],
+     setIsOnlineFriendsScrolling,
 }) {
 
   const [settingsTab, setSettingsTab] = useState("account");
@@ -37,11 +42,13 @@ const [settingsError, setSettingsError] = useState("");
 const [isSendingReset, setIsSendingReset] = useState(false);
 const [isSavingUsername, setIsSavingUsername] = useState(false);
 
-
   const [roomName, setRoomName] = useState("");
   const [code, setCode] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [isJoiningRandom, setIsJoiningRandom] = useState(false);
+
+  
+
 
  const { stats, rankProgress, nextRank, pointsToNext } = useMemo(() => {
   let calculatedStats = {
@@ -93,6 +100,10 @@ const [isSavingUsername, setIsSavingUsername] = useState(false);
     );
   }
 
+  const winRp = getWinPoints(stats.rankPoints);
+const lossRp = getLossPoints(stats.rankPoints);
+
+ 
   const USERNAME_CHANGE_COOLDOWN_DAYS = 60;
 const usernameLastChangedAt = currentUser?.usernameChangedAt
   ? new Date(currentUser.usernameChangedAt)
@@ -503,6 +514,65 @@ if (!result?.success) {
               <span className="summaryLabel">Win Rate</span>
               <strong>{stats.winRate}%</strong>
             </div> */}
+
+            <div className="onlineFriendsCard">
+  <div className="onlineFriendsHeader">
+    <div>
+      <div className="miniLabel">Friends Online</div>
+      <div className="onlineFriendsTitle">{onlineFriends.length} online</div>
+    </div>
+
+    <button
+      type="button"
+      className="onlineFriendsViewAll"
+      onClick={onOpenFriends}
+    >
+      View
+    </button>
+  </div>
+
+  <div className="onlineFriendsList"
+   onScroll={() => {
+    setIsOnlineFriendsScrolling?.(true);
+    clearTimeout(window.__onlineFriendsScrollTimer);
+    window.__onlineFriendsScrollTimer = setTimeout(() => {
+      setIsOnlineFriendsScrolling?.(false);
+    }, 150);
+  }}>
+    {onlineFriends.length > 0 ? (
+      onlineFriends.slice(0, 4).map((friend) => (
+        <button
+          key={friend.id}
+          type="button"
+          className="onlineFriendRow"
+          onClick={onOpenFriends}
+        >
+          <div className="onlineFriendLeft">
+            <div className="onlineFriendAvatar">
+              {friend.avatarData ? (
+                <img src={friend.avatarData} alt={friend.username} />
+              ) : (
+                <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
+              )}
+            </div>
+
+            <div className="onlineFriendMeta">
+              <div className="onlineFriendNameRow">
+  <span className={`connectionDot ${(friend.status || "offline").toLowerCase()}`} />
+  <span className="onlineFriendName">{friend.username}</span>
+</div>
+              <div className="onlineFriendSub">
+                {friend.rankPoints ?? 0} RP
+              </div>
+            </div>
+          </div>
+        </button>
+      ))
+    ) : (
+      <div className="onlineFriendsEmpty">No friends online right now.</div>
+    )}
+  </div>
+</div>
           </div>
           
         </aside>
@@ -570,12 +640,12 @@ if (!result?.success) {
                 </div>
               </div>
 
-              <div className="rpIndicator">
-                <div className="rpDot" />
-                <span className="rpText">+25 RP per win</span>
-                <div className="rpDotRed" />
-                <span className="rpText">-15 RP per loss</span>
-              </div>
+             <div className="rpIndicator">
+  <div className="rpDot" />
+  <span className="rpText">+{winRp} RP per win</span>
+  <div className="rpDotRed" />
+  <span className="rpText">-{lossRp} RP per loss</span>
+</div>
             </div>
           </section>
 
@@ -598,7 +668,12 @@ if (!result?.success) {
       type="button"
       className="roomNativeButton"
       disabled={!roomName.trim()}
-      onClick={() => onCreate({ name: roomName.trim() })}
+      onClick={async () => {
+  if (currentUser?.id) {
+    await userManager.updateStatus(currentUser.id, "in_room");
+  }
+  onCreate({ name: roomName.trim() });
+}}
     >
       Create Room
     </button>
@@ -628,7 +703,13 @@ if (!result?.success) {
       type="button"
       className="roomNativeButton roomNativeButtonGhost"
       disabled={code.length !== 5}
-      onClick={() => onJoin({ roomCode: code })}
+onClick={async () => {
+  if (currentUser?.id) {
+    await userManager.updateStatus(currentUser.id, "in_room");
+  }
+
+  onJoin({ roomCode: code });
+}}
     >
       Join Room
     </button>
@@ -645,10 +726,15 @@ if (!result?.success) {
     <button
       type="button"
       className="roomNativeButton roomNativeButtonGhost"
-      onClick={() => {
-        setIsJoiningRandom(true);
-        onJoinRandom();
-      }}
+      onClick={async () => {
+  setIsJoiningRandom(true);
+
+  if (currentUser?.id) {
+    await userManager.updateStatus(currentUser.id, "in_room");
+  }
+
+  onJoinRandom();
+}}
       disabled={isJoiningRandom}
     >
       {isJoiningRandom ? "⏳ Searching..." : "🎲 Join Random"}
@@ -686,6 +772,186 @@ if (!result?.success) {
           --glow-gold: 0 0 40px rgba(224, 171, 63, 0.24);
           --glow-brown: 0 0 24px rgba(154, 108, 52, 0.22);
         }
+
+        .onlineFriendsCard {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #f9f7ea, var(--cream-3));
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.onlineFriendsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  min-height: 0;
+
+  scroll-behavior: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.onlineFriendsList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.onlineFriendsList::-webkit-scrollbar-thumb {
+  background: rgba(107, 79, 52, 0.28);
+  border-radius: 999px;
+}
+
+.onlineFriendsList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+        .connectionDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.connectionDot.online,
+.connectionDot.connected {
+  background: #92d36e;
+  box-shadow: 0 0 10px rgba(146, 211, 110, 0.65);
+}
+
+.connectionDot.offline,
+.connectionDot.disconnected {
+  background: #d77a63;
+  box-shadow: 0 0 10px rgba(215, 122, 99, 0.5);
+}
+
+        .onlineFriendsCard {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #f9f7ea, var(--cream-3));
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.onlineFriendsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.onlineFriendsTitle {
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.onlineFriendsViewAll {
+  border: 1px solid rgba(107, 79, 52, 0.14);
+  background: rgba(255, 253, 244, 0.85);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.onlineFriendsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.onlineFriendRow {
+  width: 100%;
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  background: rgba(255, 253, 244, 0.72);
+  border-radius: 14px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.onlineFriendRow:hover {
+  border-color: rgba(107, 79, 52, 0.3);
+  background: linear-gradient(180deg, #f5eed7, #e1c89d);
+}
+
+.onlineFriendLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.onlineFriendAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.onlineFriendAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.onlineFriendMeta {
+  min-width: 0;
+}
+
+.onlineFriendNameRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.onlineFriendName {
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.onlineFriendSub {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.connectionDot.online {
+  background: #92d36e;
+  box-shadow: 0 0 10px rgba(146, 211, 110, 0.65);
+}
+
+.onlineFriendsEmpty {
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(255, 253, 244, 0.65);
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
  .settingsCard {
   background: linear-gradient(180deg, var(--cream), var(--tan));
   border: 1px solid rgba(93, 88, 63, 0.08);
@@ -1326,6 +1592,16 @@ if (!result?.success) {
           box-shadow: 0 0 12px rgba(205, 162, 90, 0.35);
         }
 
+        .connectionDot.in_room {
+  background: #e0ab3f;
+  box-shadow: 0 0 10px rgba(224, 171, 63, 0.55);
+}
+
+.connectionDot.in_match {
+  background: #d96a6a;
+  box-shadow: 0 0 10px rgba(217, 106, 106, 0.65);
+}
+  
         .progressGlow {
           position: absolute;
           inset: 0;

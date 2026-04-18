@@ -1499,6 +1499,112 @@ getFriendLastMessages: async (currentUserId, friendIds = []) => {
   }
 },
 
+getBlockedUsers: async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from("blocked_users")
+      .select(`
+        id,
+        blocked_user_id,
+        blocked:profiles!blocked_users_blocked_user_id_fkey (
+          id,
+          username,
+          avatar_data,
+          wins,
+          losses,
+          total_games,
+          rank_points,
+          status
+        )
+      `)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("getBlockedUsers error:", error);
+      return [];
+    }
+
+    return (data || []).map((row) => {
+      const blocked = Array.isArray(row.blocked) ? row.blocked[0] : row.blocked;
+      const wins = blocked?.wins || 0;
+      const losses = blocked?.losses || 0;
+      const totalGames = blocked?.total_games || 0;
+      const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
+
+      return {
+        blockId: row.id,
+        id: blocked?.id,
+        username: blocked?.username || "Unknown",
+        avatarData: blocked?.avatar_data || null,
+        wins,
+        losses,
+        totalGames,
+        rankPoints: blocked?.rank_points || 0,
+        winRate,
+        status: blocked?.status || "offline",
+      };
+    });
+  } catch (error) {
+    console.error("getBlockedUsers catch error:", error);
+    return [];
+  }
+},
+
+unblockUser: async (userId, blockedUserId) => {
+  try {
+    const { error } = await supabase
+      .from("blocked_users")
+      .delete()
+      .eq("user_id", userId)
+      .eq("blocked_user_id", blockedUserId);
+
+    if (error) {
+      console.error("unblockUser error:", error);
+      return { success: false, message: "Could not unblock user." };
+    }
+
+    return { success: true, message: "User unblocked." };
+  } catch (error) {
+    console.error("unblockUser catch error:", error);
+    return { success: false, message: "Could not unblock user." };
+  }
+},
+
+blockUser: async (userId, blockedUserId) => {
+  try {
+    const { error } = await supabase
+      .from("blocked_users")
+      .insert({
+        user_id: userId,
+        blocked_user_id: blockedUserId,
+      });
+
+    if (error) {
+      console.error("blockUser error:", error);
+      return { success: false, message: error.message || "Could not block user." };
+    }
+
+    // Also remove the friendship both ways
+    await supabase
+      .from("friends")
+      .delete()
+      .eq("user_id", userId)
+      .eq("friend_id", blockedUserId);
+
+    await supabase
+      .from("friends")
+      .delete()
+      .eq("user_id", blockedUserId)
+      .eq("friend_id", userId);
+
+    return { success: true, message: "User blocked." };
+  } catch (error) {
+    console.error("blockUser catch error:", error);
+    return { success: false, message: "Could not block user." };
+  }
+},
+
 };
 
 export { supabase };

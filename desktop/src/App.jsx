@@ -205,6 +205,64 @@ export default function App() {
   const [showPickCharacter, setShowPickCharacter] = useState(false);
   const [pendingNewUser, setPendingNewUser] = useState(null);
 const [unreadChatCount, setUnreadChatCount] = useState(0);
+const [onlineFriends, setOnlineFriends] = useState([]);
+const [isOnlineFriendsScrolling, setIsOnlineFriendsScrolling] = useState(false);
+
+useEffect(() => {
+  let isMounted = true;
+
+  const loadOnlineFriends = async () => {
+    try {
+      const freshUser = currentUser?.id
+        ? currentUser
+        : await userManager.getCurrentUser();
+
+      if (!freshUser?.id) {
+        if (isMounted) setOnlineFriends([]);
+        return;
+      }
+
+      const friendsResult = await userManager.getFriends(freshUser.id);
+      const friendsData = Array.isArray(friendsResult)
+        ? friendsResult
+        : (friendsResult?.data || []);
+
+      const nextOnline = friendsData.filter((friend) => {
+  const status = (friend.status || "").toLowerCase();
+  return status === "online" || status === "in_room" || status === "in_match";
+});
+
+if (!isOnlineFriendsScrolling) {
+  setOnlineFriends((prev) => {
+    const prevIds = prev.map((f) => `${f.id}:${f.status}`).join("|");
+    const nextIds = nextOnline.map((f) => `${f.id}:${f.status}`).join("|");
+
+    return prevIds === nextIds ? prev : nextOnline;
+  });
+}
+
+      if (isMounted) {
+        setOnlineFriends((prev) => {
+          const prevIds = prev.map((f) => `${f.id}:${f.status}`).join("|");
+          const nextIds = nextOnline.map((f) => `${f.id}:${f.status}`).join("|");
+
+          return prevIds === nextIds ? prev : nextOnline;
+        });
+      }
+    } catch (err) {
+      console.error("Could not load online friends:", err);
+      if (isMounted) setOnlineFriends([]);
+    }
+  };
+
+  loadOnlineFriends();
+  const interval = setInterval(loadOnlineFriends, 3000);
+
+  return () => {
+    isMounted = false;
+    clearInterval(interval);
+  };
+}, [currentUser]);
 
 const loadUnreadChatCount = useCallback(async () => {
   if (!currentUser?.id) {
@@ -405,7 +463,7 @@ useEffect(() => {
   }, [pendingAction]);
 
   useEffect(() => {
-    socket.on("room:joined", ({ roomCode, selfId }) => {
+    socket.on("room:joined", async ({ roomCode, selfId }) => {
   console.log("✅ Room joined:", roomCode);
   setPendingAction(null);
   setRoomCode(roomCode);
@@ -415,7 +473,10 @@ useEffect(() => {
   setLastRound(null);
   setRoundInfo(null);
   setChat([]);
-  if (currentUser?.id) userManager.updateStatus(currentUser.id, "in_match");
+
+  if (currentUser?.id) {
+    await userManager.updateStatus(currentUser.id, "in_room");
+  }
 });
 
     socket.on("room:update", (r) => {
@@ -437,15 +498,15 @@ useEffect(() => {
 
     socket.on("room:error", ({ message }) => setError(message));
 
-    socket.on("game:roundStart", (info) => {
-      setRoundInfo(info);
-      setLastRound(null);
-      setView("game");
+   socket.on("game:roundStart", async (info) => {
+  setRoundInfo(info);
+  setLastRound(null);
+  setView("game");
 
-      if (currentUser?.id) {
-  userManager.updateStatus(currentUser.id, "in_match");
-}
-    });
+  if (currentUser?.id) {
+    await userManager.updateStatus(currentUser.id, "in_match");
+  }
+});
 
     socket.on("game:roundEnd", (payload) => {
       setLastRound(payload);
@@ -858,6 +919,7 @@ useEffect(() => {
       onBack={() => setView("lobby")}
       onUnreadCountChange={setUnreadChatCount}
       refreshUnreadCount={loadUnreadChatCount}
+      onOnlineFriendsChange={setOnlineFriends}
     />
   );
 }
@@ -904,6 +966,7 @@ onOpenStore={async () => {
             setPreviewGame(createPreviewGame(currentUser?.avatarData));
             setScreen("game");
             if (currentUser?.id) userManager.updateStatus(currentUser.id, "in_match");
+            setView("game");
           }}
           onOpenRank={() => {
             setScreen("lobby");
@@ -920,6 +983,8 @@ onOpenStore={async () => {
   userManager.updateStatus(currentUser.id, "online");
 }
           }}
+          onlineFriends={onlineFriends}
+           setIsOnlineFriendsScrolling={setIsOnlineFriendsScrolling}
         />
         
 

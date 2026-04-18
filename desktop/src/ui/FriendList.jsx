@@ -2,8 +2,11 @@
 import { userManager } from "../userManagerSupabase.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-export default function FriendList({ currentUser, onBack, onUnreadCountChange,refreshUnreadCount, }) {
+export default function FriendList({ currentUser, onBack, onUnreadCountChange,refreshUnreadCount,  onOnlineFriendsChange}) {
   const [friends, setFriends] = useState([]);
+  const [blockTarget, setBlockTarget] = useState(null);
+const [unblockTarget, setUnblockTarget] = useState(null);
+const [blockedUsers, setBlockedUsers] = useState([]);
   const [requests, setRequests] = useState([]);
   const [searchUsername, setSearchUsername] = useState("");
   const [message, setMessage] = useState("");
@@ -26,6 +29,7 @@ const hasLoadedOnceRef = useRef(false);
   const [friendLastMessageMap, setFriendLastMessageMap] = useState({});
   const chatMessagesRef = useRef(null);
 const chatBottomRef = useRef(null);
+const [isBlocking, setIsBlocking] = useState(false);
 
 const getResolvedUser = useCallback(async () => {
   if (currentUser?.id) return currentUser;
@@ -101,15 +105,17 @@ const loadUnreadChatSummary = useCallback(async () => {
     if (!resolvedUser?.id) {
       setFriends([]);
       setRequests([]);
+       onOnlineFriendsChange?.([]);
       setIsLoading(false);
       return;
     }
 
     try {
-      const [friendsResult, requestsData] = await Promise.all([
-        userManager.getFriends(resolvedUser.id),
-        userManager.getFriendRequests(resolvedUser.id),
-      ]);
+      const [friendsResult, requestsData, blockedData] = await Promise.all([
+  userManager.getFriends(resolvedUser.id),
+  userManager.getFriendRequests(resolvedUser.id),
+  userManager.getBlockedUsers(resolvedUser.id),
+]);
 
       const friendsData = Array.isArray(friendsResult)
         ? friendsResult
@@ -117,8 +123,16 @@ const loadUnreadChatSummary = useCallback(async () => {
 
       setFriends(friendsData);
       setRequests(requestsData || []);
+      setBlockedUsers(blockedData || []);
       hasLoadedOnceRef.current = true;
       setHasLoadedOnce(true);
+
+     const onlineFriends = friendsData.filter((friend) => {
+  const status = (friend.status || "").toLowerCase();
+  return status === "online" || status === "in_room" || status === "in_match";
+});
+
+onOnlineFriendsChange?.(onlineFriends);
 
       if (!Array.isArray(friendsResult) && friendsResult?.success === false) {
         setError(friendsResult.message || "Could not load friends.");
@@ -131,6 +145,8 @@ const loadUnreadChatSummary = useCallback(async () => {
     } finally {
       setIsLoading(false);
     }
+
+    
   },
   [getResolvedUser]
 );
@@ -274,6 +290,46 @@ const handleSendRequest = async () => {
   const handleRemove = (friendId, friendUsername) => {
     setRemoveTarget({ id: friendId, username: friendUsername });
   };
+
+  const handleBlock = (friendId, friendUsername) => {
+  setBlockTarget({ id: friendId, username: friendUsername });
+};
+
+const confirmBlockFriend = async () => {
+  if (!blockTarget) return;
+
+  setMessage("");
+  setError("");
+  setIsBlocking(true);
+
+  try {
+    const resolvedUser = await getResolvedUser();
+
+    if (!resolvedUser?.id) {
+      setError("You need to be logged in to block a user.");
+      return;
+    }
+
+    const result = await userManager.blockUser(resolvedUser.id, blockTarget.id);
+
+    if (!result?.success) {
+      setError(result?.message || "Could not block user.");
+      return;
+    }
+
+    if (chatTarget?.id === blockTarget.id) {
+      setChatTarget(null);
+      setChatMessages([]);
+      setChatInput("");
+    }
+
+    setMessage(`${blockTarget.username} was blocked.`);
+    setBlockTarget(null);
+    loadData(false);
+  } finally {
+    setIsBlocking(false);
+  }
+};
 
  const confirmRemoveFriend = async () => {
   if (!removeTarget) return;
@@ -462,6 +518,35 @@ useEffect(() => {
   scrollChatToBottom(true);
 }, [chatMessages.length]);
 
+const handleUnblock = (userId, username) => {
+  setUnblockTarget({ id: userId, username });
+};
+
+const confirmUnblockUser = async () => {
+  if (!unblockTarget) return;
+
+  setMessage("");
+  setError("");
+
+  const resolvedUser = await getResolvedUser();
+
+  if (!resolvedUser?.id) {
+    setError("You need to be logged in to unblock a user.");
+    return;
+  }
+
+  const result = await userManager.unblockUser(resolvedUser.id, unblockTarget.id);
+
+  if (!result?.success) {
+    setError(result?.message || "Could not unblock user.");
+    return;
+  }
+
+  setMessage(`${unblockTarget.username} was unblocked.`);
+  setUnblockTarget(null);
+  loadData(false);
+};
+
   return (
     <div className="friendsShell">
       <div className="friendsTopbar">
@@ -538,10 +623,73 @@ useEffect(() => {
 
   <strong className="navCount">{chatMessages.length}</strong>
 </button>
+
+<button
+  type="button"
+  className={`navCard ${activeView === "blocked" ? "active" : ""}`}
+  onClick={() => setActiveView("blocked")}
+>
+  <span className="navLabel">Blocked</span>
+  <strong className="navCount">{blockedUsers.length}</strong>
+</button>
             
         </aside>
 
         <main className="friendsMain">
+          {activeView === "blocked" && (
+  <div className="friendsPanel listPanel requestFull">
+    <div className="panelHeader">
+      <div>
+        <div className="miniLabel">Manage</div>
+        <h2>Blocked Users</h2>
+      </div>
+    </div>
+
+    <div className="friendsList requestScroll">
+      {isLoading ? (
+        <div className="emptyState">Loading blocked users...</div>
+      ) : blockedUsers.length > 0 ? (
+        blockedUsers.map((blocked) => (
+          <div className="friendRow" key={blocked.id}>
+            <div className="friendLeft">
+              <div className="friendAvatar">
+                {blocked.avatarData ? (
+                  <img src={blocked.avatarData} alt={blocked.username} />
+                ) : (
+                  <span>{blocked.username?.[0]?.toUpperCase() || "?"}</span>
+                )}
+              </div>
+
+              <div>
+                <div className="friendNameRow">
+                  <div className="friendName">{blocked.username}</div>
+                </div>
+                <div className="friendSub">
+                  {blocked.totalGames} games • {blocked.rankPoints} RP
+                </div>
+              </div>
+            </div>
+
+            <div className="friendActions">
+              <button
+                className="acceptButton"
+                type="button"
+                onClick={() => handleUnblock(blocked.id, blocked.username)}
+              >
+                Unblock
+              </button>
+            </div>
+          </div>
+        ))
+      ) : (
+        <div className="emptyState">No blocked users.</div>
+      )}
+    </div>
+
+    {message && <div className="statusMessage success">{message}</div>}
+    {error && <div className="statusMessage error">{error}</div>}
+  </div>
+)}
           {activeView === "friends" && (
             <>
               <div className="friendsPanel addPanel">
@@ -586,7 +734,21 @@ useEffect(() => {
 {isLoading && !hasLoadedOnce ? (
   <div className="emptyState">Loading friends...</div>
 ) : friends.length > 0 ? (
-  friends.map((friend) => (
+  [...friends]
+  .sort((a, b) => {
+    const getPriority = (status) => {
+      const value = (status || "").toLowerCase();
+      if (value === "online") return 2;
+      if (value === "in_match") return 1;
+      return 0;
+    };
+
+    const diff = getPriority(b.status) - getPriority(a.status);
+    if (diff !== 0) return diff;
+
+    return (a.username || "").localeCompare(b.username || "");
+  })
+  .map((friend) => (
                       <div className="friendRow" key={friend.id}>
                         <div className="friendLeft">
                           <div className="friendAvatar">
@@ -611,6 +773,14 @@ useEffect(() => {
                         </div>
 
                         <div className="friendActions">
+
+<button
+  type="button"
+  className="blockButton"
+  onClick={() => handleBlock(friend.id, friend.username)}
+>
+  Block
+</button>
                           
                           <button
                             className="removeButton"
@@ -839,35 +1009,97 @@ onClick={async () => {
         </main>
       </div>
 
-      {removeTarget && (
-        <div className="confirmModal">
-          <div className="confirmOverlay" onClick={() => setRemoveTarget(null)} />
-          <div className="confirmCard">
-            <div className="miniLabel">Confirm</div>
-            <h3>Remove Friend?</h3>
-            <p className="confirmText">
-              Are you sure you want to remove <strong>{removeTarget.username}</strong>{" "}
-              from your friend list?
-            </p>
-            <div className="confirmActions">
-              <button
-                type="button"
-                className="declineButton"
-                onClick={() => setRemoveTarget(null)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="acceptButton"
-                onClick={confirmRemoveFriend}
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+     {blockTarget && (
+  <div className="confirmModal">
+    <div className="confirmOverlay" onClick={() => setBlockTarget(null)} />
+    <div className="confirmCard">
+      <div className="miniLabel">Confirm</div>
+      <h3>Block User?</h3>
+      <p className="confirmText">
+        Are you sure you want to block <strong>{blockTarget.username}</strong>?
+        They will no longer be able to interact with you.
+      </p>
+
+      {error && <div className="statusMessage error">{error}</div>}
+
+      <div className="confirmActions">
+        <button
+          type="button"
+          className="declineButton"
+          onClick={() => setBlockTarget(null)}
+        >
+          Cancel
+        </button>
+<button
+  type="button"
+  className="blockButton"
+  onClick={confirmBlockFriend}
+  disabled={isBlocking}
+>
+  {isBlocking ? "Blocking..." : "Block"}
+</button>
+      </div>
+    </div>
+  </div>
+)}
+
+{removeTarget && (
+  <div className="confirmModal">
+    <div className="confirmOverlay" onClick={() => setRemoveTarget(null)} />
+    <div className="confirmCard">
+      <div className="miniLabel">Confirm</div>
+      <h3>Remove Friend?</h3>
+      <p className="confirmText">
+        Are you sure you want to remove <strong>{removeTarget.username}</strong> from your friends?
+      </p>
+      <div className="confirmActions">
+        <button
+          type="button"
+          className="declineButton"
+          onClick={() => setRemoveTarget(null)}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="removeButton"
+          onClick={confirmRemoveFriend}
+        >
+          Remove
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{unblockTarget && (
+  <div className="confirmModal">
+    <div className="confirmOverlay" onClick={() => setUnblockTarget(null)} />
+    <div className="confirmCard">
+      <div className="miniLabel">Confirm</div>
+      <h3>Unblock User?</h3>
+      <p className="confirmText">
+        Are you sure you want to unblock <strong>{unblockTarget.username}</strong>?
+      </p>
+      <div className="confirmActions">
+        <button
+          type="button"
+          className="declineButton"
+          onClick={() => setUnblockTarget(null)}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="acceptButton"
+          onClick={confirmUnblockUser}
+        >
+          Unblock
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       <style>{`
       :root {
@@ -893,6 +1125,26 @@ onClick={async () => {
           display: flex;
           flex-direction: column;
         }
+
+        .friendRow {
+  align-items: center;
+}
+
+.friendActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+  position: relative;
+  z-index: 2;
+}
+
+.blockButton,
+.removeButton {
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
+}
 
         .friendsTopbar {
           display: flex;
@@ -1003,6 +1255,11 @@ onClick={async () => {
           transition: 0.15s ease;
           width: 100%;
         }
+
+        .connectionDot.in_room {
+  background: #e0ab3f;
+  box-shadow: 0 0 10px rgba(224, 171, 63, 0.55);
+}
 
         .navCard:hover {
           border-color: rgba(107, 79, 52, 0.3);
@@ -1182,10 +1439,16 @@ onClick={async () => {
           color: var(--muted);
         }
 
+        .blockButton {
+  background: #d96a6a;
+  color: #fff8ee;
+}
+
         .actionButton,
-        .acceptButton,
-        .declineButton,
-        .removeButton {
+.acceptButton,
+.declineButton,
+.removeButton,
+.blockButton {
           border: none;
           border-radius: 12px;
           padding: 8px 12px;
