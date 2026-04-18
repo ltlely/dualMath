@@ -132,6 +132,13 @@ deleteExpiredMessages: async () => {
 
   sendFriendRequest: async (senderId, username) => {
   try {
+      const { data: { session } } = await supabase.auth.getSession();
+    console.log("Session when sending request:", session?.user?.id, "senderId:", senderId);
+    
+    if (!session?.user) {
+      return { success: false, message: "Not logged in." };
+    }
+    
     const normalizedUsername = username.trim().toLowerCase();
 
     const { data: receivers, error: receiverError } = await supabase

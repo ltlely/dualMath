@@ -671,6 +671,8 @@ useEffect(() => {
   };
 
   const handleLoginSuccess = (user) => {
+
+
   if (!user) {
     setCurrentUser(null);
     setPendingNewUser(null);
@@ -684,12 +686,11 @@ useEffect(() => {
     userManager.updateStatus(user.id, "online");
   }
 
-  if (!user.avatarData && !user.starterCharacter) {
-    setPendingNewUser(user);
-    setShowPickCharacter(true);
-    setSessionError(null);
-    return;
-  }
+  
+    if (!user.avatarData && !user.starterCharacter && !user.ownedItems?.length) {
+  setPendingNewUser(user);
+  setShowPickCharacter(true);
+}
 
   setCurrentUser(user);
   setPendingNewUser(null);
@@ -800,7 +801,8 @@ useEffect(() => {
   };
 
   // Force character selection for users without starterCharacter
-  if (currentUser && !currentUser.avatarData && !currentUser.starterCharacter) {
+  if (currentUser && !currentUser.avatarData && !currentUser.starterCharacter && !currentUser.ownedItems?.length) {
+
     return (
       <PickCharacter
         currentUser={currentUser}

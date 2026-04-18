@@ -9,6 +9,8 @@ export default function FriendList({ currentUser, onBack, onUnreadCountChange,re
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+const hasLoadedOnceRef = useRef(false);
   const [isSending, setIsSending] = useState(false);
   const [removeTarget, setRemoveTarget] = useState(null);
 
@@ -78,29 +80,31 @@ const loadUnreadChatSummary = useCallback(async () => {
   }, [currentUser?.id, loadUnreadChatSummary]);
 
   const loadData = useCallback(
-    async (showLoading = false) => {
-      if (!currentUser?.id) return;
+  async (showLoading = false) => {
+    if (!currentUser?.id) return;
 
-      try {
-        if (showLoading) setIsLoading(true);
+    try {
+      if (showLoading && !hasLoadedOnceRef.current) setIsLoading(true);
 
-        const [friendsData, requestsData] = await Promise.all([
-          userManager.getFriends(currentUser.id),
-          userManager.getFriendRequests(currentUser.id),
-        ]);
+      const [friendsData, requestsData] = await Promise.all([
+        userManager.getFriends(currentUser.id),
+        userManager.getFriendRequests(currentUser.id),
+      ]);
 
-        setFriends(friendsData || []);
-        setRequests(requestsData || []);
-        setError("");
-      } catch (err) {
-        console.error("Friend list load error:", err);
-        setError("Could not load friends.");
-      } finally {
-        if (showLoading) setIsLoading(false);
-      }
-    },
-    [currentUser?.id]
-  );
+      setFriends(friendsData || []);
+      setRequests(requestsData || []);
+      hasLoadedOnceRef.current = true;
+setHasLoadedOnce(true);
+      setError("");
+    } catch (err) {
+      console.error("Friend list load error:", err);
+      setError("Could not load friends.");
+    } finally {
+      setIsLoading(false);
+    }
+  },
+  [currentUser?.id]
+);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -512,10 +516,10 @@ useEffect(() => {
                   </div>
                 </div>
 
-                <div className="friendsList friendsScroll">
-                  {isLoading ? (
-                    <div className="emptyState">Loading friends...</div>
-                  ) : filteredFriends.length > 0 ? (
+               <div className="friendsList friendsScroll">
+  {isLoading && !hasLoadedOnce ? (
+    <div className="emptyState">Loading friends...</div>
+  )  : filteredFriends.length > 0 ? (
                     filteredFriends.map((friend) => (
                       <div className="friendRow" key={friend.id}>
                         <div className="friendLeft">
@@ -651,8 +655,10 @@ onClick={async () => {
 
               {!chatTarget ? (
                 <div className="friendsList friendsScroll">
-                  {friends.length > 0 ? (
-                    [...friends]
+               {isLoading && !hasLoadedOnce ? (
+    <div className="emptyState">Loading requests...</div>
+  ) : requests.length > 0 ? (
+  [...friends]
                       .sort((a, b) => {
                         const aTime = friendLastMessageMap[a.id]?.createdAt || "";
                         const bTime = friendLastMessageMap[b.id]?.createdAt || "";
