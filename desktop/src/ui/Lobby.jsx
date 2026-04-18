@@ -1,5 +1,4 @@
-import React, { useState, useMemo } from "react";
-import { Card } from "./components.jsx";
+import React, { useState, useMemo, useRef } from "react";import { Card } from "./components.jsx";
 import Auth from "./Auth.jsx";
 import { userManager } from "../userManagerSupabase.js";
 import {
@@ -46,7 +45,8 @@ const [isSavingUsername, setIsSavingUsername] = useState(false);
   const [code, setCode] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [isJoiningRandom, setIsJoiningRandom] = useState(false);
-
+  const [showQueue, setShowQueue] = useState(true);
+const queueSectionRef = useRef(null);
   
 
 
@@ -231,33 +231,75 @@ if (!result?.success) {
 
   return (
     <div className="lobbyShell">
-      <div className="lobbyTopbar">
-        <div>
-          <div className="miniLabel">Lobby</div>
-          {/* <h1 className="lobbyHeading">Dual Math</h1>
-          <div className="welcomeText">
-            Playing as <strong>{currentUser.username}</strong>
-          </div> */}
-        </div>
+    <div className="lobbyTopbar">
+  <div className="topNavShell">
+    <div className="topNavCenter">
+      <button type="button" className="topNavItem active">
+        Lobby
+      </button>
 
-        <div className="topbarActions">
-          <div className="connectionPill">
-            <span
-              className={`connectionDot ${isConnected ? "connected" : "disconnected"}`}
-            />
-            <span>{isConnected ? "Online" : "Connecting..."}</span>
-          </div>
+      <button
+        type="button"
+        className="topNavItem"
+        onClick={onOpenStore}
+      >
+        Store
+      </button>
 
-     <button
-  className="settingsIconBtn"
+      <button
+        type="button"
+        className="topNavItem"
+        onClick={onOpenRank}
+      >
+        Rank
+      </button>
+
+      <button
+        type="button"
+        className="topNavItem"
+        onClick={onOpenFriends}
+      >
+        <span>Friends</span>
+        {friendChatBadgeCount > 0 && (
+          <span className="topNavBadge">{friendChatBadgeCount}</span>
+        )}
+      </button>
+    </div>
+
+    <div className="topNavRight">
+      <div className="coinsPill">
+        <span className="coinsIcon">🪙</span>
+        <span>{(currentUser?.coins ?? 0).toLocaleString()}</span>
+      </div>
+
+      {/* <div className="connectionPill">
+        <span
+          className={`connectionDot ${isConnected ? "connected" : "disconnected"}`}
+        />
+        <span>{isConnected ? "Online" : "Connecting..."}</span>
+      </div> */}
+
+      <button
+  className="settingsProfileBtn"
   onClick={() => setShowSettings(!showSettings)}
   title="Account Settings"
   type="button"
 >
+  <div className="settingsProfileAvatar">
+    {currentUser?.avatarData ? (
+      <img src={currentUser.avatarData} alt={currentUser.username || "Avatar"} />
+    ) : (
+      <span>{currentUser?.username?.[0]?.toUpperCase() || "?"}</span>
+    )}
+  </div>
+
+  <span className="settingsProfileDivider" />
+
   <img src={settingsIcon} alt="Settings" className="settingsIconImg" />
 </button>
-        </div>
-      </div>
+    </div>
+  </div>
+</div>
 
       {showSettings && (
   <div className="settingsModal">
@@ -398,6 +440,7 @@ if (!result?.success) {
   </div>
 )}
 
+
       <div className="lobbyLayout">
         <aside className="sidebarPanel">
           <div className="playerMiniCard">
@@ -418,9 +461,38 @@ if (!result?.success) {
             </div>
           </div>
 
-          <div className="sidebarSectionTitle">Quick Actions</div>
+          <div className="sidebarSectionTitle">Your Friends</div>
 
           <div className="categoryList">
+
+          
+<button
+  className={`categoryButton ${showQueue ? "active" : ""}`}
+  type="button"
+  onClick={() => {
+    setShowQueue((prev) => {
+      const next = !prev;
+
+      if (!prev) {
+        requestAnimationFrame(() => {
+          queueSectionRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        });
+      }
+
+      return next;
+    });
+  }}
+>
+  <span className="categoryEmoji">🎯</span>
+  <span className="categoryCopy">
+    <span className="categoryTitle">Queue</span>
+    <span className="categoryCount">Create, join, or quick match</span>
+  </span>
+</button>
+
             
   {/* <button
     className="categoryButton"
@@ -459,7 +531,7 @@ if (!result?.success) {
   Use Real Rank
 </button> */}
 
-            <button
+            {/* <button
               className="categoryButton active"
               type="button"
               onClick={onOpenStore}
@@ -498,7 +570,7 @@ if (!result?.success) {
     </span>
     <span className="categoryCount">Open your friend list</span>
   </span>
-</button>
+</button> */}
 {/* 
             <div className="summaryCard">
               <span className="summaryLabel">Rank</span>
@@ -577,174 +649,165 @@ if (!result?.success) {
           
         </aside>
 
-        <main className="mainPanel">
+       {!showQueue ? (
+  <main className="mainPanel">
+    <section className="statsPanel">
+      <div className="panelHeader">
+        <div>
+          <div className="miniLabel">Stats</div>
+          <h3>Your Progress</h3>
+        </div>
+      </div>
 
-          <section className="statsPanel">
-            <div className="panelHeader">
-              <div>
-                <div className="miniLabel">Stats</div>
-                <h3>Your Progress</h3>
-              </div>
+      <div className="statsGrid">
+        <div className="statItem">
+          <div className="statLabel">Rank</div>
+          <div className="statValue">{stats.rank}</div>
+          <div className="statSubtext">{stats.rankPoints} RP</div>
+        </div>
+        <div className="statItem">
+          <div className="statLabel">Wins</div>
+          <div className="statValue">{stats.wins}</div>
+          <div className="statSubtext">{stats.totalGames} total games</div>
+        </div>
+        <div className="statItem">
+          <div className="statLabel">Losses</div>
+          <div className="statValue">{stats.losses}</div>
+          <div className="statSubtext">{stats.winRate}% win rate</div>
+        </div>
+      </div>
+
+      <div className="rankProgressSection">
+        <div className="rankProgressHeader">
+          <div className="currentRankBadge">
+            <span className="rankIcon">🏆</span>
+            <span className="rankName">{stats.rank}</span>
+          </div>
+          {nextRank && (
+            <div className="nextRankInfo">
+              <span className="arrowIcon">→</span>
+              <span className="nextRankName">{nextRank}</span>
             </div>
+          )}
+        </div>
 
-            <div className="statsGrid">
-              <div className="statItem">
-                <div className="statLabel">Rank</div>
-                <div className="statValue">{stats.rank}</div>
-                <div className="statSubtext">{stats.rankPoints} RP</div>
-              </div>
-
-              <div className="statItem">
-                <div className="statLabel">Wins</div>
-                <div className="statValue">{stats.wins}</div>
-                <div className="statSubtext">{stats.totalGames} total games</div>
-              </div>
-
-              <div className="statItem">
-                <div className="statLabel">Losses</div>
-                <div className="statValue">{stats.losses}</div>
-                <div className="statSubtext">{stats.winRate}% win rate</div>
-              </div>
+        <div className="progressBarContainer">
+          <div className="progressBarBg">
+            <div className="progressBarFill" style={{ width: `${rankProgress}%` }}>
+              <div className="progressGlow" />
             </div>
+          </div>
+          <div className="progressLabels">
+            <span className="rpEarned">{stats.rankPoints} RP</span>
+            {nextRank && (
+              <span className="rpNeeded">{pointsToNext} more to {nextRank}</span>
+            )}
+          </div>
+        </div>
 
-            <div className="rankProgressSection">
-              <div className="rankProgressHeader">
-                <div className="currentRankBadge">
-                  <span className="rankIcon">🏆</span>
-                  <span className="rankName">{stats.rank}</span>
-                </div>
+        <div className="rpIndicator">
+          <div className="rpDot" />
+          <span className="rpText">+{winRp} RP per win</span>
+          <div className="rpDotRed" />
+          <span className="rpText">-{lossRp} RP per loss</span>
+        </div>
+      </div>
+    </section>
 
-                {nextRank && (
-                  <div className="nextRankInfo">
-                    <span className="arrowIcon">→</span>
-                    <span className="nextRankName">{nextRank}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="progressBarContainer">
-                <div className="progressBarBg">
-                  <div
-                    className="progressBarFill"
-                    style={{ width: `${rankProgress}%` }}
-                  >
-                    <div className="progressGlow" />
-                  </div>
-                </div>
-
-                <div className="progressLabels">
-                  <span className="rpEarned">{stats.rankPoints} RP</span>
-                  {nextRank && (
-                    <span className="rpNeeded">{pointsToNext} more to {nextRank}</span>
-                  )}
-                </div>
-              </div>
-
-             <div className="rpIndicator">
-  <div className="rpDot" />
-  <span className="rpText">+{winRp} RP per win</span>
-  <div className="rpDotRed" />
-  <span className="rpText">-{lossRp} RP per loss</span>
-</div>
-            </div>
-          </section>
-
- <section className="roomGrid">
-  <div className="roomCard">
-    <div className="miniLabel">Create</div>
-    <h3>Create a room</h3>
-
-    <div className="fieldStack">
-      <label className="fieldLabel">Room name</label>
-      <input
-        className="roomNativeInput"
-        value={roomName}
-        onChange={(e) => setRoomName(e.target.value)}
-        placeholder="Enter room name"
-      />
+    {error && <div className="statusMessage error">{error}</div>}
+  </main>
+) : (
+  <main className="mainPanel queuePanel" ref={queueSectionRef}>
+    <div className="queuePanelHeader">
+      <div>
+        <div className="miniLabel">Queue</div>
+        <h3>Find a Match</h3>
+      </div>
+      <button
+        type="button"
+        className="queueCloseBtn"
+        onClick={() => setShowQueue(false)}
+      >
+        ✕
+      </button>
     </div>
 
-    <button
-      type="button"
-      className="roomNativeButton"
-      disabled={!roomName.trim()}
-      onClick={async () => {
-  if (currentUser?.id) {
-    await userManager.updateStatus(currentUser.id, "in_room");
-  }
-  onCreate({ name: roomName.trim() });
-}}
-    >
-      Create Room
-    </button>
-  </div>
+    <div className="roomGrid">
+      <div className="roomCard">
+        <div className="miniLabel">Create</div>
+        <h3>Create a room</h3>
+        <div className="fieldStack">
+          <label className="fieldLabel">Room name</label>
+          <input
+            className="roomNativeInput"
+            value={roomName}
+            onChange={(e) => setRoomName(e.target.value)}
+            placeholder="Enter room name"
+          />
+        </div>
+        <button
+          type="button"
+          className="roomNativeButton"
+          disabled={!roomName.trim()}
+          onClick={async () => {
+            if (currentUser?.id) await userManager.updateStatus(currentUser.id, "in_room");
+            onCreate({ name: roomName.trim() });
+          }}
+        >
+          Create Room
+        </button>
+      </div>
 
-  <div className="roomCard">
-    <div className="miniLabel">Join</div>
-    <h3>Join a room</h3>
+      <div className="roomCard">
+        <div className="miniLabel">Join</div>
+        <h3>Join a room</h3>
+        <div className="fieldStack">
+          <label className="fieldLabel">Room code</label>
+          <input
+            className="roomNativeInput"
+            value={code}
+            onChange={(e) => {
+              const cleaned = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
+              setCode(cleaned);
+            }}
+            placeholder="ABCDE"
+          />
+        </div>
+        <button
+          type="button"
+          className="roomNativeButton roomNativeButtonGhost"
+          disabled={code.length !== 5}
+          onClick={async () => {
+            if (currentUser?.id) await userManager.updateStatus(currentUser.id, "in_room");
+            onJoin({ roomCode: code });
+          }}
+        >
+          Join Room
+        </button>
+      </div>
 
-    <div className="fieldStack">
-      <label className="fieldLabel">Room code</label>
-      <input
-        className="roomNativeInput"
-        value={code}
-        onChange={(e) => {
-          const cleaned = e.target.value
-            .toUpperCase()
-            .replace(/[^A-Z0-9]/g, "")
-            .slice(0, 5);
-          setCode(cleaned);
-        }}
-        placeholder="ABCDE"
-      />
+      <div className="roomCard">
+        <div className="miniLabel">Random</div>
+        <h3>Quick match</h3>
+        <p className="heroMuted">Find a match and join a random room instantly.</p>
+        <button
+          type="button"
+          className="roomNativeButton roomNativeButtonGhost"
+          onClick={async () => {
+            setIsJoiningRandom(true);
+            if (currentUser?.id) await userManager.updateStatus(currentUser.id, "in_room");
+            onJoinRandom();
+          }}
+          disabled={isJoiningRandom}
+        >
+          {isJoiningRandom ? "⏳ Searching..." : "🎲 Join Random"}
+        </button>
+      </div>
     </div>
 
-    <button
-      type="button"
-      className="roomNativeButton roomNativeButtonGhost"
-      disabled={code.length !== 5}
-onClick={async () => {
-  if (currentUser?.id) {
-    await userManager.updateStatus(currentUser.id, "in_room");
-  }
-
-  onJoin({ roomCode: code });
-}}
-    >
-      Join Room
-    </button>
-  </div>
-
-  <div className="roomCard">
-    <div className="miniLabel">Random</div>
-    <h3>Quick match</h3>
-
-    <p className="heroMuted">
-      Find a match and join a random room instantly.
-    </p>
-
-    <button
-      type="button"
-      className="roomNativeButton roomNativeButtonGhost"
-      onClick={async () => {
-  setIsJoiningRandom(true);
-
-  if (currentUser?.id) {
-    await userManager.updateStatus(currentUser.id, "in_room");
-  }
-
-  onJoinRandom();
-}}
-      disabled={isJoiningRandom}
-    >
-      {isJoiningRandom ? "⏳ Searching..." : "🎲 Join Random"}
-    </button>
-
-
-  </div>
-</section>
-          {error && <div className="statusMessage error">{error}</div>}
-        </main>
+    {error && <div className="statusMessage error">{error}</div>}
+  </main>
+)}
       </div>
 
       <style>{`
@@ -772,6 +835,129 @@ onClick={async () => {
           --glow-gold: 0 0 40px rgba(224, 171, 63, 0.24);
           --glow-brown: 0 0 24px rgba(154, 108, 52, 0.22);
         }
+          
+        .queuePanel {
+  display: flex !important;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.queuePanelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 20px 0;
+}
+
+.queuePanelHeader h3 {
+  margin: 4px 0 0;
+  font-size: 24px;
+  color: var(--ink);
+}
+
+.queueCloseBtn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(93, 88, 63, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 253, 244, 0.8);
+  color: var(--brown-dark);
+  font-size: 16px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.roomGrid {
+  padding: 0 20px 20px;
+}
+        .queuePopup {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 248, 232, 0.92), rgba(229, 194, 138, 0.96));
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  box-shadow: 0 18px 30px rgba(107, 79, 52, 0.10);
+}
+
+.queuePopupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.queuePopupHeader h3 {
+  margin: 4px 0 0;
+  font-size: 24px;
+  color: var(--ink);
+}
+
+.queueCloseBtn {
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 253, 244, 0.8);
+  color: var(--brown-dark);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+        .queueSection {
+  display: grid;
+  gap: 12px;
+}
+
+.queueToggleButton {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(107, 79, 52, 0.12);
+  background: rgba(255, 248, 232, 0.58);
+  color: var(--ink);
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 10px 18px rgba(107, 79, 52, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.queueToggleButton.active {
+  background: linear-gradient(180deg, #f5eed7, #e1c89d);
+  border-color: rgba(107, 79, 52, 0.22);
+}
+
+.queueToggleLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.queueToggleIcon {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(180deg, var(--gold-3), var(--brown));
+  color: #4b3215;
+  font-size: 16px;
+}
+
+.queueToggleText {
+  font-size: 16px;
+}
+
+.queueToggleArrow {
+  font-size: 22px;
+  line-height: 1;
+  color: var(--brown-dark);
+}
 
         .onlineFriendsCard {
   margin-top: 12px;
@@ -1050,12 +1236,12 @@ onClick={async () => {
 }
 
 .mainPanel {
-  background: transparent;
-  border: none;
+  background: none !important;
+  border: none !important;
   display: grid;
   gap: 18px;
   min-height: 0;
-  height: 100%;
+  height: fit-content;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 4px;
@@ -1138,6 +1324,8 @@ onClick={async () => {
     font-size: 18px;
   }
 
+ 
+
   .roomNativeInput,
   .roomNativeButton,
   .roomNativeButtonGhost {
@@ -1164,6 +1352,10 @@ onClick={async () => {
           margin-bottom: 18px;
           flex-wrap: wrap;
         }
+
+    
+        
+        
 
         .miniLabel,
         .sidebarSectionTitle,
@@ -1249,27 +1441,26 @@ onClick={async () => {
           gap: 18px;
         }
 
+        .roomCard {
+        background: rgba(255, 253, 244, 0.8) !important;
+        }
+
         
-        .sidebarPanel,
-.mainPanel,
+
 .heroPanel,
-.statsPanel,
 .roomCard {
   background: linear-gradient(180deg, var(--cream), var(--tan));
   border: 1px solid rgba(93, 88, 63, 0.08);
   border-radius: 28px;
 }
 
-//         .sidebarPanel {
-//   padding: 18px;
-//   display: flex;
-//   flex-direction: column;
-//   gap: 18px;
-//   min-height: 0;
-//   height: 100%;
-//   align-self: stretch;
-//   box-sizing: border-box;
-// }
+.statsPanel {
+background: none;
+  border: none;
+}
+
+
+
         .playerMiniCard {
           display: grid;
           grid-template-columns: 64px 1fr;
@@ -1382,14 +1573,7 @@ onClick={async () => {
           color: var(--ink);
         }
 
-       .mainPanel {
-  background: transparent;
-  border: none;
-  display: grid;
-  gap: 18px;
-  padding-bottom: 24px;
-  box-sizing: border-box;
-}
+
 
         .heroPanel,
         .statsPanel {
@@ -1483,6 +1667,7 @@ onClick={async () => {
           color: var(--muted);
           font-size: 12px;
         }
+          
 
         .panelHeader h3 {
           margin: 6px 0 0;
@@ -1535,14 +1720,19 @@ onClick={async () => {
         }
 
         .currentRankBadge {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 14px;
-          background: linear-gradient(135deg, rgba(207, 162, 95, 0.18), rgba(141, 107, 79, 0.08));
-          border: 1px solid rgba(141, 107, 79, 0.3);
-          border-radius: 999px;
-        }
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(255, 253, 244, 0.22);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  box-shadow:
+    0 6px 18px rgba(91, 63, 42, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
 
         .rankIcon {
           font-size: 18px;
@@ -1717,6 +1907,11 @@ onClick={async () => {
 .statItem {
   padding: 12px;
   border-radius: 18px;
+  background: rgba(255, 253, 244, 0.8);
+  box-shadow:
+  0 0 18px rgba(255, 244, 210, 0.45),
+  0 0 36px rgba(224, 171, 63, 0.18),
+  inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 .statValue {
@@ -1848,7 +2043,7 @@ onClick={async () => {
   padding: 14px 16px !important;
   border-radius: 16px !important;
   border: 2px solid #9b7758 !important;
-  background: #f2dfbf !important;
+  background: rgba(255, 255, 255, 0.8) !important;
   color: #5b3f2a !important;
   outline: none !important;
   box-shadow: none !important;
@@ -1860,7 +2055,7 @@ onClick={async () => {
   color: #8f7b63 !important;
 }
 
-.roomNativeInput:hover,
+
 .roomNativeInput:focus,
 .roomNativeInput:active {
   background: #f2dfbf !important;
@@ -1875,7 +2070,7 @@ onClick={async () => {
   padding: 14px 16px !important;
   border-radius: 16px !important;
   border: 2px solid #9b7758 !important;
-  background: #ead3af !important;
+  background:rgba(255, 253, 244, 0.8)  !important;
   color: #6b4a33 !important;
   font-weight: 700 !important;
   font-size: 16px !important;
@@ -1906,7 +2101,7 @@ onClick={async () => {
 .roomNativeButtonGhost:hover,
 .roomNativeButtonGhost:focus,
 .roomNativeButtonGhost:active {
-  background: transparent !important;
+  background: #ead3af !important;
   color: #6b4a33 !important;
   border: 2px solid #9b7758 !important;
 }
@@ -2045,6 +2240,197 @@ onClick={async () => {
   width: 22px;
   height: 22px;
   object-fit: contain;
+}
+
+@media (max-width: 1100px) {
+  .topNavShell {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+
+  .topNavCenter {
+    justify-content: center;
+  }
+
+  .topNavRight {
+    position: static;
+    transform: none;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+.lobbyShell {
+  width: 100%;
+}
+
+.lobbyTopbar {
+  width: 100%;
+}
+
+.lobbyTopbar {
+  margin-bottom: 18px;
+}
+
+.topNavShell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 76px;
+  width: 100%;
+  padding: 14px 22px;
+  border-radius: 28px;
+  background: rgba(255, 248, 232, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  box-shadow:
+    0 14px 34px rgba(107, 79, 52, 0.10),
+    inset 0 1px 0 rgba(255,255,255,0.28);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.topNavCenter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.topNavRight {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topNavItem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 120px;
+  padding: 12px 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(107, 79, 52, 0.10);
+  background: rgba(255, 253, 244, 0.52);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: 0.18s ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.topNavItem:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 253, 244, 0.72);
+  border-color: rgba(107, 79, 52, 0.22);
+  box-shadow: 0 8px 18px rgba(107, 79, 52, 0.10);
+}
+
+.topNavItem.active {
+  background: rgba(255, 240, 205, 0.86);
+  border-color: rgba(107, 79, 52, 0.28);
+  box-shadow: 0 10px 20px rgba(176, 129, 53, 0.14);
+}
+
+.topNavBadge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #d96a6a;
+  color: #fff8ee;
+  font-size: 10px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(217, 106, 106, 0.35);
+  flex-shrink: 0;
+}
+
+.coinsPill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255, 243, 210, 0.78);
+  border: 1px solid rgba(171, 124, 40, 0.20);
+  color: #6b4520;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(176, 129, 53, 0.10);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.coinsIcon {
+  font-size: 15px;
+  line-height: 1;
+}
+.settingsProfileBtn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 120px;
+  padding: 8px 14px 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(107, 79, 52, 0.12);
+  background: rgba(255, 248, 232, 0.52);
+  box-shadow: 0 10px 18px rgba(102, 69, 42, 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  cursor: pointer;
+  overflow: visible;
+}
+
+.settingsProfileAvatar {
+  width: 52px;
+  height: 45px;   /* taller crop window so bigger image still shows */
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  margin-top: -12px;
+  margin-bottom: -10px;
+}
+
+.settingsProfileAvatar img {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  object-position: center top;
+  image-rendering: pixelated;
+  display: block;
+  background: transparent;
+  border-radius: 0;
+  transform: translateY(-1px);
+}
+
+.settingsProfileDivider {
+  width: 1px;
+  height: 24px;
+  background: linear-gradient(
+    180deg,
+    rgba(107, 79, 52, 0.05),
+    rgba(107, 79, 52, 0.22),
+    rgba(107, 79, 52, 0.05)
+  );
+  flex-shrink: 0;
 }
       `}</style>
     </div>

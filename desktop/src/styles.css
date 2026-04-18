@@ -454,10 +454,21 @@ body{
   margin-top: 10px;
 }
 
+.sidebarPanel {
+  background: rgba(255, 253, 244, 0.22) !important;
+  backdrop-filter: blur(18px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(160%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow:
+    0 10px 30px rgba(91, 63, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45) !important;
+  position: relative;
+  overflow: hidden;
+}
+
 .sidebarPanel,
 .catalogPanel,
 .previewPanel {
-  background: linear-gradient(180deg, var(--cream), var(--tan));
   border: 1px solid rgba(93, 88, 63, 0.08);
   border-radius: 24px;
   min-height: 0;
@@ -473,6 +484,8 @@ body{
   height: calc(100vh - 140px);
   align-items: start;
 }
+
+
 
 .lobbyLayout > .sidebarPanel {
   width: 100%;

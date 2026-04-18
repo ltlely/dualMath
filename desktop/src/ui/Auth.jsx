@@ -827,7 +827,7 @@ setMode("login");
                 }}
                 placeholder="Username (3+ chars)"
                 disabled={isLoading}
-                maxLength="20"
+                maxLength="12"
               />
               <Input
                 type="email"

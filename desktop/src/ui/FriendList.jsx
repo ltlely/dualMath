@@ -558,7 +558,7 @@ const confirmUnblockUser = async () => {
           </p>
         </div>
         <button type="button" className="backButton" onClick={onBack}>
-          Back
+          ✕
         </button>
       </div>
 

@@ -181,14 +181,6 @@ const storeItems = {
   ],
 };
 
-const categoryMeta = {
-  hair: { label: "Hair", emoji: "✂️" },
-  tops: { label: "Tops", emoji: "👕" },
-  bottoms: { label: "Bottoms", emoji: "👖" },
-  outfits: { label: "Outfits", emoji: "👗" },
-  shoes: { label: "Shoes", emoji: "👟" },
-  accessories: { label: "Accessories", emoji: "✨" },
-};
 
 const rarityClass = {
   Common: "rarityCommon",
@@ -369,6 +361,37 @@ const composeCharacterAvatar = async (
 export default function Store({ currentUser, onLoginSuccess, onClose }) {
 
   const [animationFrame, setAnimationFrame] = useState(0);
+  
+
+    const userGender = currentUser?.starterCharacter === "girl" ? "female" : "male";
+  const activeGender = userGender;
+
+  const categoryMeta = useMemo(() => ({
+    hair: {
+      label: "Hair",
+      asset: activeGender === "female" ? girlHair1 : boyHair1,
+    },
+    tops: {
+      label: "Tops",
+      asset: activeGender === "female" ? GirlTop1 : BoyTop6,
+    },
+    bottoms: {
+      label: "Bottoms",
+      asset: activeGender === "female" ? GirlSkirt1 : BoyShorts1,
+    },
+    outfits: {
+      label: "Outfits",
+      asset: activeGender === "female" ? girlDress1 : BoyOutfit1,
+    },
+    shoes: {
+      label: "Shoes",
+      asset: UniShoes1,
+    },
+    accessories: {
+      label: "Accessories",
+      asset: uniHat1,
+    },
+  }), [activeGender]);
 
 useEffect(() => {
   const maxFrames = Math.max(
@@ -383,9 +406,8 @@ useEffect(() => {
   return () => clearInterval(timer);
 }, []);
 
-  // Determine gender from user's starterCharacter
-  const userGender = currentUser?.starterCharacter === "girl" ? "female" : "male";
-  const activeGender = userGender;
+  
+  
 
   const [activeCategory, setActiveCategory] = useState("hair");
  const [selectedItems, setSelectedItems] = useState(() => ({
@@ -704,7 +726,7 @@ return (
         </div>
         <div className="topbarActions">
           <div className="currencyPill">🪙 {coins.toLocaleString()} Coins</div>
-          <Button variant="secondary" onClick={onClose}>Back</Button>
+          <Button variant="secondary" onClick={onClose}>✕</Button>
         </div>
       </div>
 
@@ -739,19 +761,22 @@ return (
 
               return (
                 <button
-                  key={category}
-                  className={`categoryButton ${isActive ? "active" : ""}`}
-                  onClick={() => {
-                    setActiveCategory(category);
-                    setSearch("");
-                  }}
-                >
-                  <span className="categoryEmoji">{meta.emoji}</span>
-                  <span className="categoryCopy">
-                    <span className="categoryTitle">{meta.label}</span>
-                    <span className="categoryCount">{availableCount} items</span>
-                  </span>
-                </button>
+  key={category}
+  className={`categoryButton ${isActive ? "active" : ""}`}
+  onClick={() => {
+    setActiveCategory(category);
+    setSearch("");
+  }}
+>
+  <span className="categoryEmoji">
+    <img src={meta.asset} alt={meta.label} className="categoryIconImg" />
+  </span>
+
+  <span className="categoryCopy">
+    <span className="categoryTitle">{meta.label}</span>
+    <span className="categoryCount">{availableCount} items</span>
+  </span>
+</button>
               );
             })}
           </div>
@@ -971,6 +996,23 @@ return (
   --olive-soft: rgba(154, 116, 68, 0.18);
 }
 
+.categoryEmoji {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(180deg, var(--gold-3), var(--brown));
+  overflow: hidden;
+}
+
+.categoryIconImg {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  background: transparent;
+}
       
 
         .miniLabel, .sidebarSectionTitle, .summaryLabel { text-transform: uppercase; letter-spacing: 0.18em; font-size: 11px; color: var(--muted); }
@@ -1012,13 +1054,78 @@ return (
         .actionButton.buy { background: linear-gradient(180deg, var(--gold-2), var(--gold)); box-shadow: 0 8px 14px rgba(186, 137, 56, 0.22); }
         .actionButton.equip { background: linear-gradient(180deg, rgba(161, 118, 82, 0.95), rgba(137, 91, 61, 0.95)); box-shadow: 0 8px 14px rgba(120, 76, 46, 0.18); }
         .emptyState { grid-column: 1 / -1; min-height: 200px; display: grid; place-items: center; border-radius: 22px; border: 1px dashed rgba(93, 88, 63, 0.16); color: var(--muted); background: rgba(255, 253, 244, 0.55); }
-.previewPanel {
-  padding: 12px;
+
+        .playerMiniCard {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 12px;
+  padding: 10px 14px;
+  min-height: 84px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #f9f7ea 0%, var(--cream-3) 100%);
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  align-items: center;
+}
+
+.playerMiniAvatar,
+.avatarFallback {
+  width: 90px;
+  height: 68px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  margin-top: -8px;
+  margin-bottom: -18px;
+  
+}
+
+.playerMiniAvatar img {
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+  object-position: center top;
+  image-rendering: pixelated;
+  display: block;
+  background: transparent;
+  border-radius: 0;
+  transform: translateY(0);
+  margin-right: 15px;
+}
+
+.avatarFallback {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--brown-dark);
+}
+
+.miniName {
+  font-size: 16px;
+  font-weight: 800;
+  margin-top: 2px;
+  color: var(--ink);
+  line-height: 1.05;
+}
+
+.miniMuted {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+
+        .previewPanel {
+  padding: 10px;
   color: var(--ink);
   display: flex;
   justify-content: center;
   align-items: stretch;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .previewPanel .card {
@@ -1027,6 +1134,18 @@ return (
   margin: 0;
   display: flex;
   flex-direction: column;
+  border-radius: 28px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 249, 236, 0.82),
+    rgba(238, 212, 155, 0.78)
+  );
+  border: 1px solid rgba(157, 107, 47, 0.12);
+  box-shadow:
+    0 20px 40px rgba(95, 70, 48, 0.12),
+    inset 0 1px 0 rgba(255,255,255,0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .previewPanel .cardBody {
@@ -1034,6 +1153,110 @@ return (
   display: flex;
   flex-direction: column;
   min-height: 0;
+  gap: 12px;
+}
+
+.previewStage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 430px;
+  margin: 0 auto 6px;
+  border-radius: 26px;
+  background: transparent;
+  border: none;
+  overflow: visible;
+  box-shadow: none;
+  isolation: isolate;
+}
+
+.previewStage::before {
+  content: "";
+  position: absolute;
+  inset: 8% 10%;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle,
+      rgba(255, 241, 191, 0.58) 0%,
+      rgba(255, 220, 120, 0.24) 38%,
+      rgba(255, 220, 120, 0.08) 60%,
+      transparent 76%
+    );
+  filter: blur(20px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.previewStage::after {
+  content: "";
+  position: absolute;
+  inset: 16% 18%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255,255,255,0.28) 0%,
+    transparent 72%
+  );
+  filter: blur(10px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.previewLayer {
+  position: absolute;
+  inset: 0;
+  width: 97%;
+  height: 97%;
+  margin: auto;
+  object-fit: contain;
+  object-position: center 58%;
+  image-rendering: pixelated;
+  background: transparent;
+  transform: none;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.previewActions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+
+.saveCharacterButton,
+.previewActions button,
+.previewActions .button,
+.previewActions [class*="button"] {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(157, 107, 47, 0.12);
+  font-weight: 800;
+  font-size: 14px;
+  margin-top: 0;
+  background: linear-gradient(180deg, #f3d578, #d8a63a) !important;
+  color: #4a3218 !important;
+  box-shadow:
+    0 10px 18px rgba(202,166,58,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.28);
+  cursor: pointer;
+}
+
+.previewActions button:hover,
+.previewActions .button:hover,
+.previewActions [class*="button"]:hover {
+  transform: translateY(-1px);
+}
+
+.statusMessage {
+  margin-top: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 13px;
 }
 
 .previewStage {
@@ -1044,10 +1267,33 @@ return (
   max-width: 430px;
   margin: 0 auto 12px;
   border-radius: 22px;
-  background: radial-gradient(circle at center, #fff6d8, #d9c79a);
-  border: 1px solid rgba(93, 88, 63, 0.08);
-  overflow: hidden;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4);
+  background: transparent;
+  border: none;
+  overflow: visible;
+  box-shadow: none;
+}
+
+.previewStage::before {
+  content: "";
+  position: absolute;
+  inset: 4% 8%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(255, 239, 170, 0.72) 0%, rgba(255, 211, 102, 0.30) 34%, rgba(255, 211, 102, 0.10) 58%, transparent 76%);
+  filter: blur(22px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.previewStage::after {
+  content: "";
+  position: absolute;
+  inset: 14% 18%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.32) 0%, transparent 70%);
+  filter: blur(10px);
+  z-index: 0;
+  pointer-events: none;
 }
 
 .previewLayer {
