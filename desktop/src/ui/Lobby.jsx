@@ -45,7 +45,7 @@ const [isSavingUsername, setIsSavingUsername] = useState(false);
   const [code, setCode] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [isJoiningRandom, setIsJoiningRandom] = useState(false);
-  const [showQueue, setShowQueue] = useState(true);
+  const [showQueue, setShowQueue] = useState(false);
 const queueSectionRef = useRef(null);
   
 
