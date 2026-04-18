@@ -238,9 +238,6 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   return;
 }
 
-setNewUser(result.user);
-setMode("pickCharacter");
-setSuccess("Account created! Now pick your character.");
     // Set up for character selection
     setNewUser(result.user);
     setMode("pickCharacter");
@@ -348,9 +345,7 @@ setMode("login");
 // character pick flow. updatePassword() already signs the user out internally.
       
       // Important: Tell parent we're logged out so they show Auth component
-      if (onLoginSuccess) {
-        onLoginSuccess(null);
-      }
+    
       
       // Switch to login mode after a short delay
       setTimeout(() => {

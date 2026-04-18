@@ -711,9 +711,9 @@ useEffect(() => {
       currentUser={pendingNewUser}
       onComplete={(userWithAvatar) => {
         setCurrentUser(userWithAvatar);
-        setPendingNewUser(null);
+        // setPendingNewUser(null);
         setShowPickCharacter(false);
-        setView("lobby");
+        // setView("lobby");
       }}
       onBack={() => {
         setPendingNewUser(null);
