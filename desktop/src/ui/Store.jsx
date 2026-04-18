@@ -403,9 +403,9 @@ useEffect(() => {
 
   const hasSelectedOutfit = !!getOutfitAsset(selectedItems.outfits);
   const shouldShowBottoms = !hasSelectedOutfit;
-  const [ownedItems, setOwnedItems] = useState(
+const [ownedItems, setOwnedItems] = useState(
   new Set(
-    currentUser?.ownedItems?.length
+    Array.isArray(currentUser?.ownedItems) && currentUser.ownedItems.length > 0
       ? currentUser.ownedItems
       : userGender === "female"
       ? ["GirlHair2", "UniTop1", "UniShorts1", "UniShoes1"]
@@ -420,7 +420,7 @@ useEffect(() => {
 
 useEffect(() => {
   setCoins(currentUser?.coins ?? STARTING_COINS);
-}, [currentUser?.coins]);
+}, [currentUser?.id]);
 
   const categoryItems = useMemo(() => {
     return normalizedStoreItems[activeCategory].filter((item) => {
@@ -517,8 +517,10 @@ const handleUnequip = (category) => {
       throw new Error(result?.message || "Failed to save purchase.");
     }
 
-    // do NOT call onLoginSuccess here
-    // that can kick you out of the shop
+    // Update parent so currentUser stays in sync without closing the store
+    if (onLoginSuccess) {
+      onLoginSuccess(result.user || updatedUser);
+    }
 
   } catch (err) {
     console.error("Failed to save updated coins:", err);
@@ -530,23 +532,26 @@ const handleUnequip = (category) => {
 
 const getOwnedSelection = () => {
   const defaultHair = activeGender === "female" ? "GirlHair2" : "BoyHair1";
-  const defaultTop = activeGender === "female" ? "UniTop1" : "BoyTop6";
 
   return {
+    // Hair is required — always fall back to default
     hair: ownedItems.has(selectedItems.hair) ? selectedItems.hair : defaultHair,
-    tops: ownedItems.has(selectedItems.tops) ? selectedItems.tops : defaultTop,
-    bottoms: ownedItems.has(selectedItems.bottoms) ? selectedItems.bottoms : "UniShorts1",
-    outfits: ownedItems.has(selectedItems.outfits) ? selectedItems.outfits : "",
-    shoes: ownedItems.has(selectedItems.shoes) ? selectedItems.shoes : "UniShoes1",
-    accessories: ownedItems.has(selectedItems.accessories) ? selectedItems.accessories : "",
+    // These are optional — if unequipped (""), keep them empty
+    tops: selectedItems.tops && ownedItems.has(selectedItems.tops) ? selectedItems.tops : "",
+    bottoms: selectedItems.bottoms && ownedItems.has(selectedItems.bottoms) ? selectedItems.bottoms : "",
+    outfits: selectedItems.outfits && ownedItems.has(selectedItems.outfits) ? selectedItems.outfits : "",
+    shoes: selectedItems.shoes && ownedItems.has(selectedItems.shoes) ? selectedItems.shoes : "",
+    accessories: selectedItems.accessories && ownedItems.has(selectedItems.accessories) ? selectedItems.accessories : "",
   };
 };
 
 const [localAvatarData, setLocalAvatarData] = useState(currentUser?.avatarData || null);
 
 useEffect(() => {
-  setLocalAvatarData(currentUser?.avatarData || null);
-}, [currentUser?.avatarData]);
+  if (currentUser?.avatarData) {
+    setLocalAvatarData(currentUser.avatarData);
+  }
+}, [currentUser?.avatarData, currentUser?.id]);
 
 
   const handleSave = async () => {
@@ -598,7 +603,8 @@ if (!result?.success) {
 
 const savedUser = result.user || updatedUser;
 
-setLocalAvatarData(savedUser.avatarData || avatarDataUrl);
+// Update mini avatar immediately
+setLocalAvatarData(avatarDataUrl);
 
 if (onLoginSuccess) {
   onLoginSuccess(savedUser);
@@ -659,6 +665,39 @@ const handleResetOutfit = () => {
   setError("");
 };
 
+useEffect(() => {
+  if (!currentUser?.id) return;
+  setOwnedItems(
+    new Set(
+      Array.isArray(currentUser.ownedItems) && currentUser.ownedItems.length > 0
+        ? currentUser.ownedItems
+        : userGender === "female"
+        ? ["GirlHair2", "UniTop1", "UniShorts1", "UniShoes1"]
+        : ["BoyHair1", "BoyTop6", "UniShorts1", "UniShoes1"]
+    )
+  );
+}, [currentUser?.id]);
+
+// Sync equipped items when currentUser changes
+useEffect(() => {
+  if (!currentUser) return;
+  setSelectedItems({
+    hair: currentUser.equippedHair || (userGender === "female" ? "GirlHair2" : "BoyHair1"),
+    tops: currentUser.equippedTop || (userGender === "female" ? "UniTop1" : "BoyTop6"),
+    bottoms: currentUser.equippedBottom || "UniShorts1",
+    outfits: currentUser.equippedOutfit || "",
+    shoes: currentUser.equippedShoes || "UniShoes1",
+    accessories: currentUser.equippedAccessory || "",
+  });
+  setSavedItems({
+    hair: currentUser.equippedHair || (userGender === "female" ? "GirlHair2" : "BoyHair1"),
+    tops: currentUser.equippedTop || (userGender === "female" ? "UniTop1" : "BoyTop6"),
+    bottoms: currentUser.equippedBottom || "UniShorts1",
+    outfits: currentUser.equippedOutfit || "",
+    shoes: currentUser.equippedShoes || "UniShoes1",
+    accessories: currentUser.equippedAccessory || "",
+  });
+}, [currentUser?.id]); // only re-sync when the user itself changes, not on every render
 
 return (
   <div className="storeOverlay">
@@ -822,70 +861,81 @@ return (
 
         <aside className="previewPanel">
           <Card title="Preview">
-            <div className="previewStage">
-              <img
-                src={getBaseCharacterAsset(activeGender)}
-                alt="Base character"
-                className="previewLayer"
-              />
+           <div className="previewStage" style={{ pointerEvents: "none" }}>
+  <img
+    src={getBaseCharacterAsset(activeGender)}
+    alt="Base character"
+    className="previewLayer"
+    style={{ pointerEvents: "none" }}
+  />
+  {shouldShowBottoms && getBottomAsset(selectedItems.bottoms) && (
+    <img src={getBottomAsset(selectedItems.bottoms)} alt="Selected bottom" className="previewLayer" style={{ pointerEvents: "none" }} />
+  )}
+  {getTopAsset(selectedItems.tops, animationFrame) && (
+    <img src={getTopAsset(selectedItems.tops, animationFrame)} alt="Selected top" className="previewLayer" style={{ pointerEvents: "none" }} />
+  )}
+  {getOutfitAsset(selectedItems.outfits) && (
+    <img src={getOutfitAsset(selectedItems.outfits)} alt="Selected outfit" className="previewLayer" style={{ pointerEvents: "none" }} />
+  )}
+  {getShoeAsset(selectedItems.shoes) && (
+    <img src={getShoeAsset(selectedItems.shoes)} alt="Selected shoe" className="previewLayer" style={{ pointerEvents: "none" }} />
+  )}
+  <img src={getSelectedHairAsset(activeGender, selectedItems.hair)} alt="Selected hair" className="previewLayer" style={{ pointerEvents: "none" }} />
+  {getAccessoryAsset(selectedItems.accessories) && (
+    <img src={getAccessoryAsset(selectedItems.accessories)} alt="Selected accessory" className="previewLayer" style={{ pointerEvents: "none" }} />
+  )}
+</div>
 
-              {shouldShowBottoms && getBottomAsset(selectedItems.bottoms) && (
-                <img
-                  src={getBottomAsset(selectedItems.bottoms)}
-                  alt="Selected bottom"
-                  className="previewLayer"
-                />
-              )}
-
-              {getTopAsset(selectedItems.tops, animationFrame) && (
-                <img
-                  src={getTopAsset(selectedItems.tops, animationFrame)}
-                  alt="Selected top"
-                  className="previewLayer"
-                />
-              )}
-
-              {getOutfitAsset(selectedItems.outfits) && (
-                <img
-                  src={getOutfitAsset(selectedItems.outfits)}
-                  alt="Selected outfit"
-                  className="previewLayer"
-                />
-              )}
-
-              {getShoeAsset(selectedItems.shoes) && (
-                <img
-                  src={getShoeAsset(selectedItems.shoes)}
-                  alt="Selected shoe"
-                  className="previewLayer"
-                />
-              )}
-
-              <img
-                src={getSelectedHairAsset(activeGender, selectedItems.hair)}
-                alt="Selected hair"
-                className="previewLayer"
-              />
-
-              {getAccessoryAsset(selectedItems.accessories) && (
-                <img
-                  src={getAccessoryAsset(selectedItems.accessories)}
-                  alt="Selected accessory"
-                  className="previewLayer"
-                />
-              )}
-            </div>
-
-            <div className="previewActions">
-              <Button onClick={handleResetOutfit}>Reset Outfit</Button>
-              <Button
-                className="saveCharacterButton"
-                onClick={handleSave}
-                disabled={isSaving}
-              >
-                {isSaving ? "Saving..." : "Save Character"}
-              </Button>
-            </div>
+ <div className="previewActions" style={{ 
+  position: "relative", 
+  zIndex: 10,
+  flexShrink: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: "12px",
+  marginTop: "12px",
+  pointerEvents: "none" 
+}}>
+  <button 
+    type="button" 
+    onClick={handleResetOutfit}
+    style={{ 
+      cursor: "pointer",
+      width: "100%",
+      padding: "10px 16px",
+      borderRadius: "14px",
+      border: "none",
+      fontWeight: 700,
+      fontSize: "14px",
+      background: "linear-gradient(180deg, #e6c96a, #caa63a)",
+      color: "#4a3b2a",
+      boxShadow: "0 6px 14px rgba(202,166,58,0.35)",
+      pointerEvents: "all",
+    }}
+  >
+    Reset Outfit
+  </button>
+  <button
+    type="button"
+    onClick={handleSave}
+    disabled={isSaving}
+    style={{
+      cursor: isSaving ? "not-allowed" : "pointer",
+      width: "100%",
+      padding: "10px 16px",
+      borderRadius: "14px",
+      border: "none",
+      fontWeight: 700,
+      fontSize: "14px",
+      background: "linear-gradient(180deg, #e6c96a, #caa63a)",
+      color: "#4a3b2a",
+      boxShadow: "0 6px 14px rgba(202,166,58,0.35)",
+      pointerEvents: "all",
+    }}
+  >
+    {isSaving ? "Saving..." : "Save Character"}
+  </button>
+</div>
 
             {message && <div className="statusMessage success">{message}</div>}
             {error && <div className="statusMessage error">{error}</div>}
@@ -1040,6 +1090,29 @@ return (
   box-shadow: 0 6px 14px rgba(202,166,58,0.35);
   cursor: pointer;
 }
+
+.previewLayer {
+  position: absolute;
+  inset: 0;
+  width: 97%;
+  height: 97%;
+  margin: auto;
+  object-fit: contain;
+  object-position: center 58%;
+  image-rendering: pixelated;
+  background: transparent;
+  transform: none;
+  pointer-events: none;
+}
+
+.storeOverlay {
+  pointer-events: none;
+}
+
+.storeShell {
+  pointer-events: all;
+}
+
               // .equippedList { display: grid; gap: 10px; }
         .card { background: linear-gradient(180deg, #fbf7e7, #e7d7b5); border: 2px solid #c7a87a; border-radius: 18px; box-shadow: 0 10px 24px rgba(95,70,48,0.18); padding: 16px; }
         // .equippedRow { display: flex; justify-content: space-between; gap: 14px; padding: 12px 14px; border-radius: 16px; background: rgba(255, 253, 244, 0.8); border: 1px solid rgba(93, 88, 63, 0.08); font-size: 13px; color: var(--ink); }

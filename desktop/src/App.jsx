@@ -671,50 +671,53 @@ useEffect(() => {
   };
 
   const handleLoginSuccess = (user) => {
-    console.log("🔐 Login success:", user?.username || "logged out");
-
-    if (!user) {
-      setCurrentUser(null);
-      setPendingNewUser(null);
-      setShowPickCharacter(false);
-      setSessionError(null);
-      setView("lobby");
-      return;
-    }
-
-    if (user?.id) {
-  userManager.updateStatus(user.id, "online");
-}
-
-    const needsStarterPick = !user.avatarData;
-
-    if (needsStarterPick) {
-      setPendingNewUser(user);
-      setShowPickCharacter(true);
-      setSessionError(null);
-      return;
-    }
-
-    setCurrentUser(user);
+  if (!user) {
+    setCurrentUser(null);
     setPendingNewUser(null);
     setShowPickCharacter(false);
     setSessionError(null);
     setView("lobby");
-  };
+    return;
+  }
+
+  if (user?.id) {
+    userManager.updateStatus(user.id, "online");
+  }
+
+  if (!user.avatarData && !user.starterCharacter) {
+    setPendingNewUser(user);
+    setShowPickCharacter(true);
+    setSessionError(null);
+    return;
+  }
+
+  setCurrentUser(user);
+  setPendingNewUser(null);
+  setShowPickCharacter(false);
+  setSessionError(null);
+
+  // Only navigate to lobby if not already in store
+  if (view !== "store") {
+    setView("lobby");
+  }
+};
 
   
 
   if (showPickCharacter && pendingNewUser) {
   return (
-    <PickCharacter
+   <PickCharacter
       currentUser={pendingNewUser}
-      onComplete={(user) => {
-        setCurrentUser(user);
+      onComplete={(userWithAvatar) => {
+        setCurrentUser(userWithAvatar);
         setPendingNewUser(null);
         setShowPickCharacter(false);
         setView("lobby");
       }}
-      onBack={() => setShowPickCharacter(false)}
+      onBack={() => {
+        setPendingNewUser(null);
+        setShowPickCharacter(false);
+      }}
     />
   );
 }
@@ -797,7 +800,7 @@ useEffect(() => {
   };
 
   // Force character selection for users without starterCharacter
-  if (currentUser && !currentUser.starterCharacter) {
+  if (currentUser && !currentUser.avatarData && !currentUser.starterCharacter) {
     return (
       <PickCharacter
         currentUser={currentUser}
@@ -875,12 +878,15 @@ useEffect(() => {
           onCreate={actions.createRoom}
           onJoin={actions.joinRoom}
           onJoinRandom={actions.joinRandomRoom}
-          onOpenStore={() => {
-            setScreen("lobby");
-            setView("store");
-            if (currentUser?.id) {
-  userManager.updateStatus(currentUser.id, "online");
-}
+onOpenStore={async () => {
+  setScreen("lobby");
+  setView("store");
+  if (currentUser?.id) {
+    userManager.updateStatus(currentUser.id, "online");
+    // Refresh user from Supabase to get latest coins/owned items
+    const freshUser = await userManager.getCurrentUser();
+    if (freshUser) setCurrentUser(freshUser);
+  }
           }}
           error={error}
           currentUser={currentUser}

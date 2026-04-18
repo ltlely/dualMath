@@ -335,15 +335,17 @@ const handleCharacterComplete = (userWithAvatar) => {
       }
 
       // Clear recovery mode flag
-      localStorage.removeItem('dualmath_password_recovery_mode');
-      
-      // Clear the hash from URL
-      window.history.replaceState(null, '', window.location.pathname);
-      
-      // Show success and switch to login mode
-      setSuccess("Password updated successfully! Please login with your new password.");
-      setNewPassword("");
-      setNewPasswordConfirm("");
+localStorage.removeItem('dualmath_password_recovery_mode');
+
+// Clear the hash from URL
+window.history.replaceState(null, '', window.location.pathname);
+
+setSuccess("Password updated! Please log in with your new password.");
+setNewPassword("");
+setNewPasswordConfirm("");
+setMode("login");
+// Do NOT call onLoginSuccess(null) here — that triggers the logged-out
+// character pick flow. updatePassword() already signs the user out internally.
       
       // Important: Tell parent we're logged out so they show Auth component
       if (onLoginSuccess) {
@@ -748,7 +750,7 @@ const handleCharacterComplete = (userWithAvatar) => {
 
   // Not logged in - show login or signup
   if (!isLoggedIn) {
-    if (mode === "pickCharacter" && newUser) {
+   if (mode === "pickCharacter" && newUser && !newUser.starterCharacter) {
       return (
         <div className="authModal">
           <PickCharacter
