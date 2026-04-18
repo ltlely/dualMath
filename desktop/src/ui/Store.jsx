@@ -388,17 +388,15 @@ useEffect(() => {
   const activeGender = userGender;
 
   const [activeCategory, setActiveCategory] = useState("hair");
-  const [selectedItems, setSelectedItems] = useState(() => ({
+ const [selectedItems, setSelectedItems] = useState(() => ({
   hair:
-    currentUser?.equippedHair ||
+    currentUser?.equippedHair ??
     (userGender === "female" ? "GirlHair2" : "BoyHair1"),
-  tops:
-    currentUser?.equippedTop ||
-    (userGender === "female" ? "UniTop1" : "BoyTop6"),
-  bottoms: currentUser?.equippedBottom || "UniShorts1",
-  outfits: currentUser?.equippedOutfit || "",
-  shoes: currentUser?.equippedShoes || "UniShoes1",
-  accessories: currentUser?.equippedAccessory || "",
+  tops: currentUser?.equippedTop ?? "",
+  bottoms: currentUser?.equippedBottom ?? "UniShorts1",
+  outfits: currentUser?.equippedOutfit ?? "",
+  shoes: currentUser?.equippedShoes ?? "UniShoes1",
+  accessories: currentUser?.equippedAccessory ?? "",
 }));
 
   const hasSelectedOutfit = !!getOutfitAsset(selectedItems.outfits);
@@ -648,15 +646,13 @@ setSavedItems({
 
 const [savedItems, setSavedItems] = useState({
   hair:
-    currentUser?.equippedHair ||
+    currentUser?.equippedHair ??
     (userGender === "female" ? "GirlHair2" : "BoyHair1"),
-  tops:
-    currentUser?.equippedTop ||
-    (userGender === "female" ? "UniTop1" : "BoyTop6"),
-  bottoms: currentUser?.equippedBottom || "UniShorts1",
-  outfits: currentUser?.equippedOutfit || "",
-  shoes: currentUser?.equippedShoes || "UniShoes1",
-  accessories: currentUser?.equippedAccessory || "",
+  tops: currentUser?.equippedTop ?? "",
+  bottoms: currentUser?.equippedBottom ?? "UniShorts1",
+  outfits: currentUser?.equippedOutfit ?? "",
+  shoes: currentUser?.equippedShoes ?? "UniShoes1",
+  accessories: currentUser?.equippedAccessory ?? "",
 });
 
 const handleResetOutfit = () => {
@@ -681,22 +677,22 @@ useEffect(() => {
 // Sync equipped items when currentUser changes
 useEffect(() => {
   if (!currentUser) return;
-  setSelectedItems({
-    hair: currentUser.equippedHair || (userGender === "female" ? "GirlHair2" : "BoyHair1"),
-    tops: currentUser.equippedTop || (userGender === "female" ? "UniTop1" : "BoyTop6"),
-    bottoms: currentUser.equippedBottom || "UniShorts1",
-    outfits: currentUser.equippedOutfit || "",
-    shoes: currentUser.equippedShoes || "UniShoes1",
-    accessories: currentUser.equippedAccessory || "",
-  });
-  setSavedItems({
-    hair: currentUser.equippedHair || (userGender === "female" ? "GirlHair2" : "BoyHair1"),
-    tops: currentUser.equippedTop || (userGender === "female" ? "UniTop1" : "BoyTop6"),
-    bottoms: currentUser.equippedBottom || "UniShorts1",
-    outfits: currentUser.equippedOutfit || "",
-    shoes: currentUser.equippedShoes || "UniShoes1",
-    accessories: currentUser.equippedAccessory || "",
-  });
+ setSelectedItems({
+  hair: currentUser.equippedHair ?? (userGender === "female" ? "GirlHair2" : "BoyHair1"),
+  tops: currentUser.equippedTop ?? "",
+  bottoms: currentUser.equippedBottom ?? "UniShorts1",
+  outfits: currentUser.equippedOutfit ?? "",
+  shoes: currentUser.equippedShoes ?? "UniShoes1",
+  accessories: currentUser.equippedAccessory ?? "",
+});
+setSavedItems({
+  hair: currentUser.equippedHair ?? (userGender === "female" ? "GirlHair2" : "BoyHair1"),
+  tops: currentUser.equippedTop ?? "",
+  bottoms: currentUser.equippedBottom ?? "UniShorts1",
+  outfits: currentUser.equippedOutfit ?? "",
+  shoes: currentUser.equippedShoes ?? "UniShoes1",
+  accessories: currentUser.equippedAccessory ?? "",
+});
 }, [currentUser?.id]); // only re-sync when the user itself changes, not on every render
 
 return (
