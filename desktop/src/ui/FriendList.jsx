@@ -189,7 +189,7 @@ useEffect(() => {
   const filteredFriends = useMemo(() => friends, [friends]);
     
 
-  const handleSendRequest = async () => {
+const handleSendRequest = async () => {
   if (!searchUsername.trim()) return;
 
   setMessage("");
@@ -204,21 +204,31 @@ useEffect(() => {
     return;
   }
 
-  const result = await userManager.sendFriendRequest(
-    resolvedUser.id,
-    searchUsername.trim()
-  );
+  try {
+    const result = await userManager.sendFriendRequest(
+      resolvedUser.id,
+      searchUsername.trim()
+    );
 
-  if (!result?.success) {
-    setError(result?.message || "Could not send request.");
+    console.log("sendFriendRequest result:", result);
+
+    if (!result?.success) {
+      setError(result?.message || "Could not send request.");
+      setIsSending(false);
+      return;
+    }
+
+    setMessage(result.message || "Friend request sent.");
+    setSearchUsername("");
+  } catch (err) {
+    console.error("handleSendRequest error:", err);
+    setError(err?.message || "Could not send request.");
+  } finally {
     setIsSending(false);
-    return;
   }
-
-  setMessage(result.message || "Friend request sent.");
-  setSearchUsername("");
-  setIsSending(false);
 };
+
+
 
  const handleAccept = async (request) => {
   setMessage("");

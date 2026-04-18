@@ -5,7 +5,14 @@ import { getRank } from "./rankingSystem.js";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: "dualmath-supabase-auth",
+  },
+});
 
 // Generate a unique session token
 const generateSessionToken = () => {
@@ -130,27 +137,30 @@ deleteExpiredMessages: async () => {
   }
 },
 
-  sendFriendRequest: async (senderId, username) => {
+sendFriendRequest: async (_senderId, username) => {
   try {
-      const { data: { session } } = await supabase.auth.getSession();
-    console.log("Session when sending request:", session?.user?.id, "senderId:", senderId);
-    
-    if (!session?.user) {
-      return { success: false, message: "Not logged in." };
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    const authUser = userData?.user;
+
+    console.log("auth user id:", authUser?.id);
+    console.log("passed sender id:", _senderId);
+
+    if (userError || !authUser?.id) {
+      return { success: false, message: "Please log in again." };
     }
 
+    const senderId = authUser.id;
     const normalizedUsername = username.trim().toLowerCase();
 
-    const { data: receivers, error: receiverError } = await supabase
+    const { data: receiver, error: receiverError } = await supabase
       .from("profiles")
       .select("id, username")
-      .ilike("username", normalizedUsername)
-      .limit(1);
-
-    const receiver = receivers?.[0] || null;
+      .eq("username", normalizedUsername)
+      .maybeSingle();
 
     if (receiverError) {
-      return { success: false, message: "Could not find user." };
+      console.error("sendFriendRequest receiver lookup error:", receiverError);
+      return { success: false, message: receiverError.message || "Could not find user." };
     }
 
     if (!receiver) {
@@ -183,15 +193,11 @@ deleteExpiredMessages: async () => {
       return { success: false, message: "Friend request already sent." };
     }
 
-    // clear old non-pending request so user can add again later
     if (existingRequest && existingRequest.status !== "pending") {
-      await supabase
-        .from("friend_requests")
-        .delete()
-        .eq("id", existingRequest.id);
+      await supabase.from("friend_requests").delete().eq("id", existingRequest.id);
     }
 
-    const { error } = await supabase
+    const { error: insertError } = await supabase
       .from("friend_requests")
       .insert({
         sender_id: senderId,
@@ -199,16 +205,21 @@ deleteExpiredMessages: async () => {
         status: "pending",
       });
 
-    if (error) {
-      return { success: false, message: error.message || "Could not send request." };
+    if (insertError) {
+      console.error("sendFriendRequest insert error:", insertError);
+      return { success: false, message: insertError.message || "Could not send request." };
     }
 
-    return { success: true, message: `Friend request sent to ${receiver.username}.` };
+    return {
+      success: true,
+      message: `Friend request sent to ${receiver.username}.`,
+    };
   } catch (error) {
-    console.error("sendFriendRequest error:", error);
+    console.error("sendFriendRequest catch error:", error);
     return { success: false, message: "Could not send request." };
   }
 },
+
 
 getFriendRequests: async (userId) => {
   try {
@@ -268,12 +279,11 @@ getFriendRequests: async (userId) => {
 
 acceptFriendRequest: async (requestId, currentUserId, senderId) => {
   try {
-    const { error: friendsError } = await supabase
-      .from("friends")
-      .insert([
-        { user_id: currentUserId, friend_id: senderId },
-        { user_id: senderId, friend_id: currentUserId },
-      ]);
+   const { error: friendsError } = await supabase
+  .from("friends")
+  .insert([
+    { user_id: currentUserId, friend_id: senderId }
+  ]);
 
     if (friendsError) {
       console.error("acceptFriendRequest insert error:", friendsError);
@@ -817,6 +827,13 @@ if (!updateSuccess) {
       if (!data.user) {
         return { success: false, message: 'Login failed' };
       }
+
+      const {
+  data: { session },
+} = await supabase.auth.getSession();
+
+console.log("after login session:", session?.user?.id);
+console.log("login data user id:", data?.user?.id);
 
       const sessionToken = getOrCreateSessionToken();
       
