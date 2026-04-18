@@ -487,27 +487,15 @@ removeFriend: async (currentUserId, friendId) => {
         console.error('Error fetching profile:', profileError);
       }
 
-      // Check for session conflict (another device/tab logged in)
-      // Skip this check for recovery sessions
-      if (!isRecoverySession && profile?.active_session_token && profile.active_session_token !== currentSessionToken) {
-        console.log('⚠️ Session conflict detected - logging out this session');
-        await supabase.auth.signOut();
-        localStorage.removeItem('dualmath_current_user');
-        sessionStorage.removeItem('dualmath_session_token');
-        return null;
-      }
-
-      // Update active session token if not set or if it's this session
-      // Skip for recovery sessions
-      if (!isRecoverySession && (!profile?.active_session_token || profile.active_session_token === currentSessionToken)) {
-        await supabase
-          .from('profiles')
-          .update({ 
-            active_session_token: currentSessionToken,
-            last_active: new Date().toISOString()
-          })
-          .eq('id', userId);
-      }
+      if (!isRecoverySession && !profile?.active_session_token) {
+  await supabase
+    .from("profiles")
+    .update({
+      active_session_token: currentSessionToken,
+      last_active: new Date().toISOString(),
+    })
+    .eq("id", userId);
+}
 
  const user = {
   id: userId,
