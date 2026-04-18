@@ -1,32 +1,34 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Card, Button, Select, Pill } from "./components.jsx";
+import { userManager } from "../userManagerSupabase.js";
 
-function Slot({ title, player, isYou, onSit, currentUserAvatarData, username }) {
+function Slot({ title, player, isYou, onSit, currentUserAvatarData, username, currentUser }) {
+  const displayUser = isYou ? currentUser : player;
   const displayAvatar = isYou ? currentUserAvatarData : player?.avatarData;
   const displayName = isYou ? username : player?.name;
-  const displayRankLevel = player?.rankLevel || player?.rank || "Novice";
+  const displayRankLevel = displayUser ? userManager.getUserRank(displayUser) : "Novice";
 
   function getRankBadgeClass(rank) {
-  switch (rank) {
-    case "Novice":
-      return "rank-novice";
-    case "Apprentice":
-      return "rank-apprentice";
-    case "Skilled":
-      return "rank-skilled";
-    case "Professional":
-      return "rank-professional";
-    case "Expert":
-      return "rank-expert";
-    case "King":
-      return "rank-king";
-    default:
-      return "rank-novice";
+    switch (rank) {
+      case "Novice":
+        return "rank-novice";
+      case "Apprentice":
+        return "rank-apprentice";
+      case "Skilled":
+        return "rank-skilled";
+      case "Professional":
+        return "rank-professional";
+      case "Expert":
+        return "rank-expert";
+      case "King":
+        return "rank-king";
+      default:
+        return "rank-novice";
+    }
   }
-}
 
   return (
-    <div className={`slot ${player ? "occupied" : "empty"}`}>
+     <div className={`slot ${player ? "occupied" : "empty"}`}>
       <div className="slotTop">
         <div className="slotTitle">{title}</div>
         {player?.ready ? <Pill tone="good">Ready</Pill> : <Pill tone="neutral">Not ready</Pill>}
@@ -111,24 +113,19 @@ export default function Room({
   const teamB = room?.teams?.B?.members ?? [];
 
   const slot = (team, idx) => {
-    const teamMembers = team === "A" ? teamA : teamB;
-    const teamPlayer = teamMembers.find(p => p.slot === idx);
+  const teamMembers = team === "A" ? teamA : teamB;
+  const teamPlayer = teamMembers.find(p => p.slot === idx);
 
-    if (!teamPlayer) return null;
+  if (!teamPlayer) return null;
 
-    const fullPlayer = room?.players?.find(p => p.id === teamPlayer.id);
+  const fullPlayer = room?.players?.find(p => p.id === teamPlayer.id);
 
-    return {
-      ...teamPlayer,
-      avatarData: teamPlayer.avatarData || fullPlayer?.avatarData || null,
-      rankLevel:
-        teamPlayer.rankLevel ||
-        teamPlayer.rank ||
-        fullPlayer?.rankLevel ||
-        fullPlayer?.rank ||
-        "Novice",
-    };
+  return {
+    ...teamPlayer,
+    avatarData: teamPlayer.avatarData || fullPlayer?.avatarData || null,
+    rankPoints: teamPlayer.rankPoints ?? fullPlayer?.rankPoints ?? 0,
   };
+};
 
   const seated = !!(self?.team && (self.slot === 0 || self.slot === 1));
 
@@ -175,6 +172,7 @@ export default function Room({
               currentUserAvatarData={currentUser?.avatarData}
               username={currentUser?.username}
               onSit={() => onSit({ team: "A", slot: 0 })}
+                currentUser={currentUser}
             />
             <Slot
               title="A2"
@@ -183,6 +181,7 @@ export default function Room({
               currentUserAvatarData={currentUser?.avatarData}
               username={currentUser?.username}
               onSit={() => onSit({ team: "A", slot: 1 })}
+                currentUser={currentUser}
             />
           </div>
         </Card>
@@ -198,6 +197,7 @@ export default function Room({
               currentUserAvatarData={currentUser?.avatarData}
               username={currentUser?.username}
               onSit={() => onSit({ team: "B", slot: 0 })}
+                currentUser={currentUser}
             />
             <Slot
               title="B2"
@@ -206,6 +206,7 @@ export default function Room({
               currentUserAvatarData={currentUser?.avatarData}
               username={currentUser?.username}
               onSit={() => onSit({ team: "B", slot: 1 })}
+                currentUser={currentUser}
             />
           </div>
         </Card>

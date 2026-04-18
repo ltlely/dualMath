@@ -255,7 +255,7 @@ const coinReward = getCoinReward();
             <div className="quickInfo">
               <div className="quickUsername">@{currentUser?.username}</div>
                 <div className="quickPoints">
-                  {(currentUser ? userManager.getUserRank(currentUser) : "Novice")} • {currentUser?.rankPoints ?? 0} RP
+  {currentRank} • {currentUser?.rankPoints ?? 0} RP
                 </div>
             </div>
           </div>

@@ -43,38 +43,45 @@ const [isSavingUsername, setIsSavingUsername] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isJoiningRandom, setIsJoiningRandom] = useState(false);
 
-  const { stats, rankProgress, nextRank, pointsToNext } = useMemo(() => {
-    let calculatedStats = {
-      rank: "Novice",
-      rankPoints: 0,
-      wins: 0,
-      losses: 0,
-      totalGames: 0,
-      winRate: 0,
-    };
-    let calculatedProgress = 0;
-    let calculatedNextRank = null;
-    let calculatedPointsToNext = 0;
+ const { stats, rankProgress, nextRank, pointsToNext } = useMemo(() => {
+  let calculatedStats = {
+    rank: "Novice",
+    rankPoints: 0,
+    wins: 0,
+    losses: 0,
+    totalGames: 0,
+    winRate: 0,
+  };
+  let calculatedProgress = 0;
+  let calculatedNextRank = null;
+  let calculatedPointsToNext = 0;
 
-    if (currentUser) {
-      try {
-        calculatedStats = userManager.getUserStats(currentUser) || calculatedStats;
-        const rankPoints = currentUser?.rankPoints || 0;
-        calculatedProgress = getRankProgress(rankPoints);
-        calculatedNextRank = getNextRank(rankPoints);
-        calculatedPointsToNext = getPointsToNextRank(rankPoints);
-      } catch (e) {
-        console.error("Error calculating stats:", e);
-      }
+  if (currentUser) {
+    try {
+      const baseStats = userManager.getUserStats(currentUser) || calculatedStats;
+      const rankPoints = currentUser?.rankPoints || 0;
+
+      calculatedStats = {
+        ...baseStats,
+        rank: userManager.getUserRank(currentUser),
+        rankPoints,
+      };
+
+      calculatedProgress = getRankProgress(rankPoints);
+      calculatedNextRank = getNextRank(rankPoints);
+      calculatedPointsToNext = getPointsToNextRank(rankPoints);
+    } catch (e) {
+      console.error("Error calculating stats:", e);
     }
+  }
 
-    return {
-      stats: calculatedStats,
-      rankProgress: calculatedProgress,
-      nextRank: calculatedNextRank,
-      pointsToNext: calculatedPointsToNext,
-    };
-  }, [currentUser, currentUser?.wins, currentUser?.losses, currentUser?.rankPoints]);
+  return {
+    stats: calculatedStats,
+    rankProgress: calculatedProgress,
+    nextRank: calculatedNextRank,
+    pointsToNext: calculatedPointsToNext,
+  };
+}, [currentUser, currentUser?.wins, currentUser?.losses, currentUser?.rankPoints]);
 
   if (!currentUser) {
     return (
