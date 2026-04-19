@@ -286,6 +286,23 @@ function allReady(room) {
   return seated.every((p) => p.ready);
 }
 
+function maybeSwapTeamSlots(room, teamKey) {
+  const currentRound = room.state.teamRounds?.[teamKey] ?? 0;
+
+  // switch when team reaches round 5
+  if (currentRound !== 5) return;
+
+  const teamPlayers = Array.from(room.players.values()).filter(
+    (p) => p.team === teamKey
+  );
+  if (teamPlayers.length < 2) return;
+
+  for (const player of teamPlayers) {
+    if (player.slot === 0) player.slot = 1;
+    else if (player.slot === 1) player.slot = 0;
+  }
+}
+
 function startRound(roomCode, team = null) {
   const room = rooms.get(roomCode);
   if (!room) return;
@@ -312,10 +329,11 @@ function startRound(roomCode, team = null) {
     };
 
     // Track rounds per team
-    if (!room.state.teamRounds) {
-      room.state.teamRounds = { A: 0, B: 0 };
-    }
-    room.state.teamRounds[t] += 1;
+  if (!room.state.teamRounds) {
+  room.state.teamRounds = { A: 0, B: 0 };
+}
+room.state.teamRounds[t] += 1;
+maybeSwapTeamSlots(room, t);
 
     // Reset team digits for this team
     if (!room.state.teamDigits) {
@@ -402,14 +420,12 @@ function endRoundForTeam(roomCode, team) {
   function builtNumber(td) {
     const tens = td?.tens ?? 0;
     const ones = td?.ones ?? 0;
-
     if (correctStr.length === 1) return ones;
     if (correctStr.length === 2) return tens * 10 + ones;
     if (correctStr.length === 3) {
       const hundreds = td?.hundreds ?? Number(correctStr[0]) ?? 0;
       return hundreds * 100 + tens * 10 + ones;
     }
-
     const thousands = td?.thousands ?? Number(correctStr[0]) ?? 0;
     const hundreds = td?.hundreds ?? Number(correctStr[1]) ?? 0;
     return thousands * 1000 + hundreds * 100 + tens * 10 + ones;
@@ -418,11 +434,10 @@ function endRoundForTeam(roomCode, team) {
   const built = builtNumber(teamDigits);
   const isCorrect = built === correct;
 
-  // Update team stats
   if (!room.state.teamStats) {
-    room.state.teamStats = { 
-      A: { correctCount: 0, timeToTarget: null }, 
-      B: { correctCount: 0, timeToTarget: null } 
+    room.state.teamStats = {
+      A: { correctCount: 0, timeToTarget: null },
+      B: { correctCount: 0, timeToTarget: null }
     };
   }
 
@@ -431,73 +446,54 @@ function endRoundForTeam(roomCode, team) {
 
   if (isCorrect) {
     room.state.teamStats[team].correctCount = (room.state.teamStats[team].correctCount || 0) + 1;
-    
-    // Record time when target is reached
     if (room.state.teamStats[team].correctCount >= target && room.state.teamStats[team].timeToTarget == null) {
       room.state.teamStats[team].timeToTarget = now - (room.state.matchStartAt || now);
     }
   }
 
-  // Emit result to team players
+  // DECLARE playersArray FIRST before using it anywhere
   const playersArray = Array.from(room.players.values());
-  const teamPlayers = playersArray.filter(p => p.team === team);
-  
-  for (const p of teamPlayers) {
-    io.to(p.id).emit("game:teamRoundEnd", {
-      team,
-      correct,
-      built,
-      isCorrect,
-      round: room.state.teamRounds[team],
-      teamStats: room.state.teamStats,
-    });
-  }
+
+  console.log("🔔 emitting game:teamRoundEnd to room", roomCode, "isCorrect:", isCorrect);
+  io.to(roomCode).emit("game:teamRoundEnd", {
+    team,
+    correct,
+    built,
+    isCorrect,
+    round: room.state.teamRounds[team],
+    teamStats: room.state.teamStats,
+  });
 
   broadcast(roomCode);
 
-  // Check if this team has won
   const teamReachedTarget = room.state.teamStats[team].correctCount >= target;
   const otherTeam = team === "A" ? "B" : "A";
   const otherReachedTarget = room.state.teamStats[otherTeam].correctCount >= target;
 
   if (teamReachedTarget) {
-    // This team finished first (or at same time)
     let winner = team;
-    
     if (otherReachedTarget) {
-      // Both reached - compare times
       const tA = room.state.teamStats.A.timeToTarget ?? Infinity;
       const tB = room.state.teamStats.B.timeToTarget ?? Infinity;
       if (tA < tB) winner = "A";
       else if (tB < tA) winner = "B";
       else winner = "tie";
     }
-
     console.log("🏆 GAME ENDED - Winner:", winner, "Team Stats:", room.state.teamStats);
     room.state.phase = "ended";
-    
     const results = playersArray.map((p) => ({
-      id: p.id,
-      name: p.name,
-      score: p.score,
-      team: p.team,
+      id: p.id, name: p.name, score: p.score, team: p.team,
     }));
-
     broadcast(roomCode);
-    io.to(roomCode).emit("game:ended", { 
-      results, 
-      teamStats: room.state.teamStats, 
-      winner,
-      teamRounds: room.state.teamRounds
+    io.to(roomCode).emit("game:ended", {
+      results, teamStats: room.state.teamStats, winner, teamRounds: room.state.teamRounds
     });
     return;
   }
 
-  // Start next round for this team after a short delay
   setTimeout(() => {
     if (!rooms.has(roomCode)) return;
     if (room.state.phase !== "playing") return;
-    
     startRound(roomCode, team);
   }, 800);
 }
@@ -573,6 +569,8 @@ socket.on("disconnect", () => {
 
 
   socket.on("team:digit", ({ roomCode, place, digit }) => {
+      console.log("📨 team:digit received", { roomCode, place, digit, id: socket.id });
+
     const code = String(roomCode || "").trim().toUpperCase();
     const room = rooms.get(code);
     if (!room || room.state.phase !== "playing") return;
@@ -631,6 +629,8 @@ socket.on("disconnect", () => {
   // handle explicit submit (player pressed Enter to submit both digits together)
   socket.on("team:submit", ({ roomCode, tens, ones }) => {
     console.log('server recv team:submit', { id: socket.id, roomCode, tens, ones });
+      console.log("📨 team:submit received", { roomCode, tens, ones, id: socket.id });
+
     const code = String(roomCode || "").trim().toUpperCase();
     const room = rooms.get(code);
     if (!room || room.state.phase !== "playing") return;
