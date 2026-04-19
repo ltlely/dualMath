@@ -1,21 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { userManager } from "../userManagerSupabase.js";
-import noviceApprenticeRank from "/noviceApprenticeRank.png";
-import skilledRank from "/skilledRank.png";
-import professionalRank from "/professionalRank.png";
-import expertRank from "/expertRank.png";
-import kingRank from "/kingRank.png";
+
 
 const rankImages = {
-  "Novice Apprentice": noviceApprenticeRank,
-  Skilled: skilledRank,
-  Professional: professionalRank,
-  Expert: expertRank,
-  King: kingRank,
+  "Novice Apprentice": "/noviceApprenticeRank.png",
+  Skilled: "/skilledRank.png",
+  Professional: "/professionalRank.png",
+  Expert: "/expertRank.png",
+  King: "/kingRank.png",
 };
 
 function getRankImage(rank) {
-  return rankImages[rank] || noviceApprenticeRank;
+  return rankImages[rank] || "/noviceApprenticeRank.png";
 }
 
 function safeNumber(value, fallback = 0) {
