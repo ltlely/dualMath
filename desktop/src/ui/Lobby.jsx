@@ -709,7 +709,7 @@ const visibleOnlineFriends = friends.filter((friend) => {
 </button> */}
 
             
-  <button
+  {/* <button
     className="categoryButton"
     type="button"
     onClick={onOpenGame}
@@ -719,7 +719,7 @@ const visibleOnlineFriends = friends.filter((friend) => {
       <span className="categoryTitle">Open Game</span>
       <span className="categoryCount">Preview game UI</span>
     </span>
-  </button>
+  </button> */}
 
 {/* <div className="summaryCard">
   <span className="summaryLabel">Test Rank</span>

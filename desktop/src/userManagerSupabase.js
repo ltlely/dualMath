@@ -818,127 +818,144 @@ if (!updateSuccess) {
   }
 },
   // Login user
-  loginUser: async (emailOrUsername, password) => {
-    try {
-      let email = emailOrUsername;
+loginUser: async (emailOrUsername, password) => {
+  try {
+    let email = emailOrUsername;
+    let foundProfile = null;
 
-      // If not an email, look up by username
-      if (!emailOrUsername.includes('@')) {
-        // Get email from profiles table (we store it there during signup)
-    
-  const normalizedUsername = emailOrUsername.trim().toLowerCase();
+    // If not an email, look up by username
+    if (!emailOrUsername.includes("@")) {
+      const normalizedUsername = emailOrUsername.trim().toLowerCase();
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("id, email")
-    .eq("username", normalizedUsername)
-    .maybeSingle();
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, email, active_session_token, last_active")
+        .eq("username", normalizedUsername)
+        .maybeSingle();
 
-  if (profileError || !profile) {
-    return { success: false, message: "User not found" };
-  }
-
-  if (!profile.email) {
-    return { success: false, message: "Please login with your email address" };
-  }
-
-  email = profile.email;
-}
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        return { success: false, message: error.message };
+      if (profileError || !profile) {
+        return { success: false, message: "User not found" };
       }
 
-      if (!data.user) {
-        return { success: false, message: 'Login failed' };
+      if (!profile.email) {
+        return { success: false, message: "Please login with your email address" };
       }
 
-      const {
-  data: { session },
-} = await supabase.auth.getSession();
+      foundProfile = profile;
+      email = profile.email;
+    } else {
+      const normalizedEmail = emailOrUsername.trim().toLowerCase();
 
-console.log("after login session:", session?.user?.id);
-console.log("login data user id:", data?.user?.id);
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, email, active_session_token, last_active")
+        .eq("email", normalizedEmail)
+        .maybeSingle();
 
-      const sessionToken = getOrCreateSessionToken();
-      
-      // IMPORTANT: Check email_confirmed_at directly from the auth response
-      // This is the source of truth for email verification
-      const emailVerified = data.user.email_confirmed_at !== null;
-      
-      console.log('📧 Login - Email verification check:', {
-        email: data.user.email,
-        email_confirmed_at: data.user.email_confirmed_at,
-        emailVerified: emailVerified
-      });
-
-      // Update the active session token - this will invalidate other sessions
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ 
-          active_session_token: sessionToken,
-          last_active: new Date().toISOString()
-        })
-        .eq('id', data.user.id);
-
-      if (updateError) {
-        console.error('Failed to update session token:', updateError);
+      if (profileError) {
+        return { success: false, message: "Login failed. Please try again." };
       }
 
-      // Fetch profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
-
-      const user = {
-  id: data.user.id,
-  username: profile?.username || data.user.user_metadata?.username || 'Player',
-  email: data.user.email,
-  emailVerified: emailVerified,
-  avatarData: profile?.avatar_data || null,
-skinTone: profile?.skin_tone || "light",
-  starterCharacter: profile?.starter_character || null,
-  equippedHair: profile?.equipped_hair || null,
-  equippedTop: profile?.equipped_top || null,
-  equippedBottom: profile?.equipped_bottom || null,
-  equippedOutfit: profile?.equipped_outfit || "",
-  equippedShoes: profile?.equipped_shoes || null,
-  equippedAccessory: profile?.equipped_accessory || "",
-  ownedItems: profile?.owned_items || [],
-  coins: profile?.coins ?? 2000,
-  rankPoints: profile?.rank_points || 0,
-  wins: profile?.wins || 0,
-  losses: profile?.losses || 0,
-  totalGames: profile?.total_games || 0,
-};
-
-      localStorage.setItem('dualmath_current_user', JSON.stringify(user));
-      
-      // Store email for resend verification if not verified
-      if (!emailVerified) {
-        localStorage.setItem('dualmath_pending_verification_email', data.user.email);
-        console.log('📧 User not verified, storing email for resend:', data.user.email);
-      } else {
-        localStorage.removeItem('dualmath_pending_verification_email');
-      }
-
-      return { 
-        success: true, 
-        user,
-        requiresVerification: !emailVerified 
-      };
-    } catch (error) {
-      console.error('Login error:', error);
-      return { success: false, message: 'Login failed. Please try again.' };
+      foundProfile = profile || null;
+      email = normalizedEmail;
     }
-  },
+
+    // Only block login if the existing session is still fresh
+    if (foundProfile?.active_session_token) {
+      const lastActiveMs = foundProfile.last_active
+        ? new Date(foundProfile.last_active).getTime()
+        : 0;
+
+      const nowMs = Date.now();
+      const SESSION_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+      const isSessionFresh = nowMs - lastActiveMs < SESSION_TIMEOUT_MS;
+
+      if (isSessionFresh) {
+        return { success: false, message: "User is already logged in." };
+      }
+
+      // stale/crashed session -> clear it and allow login
+      await supabase
+        .from("profiles")
+        .update({
+          active_session_token: null,
+          status: "offline",
+          last_seen: new Date().toISOString(),
+        })
+        .eq("id", foundProfile.id);
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      return { success: false, message: error.message };
+    }
+
+    if (!data.user) {
+      return { success: false, message: "Login failed" };
+    }
+
+    const sessionToken = getOrCreateSessionToken();
+    const emailVerified = data.user.email_confirmed_at !== null;
+
+    await supabase
+      .from("profiles")
+      .update({
+        active_session_token: sessionToken,
+        last_active: new Date().toISOString(),
+        status: "online",
+      })
+      .eq("id", data.user.id);
+
+    const { data: fullProfile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", data.user.id)
+      .single();
+
+    const user = {
+      id: data.user.id,
+      username: fullProfile?.username || data.user.user_metadata?.username || "Player",
+      email: data.user.email,
+      emailVerified,
+      avatarData: fullProfile?.avatar_data || null,
+      skinTone: fullProfile?.skin_tone || "light",
+      starterCharacter: fullProfile?.starter_character || null,
+      equippedHair: fullProfile?.equipped_hair || null,
+      equippedTop: fullProfile?.equipped_top || null,
+      equippedBottom: fullProfile?.equipped_bottom || null,
+      equippedOutfit: fullProfile?.equipped_outfit || "",
+      equippedShoes: fullProfile?.equipped_shoes || null,
+      equippedAccessory: fullProfile?.equipped_accessory || "",
+      ownedItems: fullProfile?.owned_items || [],
+      coins: fullProfile?.coins ?? 2000,
+      rankPoints: fullProfile?.rank_points || 0,
+      wins: fullProfile?.wins || 0,
+      losses: fullProfile?.losses || 0,
+      totalGames: fullProfile?.total_games || 0,
+    };
+
+    localStorage.setItem("dualmath_current_user", JSON.stringify(user));
+
+    if (!emailVerified) {
+      localStorage.setItem("dualmath_pending_verification_email", data.user.email);
+    } else {
+      localStorage.removeItem("dualmath_pending_verification_email");
+    }
+
+    return {
+      success: true,
+      user,
+      requiresVerification: !emailVerified,
+    };
+  } catch (error) {
+    console.error("Login error:", error);
+    return { success: false, message: "Login failed. Please try again." };
+  }
+},
 
   // Logout user
   logoutUser: async () => {

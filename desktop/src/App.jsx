@@ -951,7 +951,15 @@ if (currentUser?.id) {
   }
 };
 
-  
+  useEffect(() => {
+  if (!currentUser?.id) return;
+
+  const interval = setInterval(() => {
+    userManager.refreshPresence(currentUser.id);
+  }, 30000); // every 30 sec
+
+  return () => clearInterval(interval);
+}, [currentUser?.id]);
 
   if (showPickCharacter && pendingNewUser) {
   return (
