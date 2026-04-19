@@ -11,24 +11,20 @@ import {
 } from "../rankingSystem.js";
 // import { userManager } from "../userManagerSupabase.js";
 import Game from "./Game.jsx";
-import settingsIcon from '../../public/settingsicon.png'
-import noviceApprenticeRank from "/noviceApprenticeRank.png";
-import skilledRank from "/skilledRank.png";
-import professionalRank from "/professionalRank.png";
-import expertRank from "/expertRank.png";
-import kingRank from "/kingRank.png";
 
 const rankImages = {
-  "Novice Apprentice": noviceApprenticeRank,
-  Skilled: skilledRank,
-  Professional: professionalRank,
-  Expert: expertRank,
-  King: kingRank,
+  "Novice Apprentice": "/noviceApprenticeRank.png",
+  Skilled: "/skilledRank.png",
+  Professional: "/professionalRank.png",
+  Expert: "/expertRank.png",
+  King: "/kingRank.png",
 };
 
 function getRankImage(rank) {
-  return rankImages[rank] || noviceApprenticeRank;
+  return rankImages[rank] || "/noviceApprenticeRank.png";
 }
+
+const settingsIcon = "/settingsicon.png";
 
 export default function Lobby({
   onCreate,
