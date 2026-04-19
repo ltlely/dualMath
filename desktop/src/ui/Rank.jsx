@@ -1,5 +1,22 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { userManager } from "../userManagerSupabase.js";
+import noviceApprenticeRank from "/noviceApprenticeRank.png";
+import skilledRank from "/skilledRank.png";
+import professionalRank from "/professionalRank.png";
+import expertRank from "/expertRank.png";
+import kingRank from "/kingRank.png";
+
+const rankImages = {
+  "Novice Apprentice": noviceApprenticeRank,
+  Skilled: skilledRank,
+  Professional: professionalRank,
+  Expert: expertRank,
+  King: kingRank,
+};
+
+function getRankImage(rank) {
+  return rankImages[rank] || noviceApprenticeRank;
+}
 
 function safeNumber(value, fallback = 0) {
   return Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -212,14 +229,21 @@ export default function Rank({ currentUser, onBack }) {
               </div>
 
               <div>
-                 <div className="leaderNameRow">
-    <div className="leaderName">{player.username}</div>
-    <div className="nameRankBadge">{userManager.getUserRank(player)}</div>
-     {String(player.id) !== String(currentUser?.id) &&
+  <div className="leaderNameRow">
+  
+  <div className="leaderName">{player.username}</div>
+
+<img
+    className="leaderRankIcon"
+    src={getRankImage(userManager.getUserRank(player))}
+    alt={userManager.getUserRank(player)}
+  />
+
+  {String(player.id) !== String(currentUser?.id) &&
     friendIds.includes(String(player.id)) && (
       <div className="friendBadge">Friend</div>
     )}
-  </div>
+</div>
                 <div className="leaderSub">
                   {player.totalGames} games • {player.rankPoints} RP
                 </div>
@@ -264,6 +288,13 @@ export default function Rank({ currentUser, onBack }) {
   --gold-2:#efbc4c;
   --ink:#583511;
   --muted:#a17142;
+}
+
+.leaderRankIcon {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .friendBadge {
@@ -537,7 +568,7 @@ export default function Rank({ currentUser, onBack }) {
 .leaderNameRow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: -5px;
   flex-wrap: wrap;
 }
 

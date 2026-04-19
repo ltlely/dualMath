@@ -1339,6 +1339,27 @@ onClick={async () => {
           box-shadow: 0 4px 12px rgba(107, 79, 52, 0.12);
         }
 
+.navHint {
+  font-size: 12px;
+  color: var(--muted);
+  transition: 0.18s ease;
+}
+
+.friendRow:hover .navHint {
+  transform: translate(2px, -1px);
+  color: var(--brown-dark);
+}
+
+        .backButton:hover,
+        .actionButton:hover,
+.acceptButton:hover,
+.declineButton:hover,
+.removeButton:hover,
+.blockButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(107, 79, 52, 0.10);
+}
+
         .navLabel {
           font-weight: 700;
           font-size: 14px;

@@ -913,18 +913,18 @@ if (currentUser?.id) {
   );
 }
 
-  // if (screen === "game") {
-  //   return (
-  //     <Game
-  //       room={previewGame}
-  //       selfId="self"
-  //       currentUser={currentUser}
-  //       onSubmit={handlePreviewSubmit}
-  //       onBack={() => setScreen("lobby")}
-  //       onLeaveRoom={() => setScreen("lobby")}
-  //     />
-  //   );
-  // }
+  if (screen === "game") {
+    return (
+      <Game
+        room={previewGame}
+        selfId="self"
+        currentUser={currentUser}
+        onSubmit={handlePreviewSubmit}
+        onBack={() => setScreen("lobby")}
+        onLeaveRoom={() => setScreen("lobby")}
+      />
+    );
+  }
 
   if (view === "friends") {
   return (
@@ -937,6 +937,8 @@ if (currentUser?.id) {
     />
   );
 }
+
+
 
     if (view === "rank") {
       return (
@@ -997,7 +999,7 @@ onOpenStore={async () => {
   userManager.updateStatus(currentUser.id, "online");
 }
           }}
-          onlineFriends={onlineFriends}
+           friends={onlineFriends}
            setIsOnlineFriendsScrolling={setIsOnlineFriendsScrolling}
         />
         

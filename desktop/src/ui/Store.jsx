@@ -725,9 +725,12 @@ return (
           <h1 className="storeHeading">Shop</h1>
         </div>
         <div className="topbarActions">
-          <div className="currencyPill">🪙 {coins.toLocaleString()} Coins</div>
-          <Button variant="secondary" onClick={onClose}>✕</Button>
-        </div>
+  <div className="currencyPill">
+    <img src="/coin.png" alt="Coins" className="coinsImg" />
+    <span>{coins.toLocaleString()} Coins</span>
+  </div>
+  <Button variant="secondary" onClick={onClose}>✕</Button>
+</div>
       </div>
 
       <div className="storeLayout">
@@ -1018,7 +1021,22 @@ return (
         .miniLabel, .sidebarSectionTitle, .summaryLabel { text-transform: uppercase; letter-spacing: 0.18em; font-size: 11px; color: var(--muted); }
         .storeHeading { margin: 6px 0 8px; font-size: clamp(32px, 4vw, 48px); line-height: 1; font-weight: 900; color: var(--ink); }
         .topbarActions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .currencyPill, .genderTab { padding: 12px 16px; border-radius: 999px; border: 1px solid rgba(107, 79, 52, 0.12); background: var(--brown); box-shadow: 0 10px 18px rgba(102, 69, 42, 0.18); font-weight: 700; color: #f9f1dd; }
+        .currencyPill {
+  min-width: 160px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  padding: 10px 2px;
+  border-radius: 999px;
+  border: 1px solid rgba(107, 79, 52, 0.12);
+  background: var(--brown);
+  box-shadow: 0 10px 18px rgba(102, 69, 42, 0.18);
+  font-weight: 700;
+  color: #f9f1dd;
+}
+        .genderTab { padding: 12px 16px; border-radius: 999px; border: 1px solid rgba(107, 79, 52, 0.12); background: var(--brown); box-shadow: 0 10px 18px rgba(102, 69, 42, 0.18); font-weight: 700; color: #f9f1dd; }
         .genderTab { cursor: pointer; transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease; }
         .genderTab.active { background: var(--brown-soft); box-shadow: 0 10px 18px rgba(102, 69, 42, 0.18); }
         .categoryCopy { display: flex; flex-direction: column; gap: 3px; }
@@ -1095,6 +1113,14 @@ return (
   border-radius: 0;
   transform: translateY(0);
   margin-right: 15px;
+}
+
+.coinsImg {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
 }
 
 .avatarFallback {

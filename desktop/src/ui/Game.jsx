@@ -193,7 +193,7 @@ export default function Game({
 };
 const coinReward = getCoinReward();
 
-
+const currentRank = currentUser ? userManager.getUserRank(currentUser) : "Novice Apprentice";
 
   return (
     <div className="page">
@@ -205,7 +205,7 @@ const coinReward = getCoinReward();
           <span className="code">{room?.roomCode}</span>
         </div>
         
-<Button
+{/* <Button
   variant="secondary"
   onClick={async () => {
     if (currentUser?.id) {
@@ -215,7 +215,7 @@ const coinReward = getCoinReward();
   }}
 >
   ✕
-</Button>
+</Button> */}
 
         <div className="raceProgress">
           <div className="raceTeam">
@@ -315,10 +315,11 @@ const coinReward = getCoinReward();
     )}
 
     {coinReward !== null && (
-      <div className="coinsEarned">
-        {coinReward > 0 ? `+${coinReward} Coins` : `+0 Coins`}
-      </div>
-    )}
+  <div className="coinsEarned">
+    <img src="/coin.png" alt="Coins" className="coinsEarnedImg" />
+    <span>{coinReward > 0 ? `+${coinReward} Coins` : "+0 Coins"}</span>
+  </div>
+)}
   </div>
 )}
 <Button
@@ -779,6 +780,19 @@ body{
 
 .input:disabled{
   opacity:0.5;
+}
+
+.coinsEarned {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.coinsEarnedImg {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .hint{

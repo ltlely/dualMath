@@ -1,6 +1,23 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Card, Button, Select, Pill } from "./components.jsx";
 import { userManager } from "../userManagerSupabase.js";
+import noviceApprenticeRank from "/noviceApprenticeRank.png";
+import skilledRank from "/skilledRank.png";
+import professionalRank from "/professionalRank.png";
+import expertRank from "/expertRank.png";
+import kingRank from "/kingRank.png";
+
+const rankImages = {
+  "Novice Apprentice": noviceApprenticeRank,
+  Skilled: skilledRank,
+  Professional: professionalRank,
+  Expert: expertRank,
+  King: kingRank,
+};
+
+function getRankImage(rank) {
+  return rankImages[rank] || noviceApprenticeRank;
+}
 
 function Slot({ title, player, isYou, onSit, currentUserAvatarData, username, currentUser }) {
   const displayUser = isYou ? currentUser : player;
@@ -49,9 +66,14 @@ function Slot({ title, player, isYou, onSit, currentUserAvatarData, username, cu
               {displayName}
               {isYou && <span className="muted"> (you)</span>}
             </div>
-            <div className={`rankBadge ${getRankBadgeClass(displayRankLevel)}`}>
-              {displayRankLevel}
-            </div>
+           <div className={`rankBadge ${getRankBadgeClass(displayRankLevel)}`}>
+  <img
+    className="rankBadgeIcon"
+    src={getRankImage(displayRankLevel)}
+    alt={displayRankLevel}
+  />
+  <span>{displayRankLevel}</span>
+</div>
           </div>
         </div>
       ) : (
@@ -138,8 +160,14 @@ export default function Room({
             <span className="roomWord">Room</span>
             <span className="roomName">{room?.name || "Unnamed"}</span>
             <Pill tone="code">{room?.roomCode}</Pill>
-            <Pill tone="neutral">2v2</Pill>
-            <Pill tone={isHost ? "good" : "neutral"}>{isHost ? "Host" : "Player"}</Pill>
+<span className={`rolePill ${isHost ? "hostGlowPill" : "playerPill"}`}>
+  {isHost ? "Host" : "Player"}
+</span>
+     
+        <span className={`matchSetupBadge diff-${room?.state?.diff ?? "easy"}`}>
+          {room?.state?.diff ?? "easy"}
+        </span>
+   
           </div>
         </div>
 
@@ -213,21 +241,8 @@ export default function Room({
       </div>
 
       <div className="grid2">
-        <Card title="⚔️ Match Setup">
-          <div className="stack">
-            <div className="ruleItem">Difficulty: {room?.state?.diff ?? "easy"}</div>
-            <div className="ruleItem">Round Time: 11s</div>
-            <div className="ruleItem">Rounds: 11</div>
-          </div>
-        </Card>
-
-        <Card title="📜 Match Rules">
-          <div className="stack">
-            <div className="ruleItem">1) Sit in a team slot (A1/A2/B1/B2)</div>
-            <div className="ruleItem">2) Everyone clicks Ready</div>
-            <div className="ruleItem">3) Host starts the match</div>
-          </div>
-        </Card>
+       
+    
       </div>
 
       {error && <div className="toast bad">{error}</div>}
@@ -245,6 +260,33 @@ export default function Room({
           z-index: 0;
         }
 
+.rolePill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  border: 1px solid transparent;
+}
+
+.playerPill {
+  border-color: rgba(194, 168, 127, 0.28);
+  color: #9a7e56;
+  background: linear-gradient(180deg, #fff9ee, #efe2c5);
+}
+
+.hostGlowPill {
+  background: linear-gradient(180deg, #e2ccff, #a56be8);
+  color: #4f217f;
+  border: 1px solid rgba(122, 66, 204, 0.46);
+  box-shadow:
+    0 0 0 1px rgba(201, 167, 255, 0.30),
+    0 0 14px rgba(145, 76, 240, 0.34),
+    0 0 28px rgba(145, 76, 240, 0.24);
+}
+    
         .page::before {
   content: "";
   position: fixed;
@@ -256,6 +298,33 @@ export default function Room({
     linear-gradient(180deg, #f8f0dd 0%, #d3bd95 100%);
   z-index: -2;
 }
+
+.page .rankBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.rankBadgeIcon {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  flex-shrink: 0;
+  display: block;
+  margin-top: -6px;
+  margin-bottom: -6px;
+  margin-left: -10px;
+  margin-right: -8px;
+}
+
+.page .rankBadge {
+  position: relative;
+  padding-left: 30px;
+}
+  
 
         .page::after {
           content: "";
@@ -524,6 +593,104 @@ export default function Room({
           box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
         }
 
+        .matchSetupCard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 250, 236, 0.95), rgba(241, 221, 179, 0.92));
+  border: 1px solid rgba(155, 119, 88, 0.18);
+  box-shadow:
+    0 10px 24px rgba(107, 79, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.matchSetupHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.matchSetupIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  background: linear-gradient(180deg, #f7d27c, #c88a3d);
+  box-shadow: 0 8px 16px rgba(176, 129, 53, 0.18);
+  flex-shrink: 0;
+}
+
+.matchSetupLabel {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #9d754c;
+}
+
+.matchSetupTitle {
+  margin-top: 2px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #5a3817;
+}
+
+.matchSetupGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.matchSetupStat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(155, 119, 88, 0.14);
+}
+
+.matchSetupStatLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: #7a5a3d;
+}
+
+.matchSetupBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: capitalize;
+  letter-spacing: 0.03em;
+}
+
+.matchSetupBadge.diff-easy {
+  background: rgba(146, 211, 110, 0.18);
+  color: #55763a;
+  border: 1px solid rgba(146, 211, 110, 0.32);
+}
+
+.matchSetupBadge.diff-medium {
+  background: rgba(224, 171, 63, 0.18);
+  color: #8a5a10;
+  border: 1px solid rgba(224, 171, 63, 0.32);
+}
+
+.matchSetupBadge.diff-hard {
+  background: rgba(217, 106, 106, 0.16);
+  color: #934646;
+  border: 1px solid rgba(217, 106, 106, 0.28);
+}
         .page .select:focus,
         .page select:focus {
           border-color: rgba(107, 79, 52, 0.45);

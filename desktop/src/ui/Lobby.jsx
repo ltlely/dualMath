@@ -12,7 +12,23 @@ import {
 // import { userManager } from "../userManagerSupabase.js";
 import Game from "./Game.jsx";
 import settingsIcon from '../../public/settingsicon.png'
+import noviceApprenticeRank from "/noviceApprenticeRank.png";
+import skilledRank from "/skilledRank.png";
+import professionalRank from "/professionalRank.png";
+import expertRank from "/expertRank.png";
+import kingRank from "/kingRank.png";
 
+const rankImages = {
+  "Novice Apprentice": noviceApprenticeRank,
+  Skilled: skilledRank,
+  Professional: professionalRank,
+  Expert: expertRank,
+  King: kingRank,
+};
+
+function getRankImage(rank) {
+  return rankImages[rank] || noviceApprenticeRank;
+}
 
 export default function Lobby({
   onCreate,
@@ -30,7 +46,7 @@ export default function Lobby({
    onOpenRank,
    onOpenFriends,
    friendChatBadgeCount = 0,
-    onlineFriends = [],
+    friends = [],
      setIsOnlineFriendsScrolling,
 }) {
 
@@ -48,11 +64,18 @@ const [isSavingUsername, setIsSavingUsername] = useState(false);
   const [isJoiningRandom, setIsJoiningRandom] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
 const queueSectionRef = useRef(null);
-
+const [, setPresenceTick] = useState(0);
 
    
 
 
+useEffect(() => {
+  const interval = setInterval(() => {
+    setPresenceTick((tick) => tick + 1);
+  }, 5000);
+
+  return () => clearInterval(interval);
+}, []);
 
  const { stats, rankProgress, nextRank, pointsToNext } = useMemo(() => {
   let calculatedStats = {
@@ -277,55 +300,68 @@ useEffect(() => {
   }
 
 
-const visibleOnlineFriends = onlineFriends.filter((friend) => {
+const visibleOnlineFriends = friends.filter((friend) => {
   const value = getComputedStatus(friend);
   return value === "online" || value === "in_room" || value === "in_match";
 });
-
 
 
   return (
     <div className="lobbyShell">
     <div className="lobbyTopbar">
   <div className="topNavShell">
-    <div className="topNavCenter">
-      <button type="button" className="topNavItem active">
-        Lobby
-      </button>
+   <div className="topNavCenter">
+  <button
+    type="button"
+    className={`topNavItem ${!showQueue ? "active" : ""}`}
+    onClick={() => setShowQueue(false)}
+  >
+    Lobby
+  </button>
 
-      <button
-        type="button"
-        className="topNavItem"
-        onClick={onOpenStore}
-      >
-        Store
-      </button>
+  <button
+    type="button"
+    className="topNavItem"
+    onClick={onOpenStore}
+  >
+    Store
+  </button>
 
-      <button
-        type="button"
-        className="topNavItem"
-        onClick={onOpenRank}
-      >
-        Rank
-      </button>
+  <button
+    type="button"
+    className={`topNavItem topNavQueueItem ${showQueue ? "active" : ""}`}
+   onClick={() => {
+  setShowQueue(true);
+}}
+  >
+    <img src="/queue.png" alt="Queue" className="topNavQueueImg" />
+  </button>
 
-      <button
-        type="button"
-        className="topNavItem"
-        onClick={onOpenFriends}
-      >
-        <span>Friends</span>
-        {friendChatBadgeCount > 0 && (
-          <span className="topNavBadge">{friendChatBadgeCount}</span>
-        )}
-      </button>
-    </div>
+  <button
+    type="button"
+    className="topNavItem"
+    onClick={onOpenRank}
+  >
+    Rank
+  </button>
+
+  <button
+    type="button"
+    className="topNavItem"
+    onClick={onOpenFriends}
+  >
+    <span>Friends</span>
+    {friendChatBadgeCount > 0 && (
+      <span className="topNavBadge">{friendChatBadgeCount}</span>
+    )}
+  </button>
+</div>
 
     <div className="topNavRight">
       <div className="coinsPill">
-        <span className="coinsIcon">🪙</span>
-        <span>{(currentUser?.coins ?? 0).toLocaleString()}</span>
-      </div>
+  <img src="/coin.png" alt="Coins" className="coinsImg" />
+  <span>{(currentUser?.coins ?? 0).toLocaleString()}</span>
+</div>
 
       {/* <div className="connectionPill">
         <span
@@ -516,12 +552,12 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
             </div>
           </div>
 
-          <div className="sidebarSectionTitle">Your Friends</div>
+          
 
           <div className="categoryList">
 
           
-<button
+{/* <button
   className={`categoryButton ${showQueue ? "active" : ""}`}
   type="button"
   onClick={() => {
@@ -541,12 +577,14 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
     });
   }}
 >
-  <span className="categoryEmoji">🎯</span>
-  <span className="categoryCopy">
-    <span className="categoryTitle">Queue</span>
-    <span className="categoryCount">Create, join, or quick match</span>
-  </span>
-</button>
+  <span className="categoryEmoji categoryEmojiPlain">
+  <img src="/queue.png" alt="Queue" className="categoryEmojiImg" />
+</span>
+<span className="categoryCopy">
+  <span className="categoryTitle">Queue</span>
+  <span className="categoryCount">Create, join, or quick match</span>
+</span>
+</button> */}
 
             
   {/* <button
@@ -641,6 +679,7 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
               <span className="summaryLabel">Win Rate</span>
               <strong>{stats.winRate}%</strong>
             </div> */}
+            <div className="sidebarSectionTitle">Your Friends</div>
 
             <div className="onlineFriendsCard">
   <div className="onlineFriendsHeader">
@@ -734,10 +773,14 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
 
       <div className="rankProgressSection">
         <div className="rankProgressHeader">
-          <div className="currentRankBadge">
-            <span className="rankIcon">🏆</span>
-            <span className="rankName">{stats.rank}</span>
-          </div>
+ <div className="currentRankBadge">
+  <img
+    className="rankIcon"
+    src={getRankImage(stats.rank)}
+    alt={stats.rank}
+  />
+  <span className="rankName">{stats.rank}</span>
+</div>
           {nextRank && (
             <div className="nextRankInfo">
               <span className="arrowIcon">→</span>
@@ -775,16 +818,16 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
   <main className="mainPanel queuePanel" ref={queueSectionRef}>
     <div className="queuePanelHeader">
       <div>
-        <div className="miniLabel">Queue</div>
+        <div className="miniLabel">Dual Math</div>
         <h3>Find a Match</h3>
       </div>
-      <button
+      {/* <button
         type="button"
         className="queueCloseBtn"
         onClick={() => setShowQueue(false)}
       >
         ✕
-      </button>
+      </button> */}
     </div>
 
     <div className="roomGrid">
@@ -866,7 +909,14 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
   }}
   disabled={isJoiningRandom}
 >
-  {isJoiningRandom ? "⏳ Searching..." : "🎲 Join Random"}
+ {isJoiningRandom ? (
+  "Searching..."
+) : (
+  <>
+    <img src="/dice.png" alt="Join Random" className="diceImg" />
+    <span>Join Random</span>
+  </>
+)}
 </button>
       </div>
     </div>
@@ -902,12 +952,13 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
           --glow-brown: 0 0 24px rgba(154, 108, 52, 0.22);
         }
           
-        .queuePanel {
+.queuePanel {
   display: flex !important;
   flex-direction: column;
   gap: 18px;
+  overflow: hidden;
+  height: fit-content;
 }
-
 .queuePanelHeader {
   display: flex;
   justify-content: space-between;
@@ -921,6 +972,18 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
   color: var(--ink);
 }
 
+.categoryEmojiImg {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  display: block;
+}
+  
+.categoryEmojiPlain {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+  
 .queueCloseBtn {
   width: 36px;
   height: 36px;
@@ -976,6 +1039,17 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
   gap: 12px;
 }
 
+.diceImg {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  margin-bottom: -15px;
+  margin-top: -20px;
+  margin-left: -5px;
+}
 .queueToggleButton {
   width: 100%;
   display: flex;
@@ -1118,6 +1192,14 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
   padding: 8px 12px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.settingsTab:hover,
+.queueCloseBtn:hover,
+.onlineFriendsViewAll:hover {
+  transform: translateY(-1px);
+  border-color: rgba(107, 79, 52, 0.22);
+  box-shadow: 0 8px 18px rgba(107, 79, 52, 0.10);
 }
 
 .onlineFriendsList {
@@ -1280,16 +1362,24 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
 .lobbyShell {
   box-sizing: border-box;
   padding: 24px 24px 36px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   background:
     radial-gradient(circle at top, rgba(255, 235, 190, 0.62), transparent 34%),
     linear-gradient(180deg, #ecdcb8 10%, #cfb07a 55%, #b98f58 100%);
   color: var(--ink);
   position: relative;
-  height: 100%;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.rankIcon {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  display: inline-block;
+  vertical-align: middle;
+
 }
 
 .lobbyLayout {
@@ -1308,7 +1398,6 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
   gap: 18px;
   min-height: 0;
   height: fit-content;
-  overflow-y: auto;
   overflow-x: hidden;
   padding-right: 4px;
   padding-bottom: 24px;
@@ -1420,7 +1509,9 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
         }
 
     
-        
+        .sidebarSectionTitle {
+          margin-top: 0px;
+        }
         
 
         .miniLabel,
@@ -1442,6 +1533,14 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
           color: var(--ink);
         }
 
+.coinsImg {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
         .welcomeText {
           color: var(--muted);
           font-size: 15px;
@@ -1594,6 +1693,38 @@ background: none;
           transition: 0.18s ease;
         }
 
+        .topNavQueueItem {
+  min-width: 148px;
+  padding: 12px 24px;
+  background: linear-gradient(180deg, #ffe9b8, #e7be73);
+  border: 1px solid rgba(107, 79, 52, 0.22);
+  box-shadow:
+    0 10px 22px rgba(176, 129, 53, 0.18),
+    0 0 18px rgba(224, 171, 63, 0.16);
+}
+
+.topNavQueueItem:hover {
+  background: linear-gradient(180deg, #fff0c8, #edc980);
+  box-shadow:
+    0 12px 24px rgba(176, 129, 53, 0.22),
+    0 0 22px rgba(224, 171, 63, 0.22);
+}
+
+.topNavQueueItem.active {
+  background: linear-gradient(180deg, #ffe7b0, #dca95a);
+  border-color: rgba(107, 79, 52, 0.32);
+  box-shadow:
+    0 12px 24px rgba(176, 129, 53, 0.24),
+    0 0 24px rgba(224, 171, 63, 0.28);
+}
+
+.topNavQueueImg {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  display: block;
+}
+
         .categoryButton:hover,
         .categoryButton.active {
           border-color: rgba(107, 79, 52, 0.45);
@@ -1669,6 +1800,7 @@ background: none;
           color: var(--muted);
           font-size: 14px;
           margin: 0;
+          margin-bottom: 10px !important;
         }
 
         .heroActions {
@@ -1789,7 +1921,7 @@ background: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
+  padding: 2px 5px;
   background: rgba(255, 253, 244, 0.22);
   backdrop-filter: blur(14px) saturate(150%);
   -webkit-backdrop-filter: blur(14px) saturate(150%);
@@ -1810,6 +1942,8 @@ background: none;
           font-size: 14px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
+          margin-right: 15px;
+          margin-left: -7px;
         }
 
         .nextRankInfo {
@@ -2348,7 +2482,7 @@ background: none;
   justify-content: center;
   min-height: 76px;
   width: 100%;
-  padding: 14px 22px;
+  padding: 14px 190px 14px 22px; /* reserve room on right */
   border-radius: 28px;
   background: rgba(255, 248, 232, 0.32);
   border: 1px solid rgba(255, 255, 255, 0.26);
@@ -2363,9 +2497,11 @@ background: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
   width: 100%;
+  max-width: calc(100% - 220px);
+  margin-left: 70px;
 }
 
 .topNavRight {
@@ -2376,6 +2512,7 @@ background: none;
   display: flex;
   align-items: center;
   gap: 10px;
+  z-index: 2;
 }
 
 .topNavItem {
@@ -2383,8 +2520,8 @@ background: none;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-width: 120px;
-  padding: 12px 20px;
+  min-width: 110px;
+  padding: 12px 18px;
   border-radius: 999px;
   border: 1px solid rgba(107, 79, 52, 0.10);
   background: rgba(255, 253, 244, 0.52);
@@ -2397,6 +2534,18 @@ background: none;
   -webkit-backdrop-filter: blur(8px);
 }
 
+.topNavQueueItem {
+  min-width: 128px; /* smaller so it fits */
+  padding: 10px 18px;
+}
+
+.topNavQueueImg {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+}
 .topNavItem:hover {
   transform: translateY(-1px);
   background: rgba(255, 253, 244, 0.72);
@@ -2430,7 +2579,7 @@ background: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 8px 15px;
   border-radius: 999px;
   background: rgba(255, 243, 210, 0.78);
   border: 1px solid rgba(171, 124, 40, 0.20);
@@ -2459,6 +2608,12 @@ background: none;
   -webkit-backdrop-filter: blur(10px);
   cursor: pointer;
   overflow: visible;
+}
+
+.settingsProfileBtn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(107, 79, 52, 0.22);
+  box-shadow: 0 8px 18px rgba(107, 79, 52, 0.10);
 }
 
 .settingsProfileAvatar {
