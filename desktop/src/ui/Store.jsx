@@ -1,8 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Card, Button } from "./components.jsx";
 import { userManager } from "../userManagerSupabase.js";
-import boyCharacter from "../public/Character/BoyCharacter.png";
-import girlCharacter from "../public/Character/GirlCharacter.png";
+import BoyCharacterLight from "../public/Character/BoyCharacterLight.png";
+import BoyCharacterTan from "../public/Character/BoyCharacterTan.png";
+import BoyCharacterDark from "../public/Character/BoyCharacterDark.png";
+import BoyCharacterLightTan from "../public/Character/BoyCharacterLightTan.png";
+import GirlCharacterLightTan from "../public/Character/GirlCharacterLightTan.png";
+import GirlCharacterLight from "../public/Character/GirlCharacterLight.png";
+import GirlCharacterTan from "../public/Character/GirlCharacterTan.png";
+import GirlCharacterDark from "../public/Character/GirlCharacterDark.png";
 import boyHair1 from "../public/Hair/Boy/BoyHair1.png";
 import boyHair2 from "../public/Hair/Boy/BoyHair2.png";
 import boyHair3 from "../public/Hair/Boy/BoyHair3.png";
@@ -234,9 +240,18 @@ const getHairAsset = (name) => {
   return boyHair1;
 };
 
-const getBaseCharacterAsset = (gender) => {
-  if (gender === "female") return girlCharacter;
-  return boyCharacter;
+const getBaseCharacterAsset = (gender, skinTone = "light") => {
+  if (gender === "female") {
+    if (skinTone === "lightTan") return GirlCharacterLightTan;
+    if (skinTone === "tan") return GirlCharacterTan;
+    if (skinTone === "dark") return GirlCharacterDark;
+    return GirlCharacterLight;
+  }
+
+  if (skinTone === "lightTan") return BoyCharacterLightTan;
+  if (skinTone === "tan") return BoyCharacterTan;
+  if (skinTone === "dark") return BoyCharacterDark;
+  return BoyCharacterLight;
 };
 
 const getAccessoryAsset = (name) => {
@@ -313,6 +328,7 @@ const getShoeAsset = (name) => {
 
 const composeCharacterAvatar = async (
   gender,
+  skinTone,
   hairSelection,
   topSelection,
   bottomSelection,
@@ -321,7 +337,7 @@ const composeCharacterAvatar = async (
   accessorySelection
 ) => {
   const layerSources = [
-    getBaseCharacterAsset(gender),
+    getBaseCharacterAsset(gender, skinTone),
     !getOutfitAsset(outfitSelection) && getBottomAsset(bottomSelection),
     getTopAsset(topSelection, 0),
     getOutfitAsset(outfitSelection),
@@ -361,7 +377,13 @@ const composeCharacterAvatar = async (
 export default function Store({ currentUser, onLoginSuccess, onClose }) {
 
   const [animationFrame, setAnimationFrame] = useState(0);
-  
+  const [selectedSkinTone, setSelectedSkinTone] = useState(
+  currentUser?.skinTone || "light"
+);
+
+useEffect(() => {
+  setSelectedSkinTone(currentUser?.skinTone || "light");
+}, [currentUser?.id, currentUser?.skinTone]);
 
     const userGender = currentUser?.starterCharacter === "girl" ? "female" : "male";
   const activeGender = userGender;
@@ -593,27 +615,29 @@ useEffect(() => {
 
   try {
       const avatarDataUrl = await composeCharacterAvatar(
-        activeGender,
-        ownedSelection.hair,
-        ownedSelection.tops,
-        ownedSelection.bottoms,
-        ownedSelection.outfits,
-        ownedSelection.shoes,
-        ownedSelection.accessories
-      );
+  activeGender,
+  selectedSkinTone,
+  ownedSelection.hair,
+  ownedSelection.tops,
+  ownedSelection.bottoms,
+  ownedSelection.outfits,
+  ownedSelection.shoes,
+  ownedSelection.accessories
+);
 
-    const updatedUser = {
-      ...currentUser,
-      avatarData: avatarDataUrl,
-      equippedHair: ownedSelection.hair,
-      equippedTop: ownedSelection.tops,
-      equippedBottom: ownedSelection.bottoms,
-      equippedOutfit: ownedSelection.outfits,
-      equippedShoes: ownedSelection.shoes,
-      equippedAccessory: ownedSelection.accessories,
-      ownedItems: Array.from(ownedItems),
-      coins,
-    };
+const updatedUser = {
+  ...currentUser,
+  avatarData: avatarDataUrl,
+  skinTone: selectedSkinTone,
+  equippedHair: ownedSelection.hair,
+  equippedTop: ownedSelection.tops,
+  equippedBottom: ownedSelection.bottoms,
+  equippedOutfit: ownedSelection.outfits,
+  equippedShoes: ownedSelection.shoes,
+  equippedAccessory: ownedSelection.accessories,
+  ownedItems: Array.from(ownedItems),
+  coins,
+};
 
    const result = await userManager.saveUser(updatedUser);
 
@@ -885,9 +909,38 @@ return (
 
         <aside className="previewPanel">
           <Card title="Preview">
+            <div className="skinTonePicker">
+  <button
+    type="button"
+    className={`skinToneSwatch ${selectedSkinTone === "light" ? "active" : ""}`}
+    onClick={() => setSelectedSkinTone("light")}
+    aria-label="Light skin tone"
+  />
+  <button
+    type="button"
+    className={`skinToneSwatch ${selectedSkinTone === "lightTan" ? "active" : ""}`}
+    onClick={() => setSelectedSkinTone("lightTan")}
+    aria-label="Light tan skin tone"
+  />
+  <button
+    type="button"
+    className={`skinToneSwatch ${selectedSkinTone === "tan" ? "active" : ""}`}
+    onClick={() => setSelectedSkinTone("tan")}
+    aria-label="Tan skin tone"
+  />
+  <button
+    type="button"
+    className={`skinToneSwatch ${selectedSkinTone === "dark" ? "active" : ""}`}
+    onClick={() => setSelectedSkinTone("dark")}
+    aria-label="Dark skin tone"
+  />
+</div>
            <div className="previewStage" style={{ pointerEvents: "none" }}>
+
+           
+
   <img
-    src={getBaseCharacterAsset(activeGender)}
+   src={getBaseCharacterAsset(activeGender, selectedSkinTone)}
     alt="Base character"
     className="previewLayer"
     style={{ pointerEvents: "none" }}
@@ -1100,6 +1153,43 @@ return (
   margin-top: -8px;
   margin-bottom: -18px;
   
+}
+
+.skinTonePicker {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.skinToneSwatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 2px solid rgba(157, 107, 47, 0.22);
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(95, 70, 48, 0.12);
+}
+
+.skinToneSwatch:nth-child(1) {
+  background: #f6d7bd;
+}
+
+.skinToneSwatch:nth-child(2) {
+  background: #e7b98f;
+}
+
+.skinToneSwatch:nth-child(3) {
+  background: #d39a6a;
+}
+
+.skinToneSwatch:nth-child(4) {
+  background: #8a5a3c;
+}
+  
+.skinToneSwatch.active {
+  border-color: #9b7758;
+  box-shadow: 0 0 0 3px rgba(155, 119, 88, 0.15);
 }
 
 .playerMiniAvatar img {

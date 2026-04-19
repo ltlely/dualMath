@@ -552,7 +552,7 @@ removeFriend: async (currentUserId, friendId) => {
   equippedShoes: profile?.equipped_shoes || null,
   equippedAccessory: profile?.equipped_accessory || "",
   ownedItems: profile?.owned_items || [],
-
+  skinTone: profile?.skin_tone || "light",
   coins: profile?.coins ?? 2000,
   rankPoints: profile?.rank_points || 0,
   wins: profile?.wins || 0,
@@ -764,6 +764,7 @@ for (let i = 0; i < 5; i++) {
       equipped_accessory: "",
       owned_items: [],
       coins: 2000,
+      skin_tone: "light",
       active_session_token: sessionToken,
       last_active: new Date().toISOString(),
     })
@@ -799,6 +800,7 @@ if (!updateSuccess) {
       wins: 0,
       losses: 0,
       totalGames: 0,
+      skinTone: "light",
     };
 
     localStorage.setItem("dualmath_current_user", JSON.stringify(user));
@@ -901,7 +903,7 @@ console.log("login data user id:", data?.user?.id);
   email: data.user.email,
   emailVerified: emailVerified,
   avatarData: profile?.avatar_data || null,
-
+skinTone: profile?.skin_tone || "light",
   starterCharacter: profile?.starter_character || null,
   equippedHair: profile?.equipped_hair || null,
   equippedTop: profile?.equipped_top || null,
@@ -1065,7 +1067,7 @@ saveUser: async (user) => {
       total_games: user.totalGames || 0,
       avatar_data: user.avatarData || null,
       coins: user.coins ?? 2000,
-
+skin_tone: user.skinTone || "light",
       starter_character: user.starterCharacter || null,
       equipped_hair: user.equippedHair || null,
       equipped_top: user.equippedTop || null,
@@ -1096,6 +1098,7 @@ saveUser: async (user) => {
   ...user,
   avatarData: payload.avatar_data,
   coins: payload.coins,
+   skinTone: payload.skin_tone,
   starterCharacter: payload.starter_character,
   equippedHair: payload.equipped_hair,
   equippedTop: payload.equipped_top,

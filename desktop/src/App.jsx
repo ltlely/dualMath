@@ -383,6 +383,14 @@ useEffect(() => {
     loadUser();
   }, []);
 
+//   const previewPickCharacterUser = {
+//   id: "preview-user",
+//   username: "Preview",
+//   email: "preview@test.com",
+//   coins: 2000,
+//   ownedItems: [],
+// };
+
   useEffect(() => {
     const {
       data: { subscription },
@@ -786,9 +794,9 @@ if (currentUser?.id) {
       currentUser={pendingNewUser}
       onComplete={(userWithAvatar) => {
         setCurrentUser(userWithAvatar);
-        // setPendingNewUser(null);
+        setPendingNewUser(null);
         setShowPickCharacter(false);
-        // setView("lobby");
+        setView("lobby");
       }}
       onBack={() => {
         setPendingNewUser(null);

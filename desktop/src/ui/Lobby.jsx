@@ -330,7 +330,7 @@ const visibleOnlineFriends = friends.filter((friend) => {
   setShowQueue(true);
 }}
   >
-    <img src="/queue.png" alt="Queue" className="topNavQueueImg" />
+    Play
   </button>
 
   <button
@@ -552,7 +552,20 @@ const visibleOnlineFriends = friends.filter((friend) => {
 
           <div className="categoryList">
 
-          
+{/* <button
+  type="button"
+  onClick={() =>
+    onOpenPickCharacter?.({
+      id: "preview-user",
+      username: "Preview",
+      email: "preview@test.com",
+      coins: 2000,
+      ownedItems: [],
+    })
+  }
+>
+  Open Pick Character
+</button> */}
 {/* <button
   className={`categoryButton ${showQueue ? "active" : ""}`}
   type="button"
@@ -1126,6 +1139,30 @@ const visibleOnlineFriends = friends.filter((friend) => {
   width: 6px;
 }
 
+.topNavQueueItem {
+  position: relative;
+}
+
+.topNavQueueItem::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-top: 12px solid #e7be73;
+}
+
+.topNavQueueItem:hover::after {
+  border-top-color: #edc980;
+}
+
+.topNavQueueItem.active::after {
+  border-top-color: #dca95a;
+}
 .onlineFriendsList::-webkit-scrollbar-thumb {
   background: rgba(107, 79, 52, 0.28);
   border-radius: 999px;

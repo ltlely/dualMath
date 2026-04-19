@@ -2,9 +2,6 @@ import React, { useState } from "react";
 import { Card, Button } from "./components.jsx";
 import { userManager } from "../userManagerSupabase.js";
 
-import boyCharacter from "../public/Character/BoyCharacter.png";
-import girlCharacter from "../public/Character/GirlCharacter.png";
-
 import BoyHair1 from "../public/Hair/Boy/BoyHair1.png";
 import GirlHair2 from "../public/Hair/Girl/GirlHair2.png";
 
@@ -13,6 +10,17 @@ import UniTop1 from "../public/Tops/Uni/UniTop1.png";
 
 import UniShorts1 from "../public/Bottoms/Uni/UniShorts1.png";
 import UniShoes1 from "../public/Shoes/UniShoes1.png";
+
+import BoyCharacterLight from "../public/Character/BoyCharacterLight.png";
+import BoyCharacterTan from "../public/Character/BoyCharacterTan.png";
+import BoyCharacterDark from "../public/Character/BoyCharacterDark.png";
+
+import GirlCharacterLight from "../public/Character/GirlCharacterLight.png";
+import GirlCharacterTan from "../public/Character/GirlCharacterTan.png";
+import GirlCharacterDark from "../public/Character/GirlCharacterDark.png";
+
+import BoyCharacterLightTan from "../public/Character/BoyCharacterLightTan.png";
+import GirlCharacterLightTan from "../public/Character/GirlCharacterLightTan.png";
 
 const composeStarterAvatar = async (layers) => {
   const imgs = await Promise.all(
@@ -47,17 +55,47 @@ export default function PickCharacter({ currentUser, onComplete, onBack }) {
   const [selected, setSelected] = useState("boy");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const [selectedSkin, setSelectedSkin] = useState("light");
 
-  const choices = {
-    boy: {
-      label: "Boy",
-      layers: [boyCharacter, UniShoes1, UniShorts1, BoyTop6, BoyHair1],
+ const choices = {
+  boy: {
+    label: "Boy",
+    skins: {
+      light: BoyCharacterLight,
+      lightTan: BoyCharacterLightTan,
+      tan: BoyCharacterTan,
+      dark: BoyCharacterDark,
     },
-    girl: {
-      label: "Girl",
-      layers: [girlCharacter, UniShoes1, UniShorts1, UniTop1, GirlHair2],
+    hair: BoyHair1,
+    top: BoyTop6,
+    bottom: UniShorts1,
+    shoes: UniShoes1,
+  },
+  girl: {
+    label: "Girl",
+    skins: {
+      light: GirlCharacterLight,
+      lightTan: GirlCharacterLightTan,
+      tan: GirlCharacterTan,
+      dark: GirlCharacterDark,
     },
-  };
+    hair: GirlHair2,
+    top: UniTop1,
+    bottom: UniShorts1,
+    shoes: UniShoes1,
+  },
+};
+
+const getPreviewLayers = (choiceKey) => {
+  const choice = choices[choiceKey];
+  return [
+    choice.skins[selectedSkin],
+    choice.shoes,
+    choice.bottom,
+    choice.top,
+    choice.hair,
+  ];
+};
 
 const handleContinue = async () => {
   if (!currentUser || !currentUser.id) {
@@ -69,12 +107,13 @@ const handleContinue = async () => {
   setError("");
 
   try {
-    const avatarData = await composeStarterAvatar(choices[selected].layers);
+   const avatarData = await composeStarterAvatar(getPreviewLayers(selected));
 
-    const starterLoadout =
+   const starterLoadout =
   selected === "girl"
     ? {
         starterCharacter: "girl",
+        skinTone: selectedSkin,
         equippedHair: "GirlHair2",
         equippedTop: "UniTop1",
         equippedBottom: "UniShorts1",
@@ -85,6 +124,7 @@ const handleContinue = async () => {
       }
     : {
         starterCharacter: "boy",
+        skinTone: selectedSkin,
         equippedHair: "BoyHair1",
         equippedTop: "BoyTop6",
         equippedBottom: "UniShorts1",
@@ -130,6 +170,33 @@ const updatedUser = {
           <div className="pickStack">
             <p className="pickMuted">Choose your starter character.</p>
 
+            <div className="skinPicker">
+  <button
+    type="button"
+    className={`skinSwatch ${selectedSkin === "light" ? "active" : ""}`}
+    onClick={() => setSelectedSkin("light")}
+    aria-label="Light skin"
+  />
+  <button
+    type="button"
+    className={`skinSwatch ${selectedSkin === "lightTan" ? "active" : ""}`}
+    onClick={() => setSelectedSkin("lightTan")}
+    aria-label="Light tan skin"
+  />
+  <button
+    type="button"
+    className={`skinSwatch ${selectedSkin === "tan" ? "active" : ""}`}
+    onClick={() => setSelectedSkin("tan")}
+    aria-label="Tan skin"
+  />
+  <button
+    type="button"
+    className={`skinSwatch ${selectedSkin === "dark" ? "active" : ""}`}
+    onClick={() => setSelectedSkin("dark")}
+    aria-label="Dark skin"
+  />
+</div>
+
             <div className="pickGrid">
               {Object.entries(choices).map(([key, choice]) => (
                 <button
@@ -139,7 +206,7 @@ const updatedUser = {
                   onClick={() => setSelected(key)}
                 >
                   <div className="previewStage">
-                    {choice.layers.map((src, idx) => (
+                   {getPreviewLayers(key).map((src, idx) => (
                       <img
                         key={idx}
                         src={src}
@@ -170,6 +237,43 @@ const updatedUser = {
       </div>
 
       <style>{`
+
+      .skinPicker {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.skinSwatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 2px solid rgba(107, 79, 52, 0.18);
+  cursor: pointer;
+}
+
+.skinSwatch:nth-child(1) {
+  background: #f6d7bd;
+}
+
+.skinSwatch:nth-child(2) {
+  background: #e7b98f;
+}
+
+.skinSwatch:nth-child(3) {
+  background: #d8a074;
+}
+
+.skinSwatch:nth-child(4) {
+  background: #8b5a3c;
+}
+
+.skinSwatch.active {
+  border-color: #9b7758;
+  box-shadow: 0 0 0 3px rgba(155, 119, 88, 0.15);
+}
+
         .pickShell {
           min-height: 100vh;
           padding: 24px;
