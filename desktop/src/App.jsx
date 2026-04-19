@@ -529,8 +529,10 @@ useEffect(() => {
         setCurrentUser(updated);
       }
 
- if (currentUser?.id) userManager.updateStatus(currentUser.id, "online");
-      setView("game");
+if (currentUser?.id) {
+  await userManager.updateStatus(currentUser.id, "online");
+}
+setView("game");
 
       
 
@@ -706,8 +708,10 @@ useEffect(() => {
   }
 
   socket.emit("room:leave", { roomCode });
-  if (currentUser?.id) userManager.updateStatus(currentUser.id, "online");
 
+if (currentUser?.id) {
+  await userManager.updateStatus(currentUser.id, "online");
+}
         
 
         setView("lobby");

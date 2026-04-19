@@ -171,31 +171,72 @@ sendFriendRequest: async (_senderId, username) => {
       return { success: false, message: "You cannot add yourself." };
     }
 
-    const { data: existingFriend } = await supabase
-      .from("friends")
-      .select("id")
-      .eq("user_id", senderId)
-      .eq("friend_id", receiver.id)
-      .maybeSingle();
+    const { data: existingFriendRows, error: existingFriendError } = await supabase
+  .from("friends")
+  .select("id, user_id, friend_id")
+  .or(
+    `and(user_id.eq.${senderId},friend_id.eq.${receiver.id}),and(user_id.eq.${receiver.id},friend_id.eq.${senderId})`
+  );
 
-    if (existingFriend) {
-      return { success: false, message: "Already friends." };
-    }
+if (existingFriendError) {
+  console.error("sendFriendRequest existingFriend lookup error:", existingFriendError);
+  return {
+    success: false,
+    message: existingFriendError.message || "Could not verify friendship.",
+  };
+}
 
-    const { data: existingRequest } = await supabase
-      .from("friend_requests")
-      .select("id, status")
-      .eq("sender_id", senderId)
-      .eq("receiver_id", receiver.id)
-      .maybeSingle();
+if ((existingFriendRows || []).length > 0) {
+  return { success: false, message: "Already friends." };
+}
 
-    if (existingRequest?.status === "pending") {
-      return { success: false, message: "Friend request already sent." };
-    }
+const { data: existingRequestRows, error: existingRequestError } = await supabase
+  .from("friend_requests")
+  .select("id, sender_id, receiver_id, status")
+  .or(
+    `and(sender_id.eq.${senderId},receiver_id.eq.${receiver.id}),and(sender_id.eq.${receiver.id},receiver_id.eq.${senderId})`
+  );
 
-    if (existingRequest && existingRequest.status !== "pending") {
-      await supabase.from("friend_requests").delete().eq("id", existingRequest.id);
-    }
+if (existingRequestError) {
+  console.error("sendFriendRequest existingRequest lookup error:", existingRequestError);
+  return {
+    success: false,
+    message: existingRequestError.message || "Could not verify existing requests.",
+  };
+}
+
+const pendingOutgoing = (existingRequestRows || []).find(
+  (row) =>
+    row.sender_id === senderId &&
+    row.receiver_id === receiver.id &&
+    row.status === "pending"
+);
+
+if (pendingOutgoing) {
+  return { success: false, message: "Friend request already sent." };
+}
+
+const pendingIncoming = (existingRequestRows || []).find(
+  (row) =>
+    row.sender_id === receiver.id &&
+    row.receiver_id === senderId &&
+    row.status === "pending"
+);
+
+if (pendingIncoming) {
+  return { success: false, message: `${receiver.username} already sent you a friend request.` };
+}
+
+const oldResolvedRows = (existingRequestRows || []).filter(
+  (row) => row.status && row.status !== "pending"
+);
+
+if (oldResolvedRows.length > 0) {
+  await supabase
+    .from("friend_requests")
+    .delete()
+    .in("id", oldResolvedRows.map((row) => row.id));
+}
 
     const { error: insertError } = await supabase
       .from("friend_requests")
@@ -231,16 +272,17 @@ getFriendRequests: async (userId) => {
         receiver_id,
         status,
         created_at,
-        sender:profiles!friend_requests_sender_id_fkey (
-          id,
-          username,
-          avatar_data,
-          wins,
-          losses,
-          total_games,
-          rank_points,
-           status
-        )
+       sender:profiles!friend_requests_sender_id_fkey (
+  id,
+  username,
+  avatar_data,
+  wins,
+  losses,
+  total_games,
+  rank_points,
+  status,
+  last_seen
+)
       `)
       .eq("receiver_id", userId)
       .eq("status", "pending")
@@ -251,90 +293,86 @@ getFriendRequests: async (userId) => {
       return [];
     }
 
-    return (data || []).map((row) => {
-      const sender = Array.isArray(row.sender) ? row.sender[0] : row.sender;
-      const wins = sender?.wins || 0;
-      const losses = sender?.losses || 0;
-      const totalGames = sender?.total_games || 0;
-      const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
+    const { data: existingFriends, error: friendsError } = await supabase
+      .from("friends")
+      .select("friend_id")
+      .eq("user_id", userId);
 
-      return {
-        id: row.id,
-        senderId: row.sender_id,
-        username: sender?.username || "Unknown",
-        avatarData: sender?.avatar_data || null,
-        wins,
-        losses,
-        totalGames,
-        rankPoints: sender?.rank_points || 0,
-        winRate,
-        status: sender?.status || "offline",
-      };
+    if (friendsError) {
+      console.error("getFriendRequests existingFriends error:", friendsError);
+      return [];
+    }
+
+    const friendIds = new Set();
+    (existingFriends || []).forEach((row) => {
+      friendIds.add(row.friend_id);
     });
+
+    return (data || [])
+      .filter((row) => !friendIds.has(row.sender_id))
+      .map((row) => {
+        const sender = Array.isArray(row.sender) ? row.sender[0] : row.sender;
+        const wins = sender?.wins || 0;
+        const losses = sender?.losses || 0;
+        const totalGames = sender?.total_games || 0;
+        const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
+
+        return {
+          id: row.id,
+          senderId: row.sender_id,
+          username: sender?.username || "Unknown",
+          avatarData: sender?.avatar_data || null,
+          wins,
+          losses,
+          totalGames,
+          rankPoints: sender?.rank_points || 0,
+          winRate,
+          status: sender?.status || "offline",
+last_seen: sender?.last_seen || null,
+        };
+      });
   } catch (error) {
     console.error("getFriendRequests error:", error);
     return [];
   }
 },
 
-acceptFriendRequest: async (requestId, currentUserId, senderId) => {
+refreshPresence: async (userId) => {
   try {
-   const { error: friendsError } = await supabase
-  .from("friends")
-  .insert([
-    { user_id: currentUserId, friend_id: senderId }
-  ]);
+    const { data: profile, error: readError } = await supabase
+      .from("profiles")
+      .select("status")
+      .eq("id", userId)
+      .single();
 
-    if (friendsError) {
-      console.error("acceptFriendRequest insert error:", friendsError);
-      return {
-        success: false,
-        message: friendsError.message || "Could not create friendship.",
-      };
+    if (readError) {
+      console.error("refreshPresence read error:", readError);
+      return false;
     }
 
-    const { error: updateError } = await supabase
-      .from("friend_requests")
-      .update({ status: "accepted" })
-      .eq("id", requestId);
+    const currentStatus = profile?.status || "online";
 
-    if (updateError) {
-      console.error("acceptFriendRequest update error:", updateError);
-
-      await supabase
-        .from("friends")
-        .delete()
-        .or(
-          `and(user_id.eq.${currentUserId},friend_id.eq.${senderId}),and(user_id.eq.${senderId},friend_id.eq.${currentUserId})`
-        );
-
-      return { success: false, message: "Could not accept request." };
-    }
-
-    return { success: true, message: "Friend added." };
-  } catch (error) {
-    console.error("acceptFriendRequest error:", error);
-    return { success: false, message: "Could not accept request." };
-  }
-},
-
-declineFriendRequest: async (requestId) => {
-  try {
     const { error } = await supabase
-      .from("friend_requests")
-      .update({ status: "declined" })
-      .eq("id", requestId);
+      .from("profiles")
+      .update({
+        status: currentStatus,
+        last_active: new Date().toISOString(),
+        last_seen: new Date().toISOString(),
+      })
+      .eq("id", userId);
 
     if (error) {
-      return { success: false, message: "Could not decline request." };
+      console.error("refreshPresence update error:", error);
+      return false;
     }
 
-    return { success: true, message: "Request declined." };
-  } catch (error) {
-    console.error("declineFriendRequest error:", error);
-    return { success: false, message: "Could not decline request." };
+    return true;
+  } catch (err) {
+    console.error("refreshPresence catch:", err);
+    return false;
   }
 },
+
 
 getFriends: async (userId) => {
   try {
@@ -343,16 +381,17 @@ getFriends: async (userId) => {
       .select(`
         id,
         friend_id,
-        friend:profiles!friends_friend_id_fkey (
-          id,
-          username,
-          avatar_data,
-          wins,
-          losses,
-          total_games,
-          rank_points,
-          status
-        )
+friend:profiles!friends_friend_id_fkey (
+  id,
+  username,
+  avatar_data,
+  wins,
+  losses,
+  total_games,
+  rank_points,
+  status,
+  last_seen
+)
       `)
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
@@ -369,17 +408,18 @@ getFriends: async (userId) => {
       const totalGames = friend?.total_games || 0;
       const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
 
-      return {
-        id: friend?.id,
-        username: friend?.username || "Unknown",
-        avatarData: friend?.avatar_data || null,
-        wins,
-        losses,
-        totalGames,
-        rankPoints: friend?.rank_points || 0,
-        winRate,
-        status: friend?.status || "offline",
-      };
+return {
+  id: friend?.id,
+  username: friend?.username || "Unknown",
+  avatarData: friend?.avatar_data || null,
+  wins,
+  losses,
+  totalGames,
+  rankPoints: friend?.rank_points || 0,
+  winRate,
+  status: friend?.status || "offline",
+  last_seen: friend?.last_seen || null,
+};
     });
 
     return { success: true, data: mapped };
@@ -906,10 +946,12 @@ console.log("login data user id:", data?.user?.id);
       if (session?.user?.id) {
         // Clear the active session token
         await supabase
-           .from("profiles")
+  .from("profiles")
   .update({
     active_session_token: null,
     status: "offline",
+    last_seen: new Date().toISOString(),
+    last_active: new Date().toISOString(),
   })
   .eq("id", session.user.id);
       }
@@ -1337,10 +1379,9 @@ updateStatus: async (userId, status) => {
       .from("profiles")
       .update({
         status,
-        last_active: new Date().toISOString(),
         last_seen: new Date().toISOString(),
+        last_active: new Date().toISOString(),
       })
-      
       .eq("id", userId);
 
     if (error) {
@@ -1353,6 +1394,7 @@ updateStatus: async (userId, status) => {
       const user = JSON.parse(cached);
       if (user.id === userId) {
         user.status = status;
+        user.last_seen = new Date().toISOString();
         localStorage.setItem("dualmath_current_user", JSON.stringify(user));
       }
     }
@@ -1607,7 +1649,67 @@ blockUser: async (userId, blockedUserId) => {
   }
 },
 
+acceptFriendRequest: async (requestId, currentUserId, senderId) => {
+  try {
+    const { data: existingFriendRows, error: existingFriendError } = await supabase
+      .from("friends")
+      .select("id, user_id, friend_id")
+      .or(
+        `and(user_id.eq.${currentUserId},friend_id.eq.${senderId}),and(user_id.eq.${senderId},friend_id.eq.${currentUserId})`
+      );
 
+    if (existingFriendError) {
+      console.error("acceptFriendRequest existingFriend lookup error:", existingFriendError);
+      return {
+        success: false,
+        message: existingFriendError.message || "Could not verify friendship.",
+      };
+    }
+
+    const existingPairs = new Set(
+      (existingFriendRows || []).map((row) => `${row.user_id}:${row.friend_id}`)
+    );
+
+    const rowsToInsert = [];
+    if (!existingPairs.has(`${currentUserId}:${senderId}`)) {
+      rowsToInsert.push({ user_id: currentUserId, friend_id: senderId });
+    }
+    if (!existingPairs.has(`${senderId}:${currentUserId}`)) {
+      rowsToInsert.push({ user_id: senderId, friend_id: currentUserId });
+    }
+
+    if (rowsToInsert.length > 0) {
+      const { error: friendsError } = await supabase
+        .from("friends")
+        .insert(rowsToInsert);
+
+      if (friendsError) {
+        console.error("acceptFriendRequest insert error:", friendsError);
+        return {
+          success: false,
+          message: friendsError.message || "Could not create friendship.",
+        };
+      }
+    }
+
+    const { error: updateError } = await supabase
+      .from("friend_requests")
+      .update({ status: "accepted" })
+      .or(
+        `and(sender_id.eq.${senderId},receiver_id.eq.${currentUserId}),and(sender_id.eq.${currentUserId},receiver_id.eq.${senderId})`
+      );
+
+    if (updateError) {
+      console.error("acceptFriendRequest update error:", updateError);
+      return { success: false, message: updateError.message || "Could not accept request." };
+    }
+
+    return { success: true, message: "Friend added." };
+  } catch (error) {
+    console.error("acceptFriendRequest error:", error);
+    return { success: false, message: "Could not accept request." };
+  }
+},
 };
 
 export { supabase };

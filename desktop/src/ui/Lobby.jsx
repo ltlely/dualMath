@@ -98,54 +98,26 @@ const queueSectionRef = useRef(null);
 useEffect(() => {
   if (!currentUser?.id) return;
 
-  let heartbeatInterval;
+  userManager.refreshPresence(currentUser.id);
 
-  const setOnline = () => {
-    userManager.updateStatus(currentUser.id, "online");
-  };
+  const heartbeatInterval = setInterval(() => {
+    userManager.refreshPresence(currentUser.id);
+  }, 15000);
 
-  const setAway = () => {
-    userManager.updateStatus(currentUser.id, "away");
-  };
-
-  const setOffline = () => {
+  const handleBeforeUnload = () => {
     userManager.updateStatus(currentUser.id, "offline");
   };
 
-  // when lobby opens
-  setOnline();
-
-  // keep last_seen fresh while user is active
-  heartbeatInterval = setInterval(() => {
-    if (document.visibilityState === "visible") {
-      setOnline();
-    }
-  }, 15000);
-
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === "hidden") {
-      setAway();
-    } else {
-      setOnline();
-    }
-  };
-
-  const handleBeforeUnload = () => {
-    setOffline();
-  };
-
-  window.addEventListener("visibilitychange", handleVisibilityChange);
   window.addEventListener("beforeunload", handleBeforeUnload);
 
   return () => {
     clearInterval(heartbeatInterval);
-    setOffline();
-    window.removeEventListener("visibilitychange", handleVisibilityChange);
     window.removeEventListener("beforeunload", handleBeforeUnload);
   };
 }, [currentUser?.id]);
 
-const getComputedStatus = (friend) => {
+
+function getComputedStatus(friend) {
   const rawStatus = (friend?.status || "").toLowerCase();
 
   if (rawStatus === "in_match") return "in_match";
@@ -155,10 +127,9 @@ const getComputedStatus = (friend) => {
 
   const diff = Date.now() - new Date(friend.last_seen).getTime();
 
-  if (diff < 30000) return "online";
-  if (diff < 120000) return "away";
+  if (diff < 45000) return "online";
   return "offline";
-};
+}
 
 
 
@@ -298,6 +269,17 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
   return value === "online" || value === "in_room" || value === "in_match";
 });
 
+useEffect(() => {
+  if (error) {
+    setIsJoiningRandom(false);
+  }
+}, [error]);
+
+useEffect(() => {
+  if (!showQueue) {
+    setIsJoiningRandom(false);
+  }
+}, [showQueue]);
 
   return (
     <div className="lobbyShell">
@@ -861,17 +843,28 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
         <h3>Quick match</h3>
         <p className="heroMuted">Find a match and join a random room instantly.</p>
         <button
-          type="button"
-          className="roomNativeButton roomNativeButtonGhost"
-          onClick={async () => {
-            setIsJoiningRandom(true);
-            if (currentUser?.id) await userManager.updateStatus(currentUser.id, "in_room");
-            onJoinRandom();
-          }}
-          disabled={isJoiningRandom}
-        >
-          {isJoiningRandom ? "⏳ Searching..." : "🎲 Join Random"}
-        </button>
+  type="button"
+  className="roomNativeButton roomNativeButtonGhost"
+  onClick={async () => {
+    if (isJoiningRandom) return;
+
+    setIsJoiningRandom(true);
+
+    if (currentUser?.id) {
+      await userManager.updateStatus(currentUser.id, "in_room");
+    }
+
+    try {
+      await onJoinRandom?.();
+    } catch (err) {
+      console.error("join random failed:", err);
+      setIsJoiningRandom(false);
+    }
+  }}
+  disabled={isJoiningRandom}
+>
+  {isJoiningRandom ? "⏳ Searching..." : "🎲 Join Random"}
+</button>
       </div>
     </div>
 
@@ -1287,8 +1280,8 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
   overflow-y: auto;
   overflow-x: hidden;
   background:
-    radial-gradient(circle at top, rgba(255, 248, 230, 0.75), transparent 35%),
-    linear-gradient(180deg, #f8f0dd 0%, #d3bd95 100%);
+    radial-gradient(circle at top, rgba(255, 235, 190, 0.62), transparent 34%),
+    linear-gradient(180deg, #ecdcb8 10%, #cfb07a 55%, #b98f58 100%);
   color: var(--ink);
   position: relative;
   height: 100%;

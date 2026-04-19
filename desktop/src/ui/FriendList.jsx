@@ -32,17 +32,16 @@ const chatBottomRef = useRef(null);
 const [isBlocking, setIsBlocking] = useState(false);
 
 function getComputedStatus(friend) {
-  const rawStatus = (friend.status || "").toLowerCase();
+  const rawStatus = (friend?.status || "").toLowerCase();
 
   if (rawStatus === "in_match") return "in_match";
   if (rawStatus === "in_room") return "in_room";
 
-  if (!friend.last_seen) return "offline";
+  if (!friend?.last_seen) return "offline";
 
   const diff = Date.now() - new Date(friend.last_seen).getTime();
 
-  if (diff < 30000) return "online";
-  if (diff < 120000) return "away";
+  if (diff < 45000) return "online";
   return "offline";
 }
 
@@ -137,15 +136,21 @@ const loadUnreadChatSummary = useCallback(async () => {
         ? friendsResult
         : (friendsResult?.data || []);
 
+        console.log("friendsData statuses:", friendsData.map(f => ({
+  username: f.username,
+  status: f.status,
+  last_seen: f.last_seen
+})));
+
       setFriends(friendsData);
       setRequests(requestsData || []);
       setBlockedUsers(blockedData || []);
       hasLoadedOnceRef.current = true;
       setHasLoadedOnce(true);
 
-   const computedOnlineFriends = friendsData.filter((friend) => {
+ const computedOnlineFriends = friendsData.filter((friend) => {
   const value = getComputedStatus(friend);
-  return value === "online" || value === "in_match";
+  return value === "online" || value === "in_room" || value === "in_match";
 });
 
 onOnlineFriendsChange?.(computedOnlineFriends);
@@ -222,7 +227,8 @@ useEffect(() => {
     
 
 const handleSendRequest = async () => {
-  if (!searchUsername.trim()) return;
+  const typedUsername = searchUsername.trim();
+  if (!typedUsername) return;
 
   setMessage("");
   setError("");
@@ -236,13 +242,50 @@ const handleSendRequest = async () => {
     return;
   }
 
+  const normalizedSearch = typedUsername.toLowerCase();
+  const myUsername = (resolvedUser.username || "").toLowerCase();
+
+  if (normalizedSearch === myUsername) {
+    setError("You cannot add yourself.");
+    setIsSending(false);
+    return;
+  }
+
+  const alreadyFriend = friends.some(
+    (friend) => (friend.username || "").toLowerCase() === normalizedSearch
+  );
+
+  if (alreadyFriend) {
+    setError("You are already friends with that user.");
+    setIsSending(false);
+    return;
+  }
+
+  const pendingRequest = requests.some(
+    (request) => (request.username || "").toLowerCase() === normalizedSearch
+  );
+
+  if (pendingRequest) {
+    setError("There is already a pending friend request with that user.");
+    setIsSending(false);
+    return;
+  }
+
+  const alreadyBlocked = blockedUsers.some(
+    (user) => (user.username || "").toLowerCase() === normalizedSearch
+  );
+
+  if (alreadyBlocked) {
+    setError("You have blocked that user.");
+    setIsSending(false);
+    return;
+  }
+
   try {
     const result = await userManager.sendFriendRequest(
       resolvedUser.id,
-      searchUsername.trim()
+      typedUsername
     );
-
-    console.log("sendFriendRequest result:", result);
 
     if (!result?.success) {
       setError(result?.message || "Could not send request.");
@@ -252,6 +295,7 @@ const handleSendRequest = async () => {
 
     setMessage(result.message || "Friend request sent.");
     setSearchUsername("");
+    loadData(false);
   } catch (err) {
     console.error("handleSendRequest error:", err);
     setError(err?.message || "Could not send request.");

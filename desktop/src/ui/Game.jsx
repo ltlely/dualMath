@@ -192,7 +192,8 @@ export default function Game({
   }
 };
 const coinReward = getCoinReward();
-  
+
+
 
   return (
     <div className="page">
@@ -204,7 +205,17 @@ const coinReward = getCoinReward();
           <span className="code">{room?.roomCode}</span>
         </div>
         
-        <Button variant="secondary" onClick={onBack}>Back</Button>
+<Button
+  variant="secondary"
+  onClick={async () => {
+    if (currentUser?.id) {
+      await userManager.updateStatus(currentUser.id, "online");
+    }
+    onBack?.();
+  }}
+>
+  ✕
+</Button>
 
         <div className="raceProgress">
           <div className="raceTeam">
@@ -310,10 +321,17 @@ const coinReward = getCoinReward();
     )}
   </div>
 )}
-            
-            <Button onClick={onLeaveRoom} style={{ marginTop: '20px', padding: '14px 28px', fontSize: '16px' }}>
-              Return to Lobby
-            </Button>
+<Button
+  onClick={async () => {
+    if (currentUser?.id) {
+      await userManager.updateStatus(currentUser.id, "online");
+    }
+    onLeaveRoom?.();
+  }}
+  style={{ marginTop: "20px", padding: "14px 28px", fontSize: "16px" }}
+>
+  Return to Lobby
+</Button>
           </div>
         </div>
       )}
