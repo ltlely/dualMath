@@ -31,6 +31,22 @@ const hasLoadedOnceRef = useRef(false);
 const chatBottomRef = useRef(null);
 const [isBlocking, setIsBlocking] = useState(false);
 
+function getComputedStatus(friend) {
+  const rawStatus = (friend.status || "").toLowerCase();
+
+  if (rawStatus === "in_match") return "in_match";
+  if (rawStatus === "in_room") return "in_room";
+
+  if (!friend.last_seen) return "offline";
+
+  const diff = Date.now() - new Date(friend.last_seen).getTime();
+
+  if (diff < 30000) return "online";
+  if (diff < 120000) return "away";
+  return "offline";
+}
+
+
 const getResolvedUser = useCallback(async () => {
   if (currentUser?.id) return currentUser;
 
@@ -127,12 +143,12 @@ const loadUnreadChatSummary = useCallback(async () => {
       hasLoadedOnceRef.current = true;
       setHasLoadedOnce(true);
 
-     const onlineFriends = friendsData.filter((friend) => {
-  const status = (friend.status || "").toLowerCase();
-  return status === "online" || status === "in_room" || status === "in_match";
+   const computedOnlineFriends = friendsData.filter((friend) => {
+  const value = getComputedStatus(friend);
+  return value === "online" || value === "in_match";
 });
 
-onOnlineFriendsChange?.(onlineFriends);
+onOnlineFriendsChange?.(computedOnlineFriends);
 
       if (!Array.isArray(friendsResult) && friendsResult?.success === false) {
         setError(friendsResult.message || "Could not load friends.");
@@ -547,6 +563,10 @@ const confirmUnblockUser = async () => {
   loadData(false);
 };
 
+const ONLINE_WINDOW_MS = 30000; // 30 sec
+
+
+
   return (
     <div className="friendsShell">
       <div className="friendsTopbar">
@@ -735,19 +755,22 @@ const confirmUnblockUser = async () => {
   <div className="emptyState">Loading friends...</div>
 ) : friends.length > 0 ? (
   [...friends]
-  .sort((a, b) => {
-    const getPriority = (status) => {
-      const value = (status || "").toLowerCase();
-      if (value === "online") return 2;
-      if (value === "in_match") return 1;
-      return 0;
-    };
+.sort((a, b) => {
+  const getPriority = (friend) => {
+    const value = getComputedStatus(friend);
 
-    const diff = getPriority(b.status) - getPriority(a.status);
-    if (diff !== 0) return diff;
+    if (value === "online") return 4;
+    if (value === "in_room") return 3;
+    if (value === "in_match") return 2;
+    if (value === "away") return 1;
+    return 0;
+  };
 
-    return (a.username || "").localeCompare(b.username || "");
-  })
+  const diff = getPriority(b) - getPriority(a);
+  if (diff !== 0) return diff;
+
+  return (a.username || "").localeCompare(b.username || "");
+})
   .map((friend) => (
                       <div className="friendRow" key={friend.id}>
                         <div className="friendLeft">
@@ -761,7 +784,7 @@ const confirmUnblockUser = async () => {
 
                           <div>
                             <div className="friendNameRow">
-                              <span className={`connectionDot ${friend.status || "offline"}`} />
+                             <span className={`connectionDot ${getComputedStatus(friend)}`} />
                               <div className="friendName">{friend.username}</div>
                            
                             </div>
@@ -827,7 +850,7 @@ const confirmUnblockUser = async () => {
 
                         <div>
                           <div className="friendNameRow">
-                            <span className={`connectionDot ${request.status || "offline"}`} />
+                            <span className={`connectionDot ${getComputedStatus(request)}`} />
                             <div className="friendName">{request.username}</div>
                           </div>
                           <div className="friendSub">
@@ -919,7 +942,7 @@ onClick={async () => {
 
                             <div>
                             <div className="friendNameRow">
-  <span className={`connectionDot ${friend.status || "offline"}`} />
+  <span className={`connectionDot ${getComputedStatus(friend)}`} />
   <div className="friendName">{friend.username}</div>
   {unreadSenders.includes(friend.id) && (
     <span className="messageUnreadTag">New</span>
@@ -1404,6 +1427,11 @@ onClick={async () => {
           overflow: hidden;
           flex-shrink: 0;
         }
+
+        .connectionDot.away {
+  background: #e0ab3f;
+  box-shadow: 0 0 10px rgba(224, 171, 63, 0.45);
+}
 
         .friendAvatar img {
           width: 100%;

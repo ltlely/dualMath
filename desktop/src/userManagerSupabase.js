@@ -7,8 +7,8 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
+    persistSession: false,
+    autoRefreshToken: false,
     detectSessionInUrl: true,
     storageKey: "dualmath-supabase-auth",
   },
@@ -1338,7 +1338,9 @@ updateStatus: async (userId, status) => {
       .update({
         status,
         last_active: new Date().toISOString(),
+        last_seen: new Date().toISOString(),
       })
+      
       .eq("id", userId);
 
     if (error) {
@@ -1604,6 +1606,7 @@ blockUser: async (userId, blockedUserId) => {
     return { success: false, message: "Could not block user." };
   }
 },
+
 
 };
 

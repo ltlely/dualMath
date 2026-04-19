@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useRef } from "react";import { Card } from "./components.jsx";
+import React, { useState, useMemo, useRef, useEffect } from "react";
+import { Card } from "./components.jsx";
 import Auth from "./Auth.jsx";
 import { userManager } from "../userManagerSupabase.js";
 import {
@@ -47,7 +48,10 @@ const [isSavingUsername, setIsSavingUsername] = useState(false);
   const [isJoiningRandom, setIsJoiningRandom] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
 const queueSectionRef = useRef(null);
-  
+
+
+   
+
 
 
  const { stats, rankProgress, nextRank, pointsToNext } = useMemo(() => {
@@ -90,18 +94,77 @@ const queueSectionRef = useRef(null);
   };
 }, [currentUser, currentUser?.wins, currentUser?.losses, currentUser?.rankPoints]);
 
-  if (!currentUser) {
-    return (
-      <Auth
-        onLoginSuccess={onLoginSuccess}
-        isLoggedIn={!!currentUser}
-        currentUser={currentUser}
-      />
-    );
-  }
+
+useEffect(() => {
+  if (!currentUser?.id) return;
+
+  let heartbeatInterval;
+
+  const setOnline = () => {
+    userManager.updateStatus(currentUser.id, "online");
+  };
+
+  const setAway = () => {
+    userManager.updateStatus(currentUser.id, "away");
+  };
+
+  const setOffline = () => {
+    userManager.updateStatus(currentUser.id, "offline");
+  };
+
+  // when lobby opens
+  setOnline();
+
+  // keep last_seen fresh while user is active
+  heartbeatInterval = setInterval(() => {
+    if (document.visibilityState === "visible") {
+      setOnline();
+    }
+  }, 15000);
+
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === "hidden") {
+      setAway();
+    } else {
+      setOnline();
+    }
+  };
+
+  const handleBeforeUnload = () => {
+    setOffline();
+  };
+
+  window.addEventListener("visibilitychange", handleVisibilityChange);
+  window.addEventListener("beforeunload", handleBeforeUnload);
+
+  return () => {
+    clearInterval(heartbeatInterval);
+    setOffline();
+    window.removeEventListener("visibilitychange", handleVisibilityChange);
+    window.removeEventListener("beforeunload", handleBeforeUnload);
+  };
+}, [currentUser?.id]);
+
+const getComputedStatus = (friend) => {
+  const rawStatus = (friend?.status || "").toLowerCase();
+
+  if (rawStatus === "in_match") return "in_match";
+  if (rawStatus === "in_room") return "in_room";
+
+  if (!friend?.last_seen) return "offline";
+
+  const diff = Date.now() - new Date(friend.last_seen).getTime();
+
+  if (diff < 30000) return "online";
+  if (diff < 120000) return "away";
+  return "offline";
+};
+
+
 
   const winRp = getWinPoints(stats.rankPoints);
 const lossRp = getLossPoints(stats.rankPoints);
+
 
  
   const USERNAME_CHANGE_COOLDOWN_DAYS = 60;
@@ -228,6 +291,13 @@ if (!result?.success) {
       />
     );
   }
+
+
+const visibleOnlineFriends = onlineFriends.filter((friend) => {
+  const value = getComputedStatus(friend);
+  return value === "online" || value === "in_room" || value === "in_match";
+});
+
 
   return (
     <div className="lobbyShell">
@@ -591,7 +661,7 @@ if (!result?.success) {
   <div className="onlineFriendsHeader">
     <div>
       <div className="miniLabel">Friends Online</div>
-      <div className="onlineFriendsTitle">{onlineFriends.length} online</div>
+      <div className="onlineFriendsTitle">{visibleOnlineFriends.length} online</div>
     </div>
 
     <button
@@ -611,8 +681,8 @@ if (!result?.success) {
       setIsOnlineFriendsScrolling?.(false);
     }, 150);
   }}>
-    {onlineFriends.length > 0 ? (
-      onlineFriends.slice(0, 4).map((friend) => (
+    {visibleOnlineFriends.length > 0 ? (
+  visibleOnlineFriends.slice(0, 4).map((friend) => (
         <button
           key={friend.id}
           type="button"
@@ -630,7 +700,7 @@ if (!result?.success) {
 
             <div className="onlineFriendMeta">
               <div className="onlineFriendNameRow">
-  <span className={`connectionDot ${(friend.status || "offline").toLowerCase()}`} />
+  <span className={`connectionDot ${getComputedStatus(friend)}`} />
   <span className="onlineFriendName">{friend.username}</span>
 </div>
               <div className="onlineFriendSub">
