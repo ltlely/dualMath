@@ -252,6 +252,18 @@ if (!result?.success) {
   }
 };
 
+useEffect(() => {
+  if (error) {
+    setIsJoiningRandom(false);
+  }
+}, [error]);
+
+useEffect(() => {
+  if (!showQueue) {
+    setIsJoiningRandom(false);
+  }
+}, [showQueue]);
+
   // If no current user, show auth
   if (!currentUser) {
     return (
@@ -269,17 +281,7 @@ const visibleOnlineFriends = onlineFriends.filter((friend) => {
   return value === "online" || value === "in_room" || value === "in_match";
 });
 
-useEffect(() => {
-  if (error) {
-    setIsJoiningRandom(false);
-  }
-}, [error]);
 
-useEffect(() => {
-  if (!showQueue) {
-    setIsJoiningRandom(false);
-  }
-}, [showQueue]);
 
   return (
     <div className="lobbyShell">
