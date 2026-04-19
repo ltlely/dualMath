@@ -215,34 +215,36 @@ const gameMusicRef = useRef(null);
   useEffect(() => {
   const mainMusic = new Audio("/music/coding_loop.wav");
   mainMusic.loop = true;
-  mainMusic.volume = 0.20;
+  mainMusic.volume = 0.2;
   mainMusicRef.current = mainMusic;
 
   const gameMusic = new Audio("/music/game_loop.wav");
   gameMusic.loop = true;
-  gameMusic.volume = 0.20;
+  gameMusic.volume = 0.2;
   gameMusicRef.current = gameMusic;
-
-  if (view === "game") {
-    mainMusic.pause();
-    mainMusic.currentTime = 0;
-
-    gameMusic.play().catch((err) => {
-      console.log("Game music blocked:", err);
-    });
-  } else {
-    gameMusic.pause();
-    gameMusic.currentTime = 0;
-
-    mainMusic.play().catch((err) => {
-      console.log("Main music blocked:", err);
-    });
-  }
 
   return () => {
     mainMusic.pause();
+    mainMusic.currentTime = 0;
     gameMusic.pause();
+    gameMusic.currentTime = 0;
   };
+}, []);
+
+useEffect(() => {
+  if (view === "game") {
+    mainMusicRef.current?.pause();
+    if (gameMusicRef.current) {
+      gameMusicRef.current.currentTime = 0;
+      gameMusicRef.current.play().catch(() => {});
+    }
+  } else {
+    gameMusicRef.current?.pause();
+    if (mainMusicRef.current) {
+      mainMusicRef.current.currentTime = 0;
+      mainMusicRef.current.play().catch(() => {});
+    }
+  }
 }, [view]);
 
  useEffect(() => {
