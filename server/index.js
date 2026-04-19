@@ -511,7 +511,13 @@ function endRound(roomCode) {
   console.log("⚠️ Legacy endRound called - should not happen in race mode");
 }
 
+function assignNextHost(room) {
+  const remainingPlayers = Array.from(room.players.values());
 
+  if (remainingPlayers.length === 0) return null;
+
+  return remainingPlayers[0].id;
+}
 
 io.on("connection", (socket) => {
   socket.on("game:forfeit", ({ roomCode }) => {
@@ -528,27 +534,40 @@ io.on("connection", (socket) => {
   });
 
 socket.on("disconnect", () => {
-  for (const [roomCode, room] of rooms.entries()) {
-    if (room.players.has(socket.id)) {
-      if (room.state.phase === "playing") {
+  try {
+    for (const [roomCode, room] of rooms.entries()) {
+      if (!room.players.has(socket.id)) continue;
+
+      const wasPlaying = room.state?.phase === "playing";
+      const wasHost = room.hostId === socket.id;
+
+      if (wasPlaying) {
         forfeitGame(roomCode, socket.id, "disconnect");
       }
 
-      room.players.delete(socket.id);
+      const latestRoom = rooms.get(roomCode);
+      if (!latestRoom) continue;
 
-      if (room.hostId === socket.id) {
-        const next = room.players.keys().next().value;
-        if (next) room.hostId = next;
-        else rooms.delete(roomCode);
+      latestRoom.players.delete(socket.id);
+
+      if (wasHost) {
+        const nextHostId = Array.from(latestRoom.players.keys())[0] || null;
+
+        if (nextHostId) {
+          latestRoom.hostId = nextHostId;
+        } else {
+          rooms.delete(roomCode);
+          continue;
+        }
       }
 
-      if (rooms.has(roomCode)) {
-        applyAutoMatchSettings(room);
-        broadcast(roomCode);
-       }
-      }
+      applyAutoMatchSettings(latestRoom);
+      broadcast(roomCode);
     }
-  });
+  } catch (err) {
+    console.error("disconnect handler crashed:", err);
+  }
+});
 
   
 
@@ -687,78 +706,92 @@ socket.on("disconnect", () => {
   });
 
   // Join a random available room or create one if none exist
-socket.on("room:joinRandom", ({ name, avatarData, rankPoints = 0, rankLevel = "Novice" }) => {    // Find a room that's in lobby phase and has space (less than 4 players)
-    let targetRoom = null;
-    let targetCode = null;
-    
+socket.on("room:joinRandom", ({ name, avatarData, rankPoints = 0, rankLevel = "Novice" }) => {
+  let targetRoom = null;
+  let targetCode = null;
+
+  const incomingPlayer = { rankPoints, rankLevel };
+
+  // Pass 1: prefer compatible open lobby rooms
+  for (const [code, room] of rooms.entries()) {
+    if (room.state.phase !== "lobby") continue;
+    if (room.players.size >= 4) continue;
+
+    const roomPlayers = Array.from(room.players.values());
+
+    if (isPlayerCompatibleWithRoom(incomingPlayer, roomPlayers)) {
+      targetRoom = room;
+      targetCode = code;
+      break;
+    }
+  }
+
+  // Pass 2: if no compatible room found, join any open lobby room
+  if (!targetRoom) {
     for (const [code, room] of rooms.entries()) {
       if (room.state.phase !== "lobby") continue;
       if (room.players.size >= 4) continue;
 
-      const roomPlayers = Array.from(room.players.values());
-      const incomingPlayer = { rankPoints, rankLevel };
+      targetRoom = room;
+      targetCode = code;
+      break;
+    }
+  }
 
-      if (isPlayerCompatibleWithRoom(incomingPlayer, roomPlayers)) {
-        targetRoom = room;
-        targetCode = code;
-        break;
-      }
-    }
-    
-    // If no available room, create a new one
-    if (!targetRoom) {
-      const roomCode = makeRoomCode();
-      
-      rooms.set(roomCode, {
-        hostId: socket.id,
-        name: "Random Match",
-        players: new Map(),
-        state: {
-          mode: "2v2",
-          phase: "lobby",
-          diff: "easy",
-          roundMs: 12000,
-          totalRounds: 10,
-          round: 0,
-          question: null,
-          correct: null,
-          roundEndsAt: null,
-          teamDigits: null,
-          teamScores: { A: 0, B: 0 },
-        },
-      });
-      
-      targetRoom = rooms.get(roomCode);
-      targetCode = roomCode;
-    }
-    
-    // Add player to room
-    targetRoom.players.set(socket.id, {
-      id: socket.id,
-      name: name || "Guest",
-      avatarData: avatarData ?? null,  // Store avatar thumbnail
-      team: null,
-      slot: null,
-      ready: false,
-      score: 0,
-      rankPoints: rankPoints,
-      rankLevel: rankLevel
+  // Pass 3: if still none, create a new random room
+  if (!targetRoom) {
+    const roomCode = makeRoomCode();
+
+    rooms.set(roomCode, {
+      hostId: socket.id,
+      name: "Random Match",
+      players: new Map(),
+      state: {
+        mode: "2v2",
+        phase: "lobby",
+        diff: "easy",
+        roundMs: 12000,
+        totalRounds: 10,
+        round: 0,
+        question: null,
+        correct: null,
+        roundEndsAt: null,
+        teamDigits: null,
+        teamScores: { A: 0, B: 0 },
+      },
     });
 
-    
-    socket.join(targetCode);
-    socket.emit("room:joined", { roomCode: targetCode, selfId: socket.id });
-    applyAutoMatchSettings(targetRoom);
-    broadcast(targetCode);
-    
-    console.log("🎲 room:joinRandom player =", {
-      id: socket.id,
-      name,
-      rankPoints,
-      rankLevel,
-    });
+    targetRoom = rooms.get(roomCode);
+    targetCode = roomCode;
+  }
+
+  targetRoom.players.set(socket.id, {
+    id: socket.id,
+    name: name || "Guest",
+    avatarData: avatarData ?? null,
+    team: null,
+    slot: null,
+    ready: false,
+    score: 0,
+    rankPoints,
+    rankLevel,
   });
 
+  socket.join(targetCode);
+  socket.emit("room:joined", { roomCode: targetCode, selfId: socket.id });
+  applyAutoMatchSettings(targetRoom);
+  broadcast(targetCode);
+
+  console.log("🎲 room:joinRandom player =", {
+    id: socket.id,
+    name,
+    roomCode: targetCode,
+    rankPoints,
+    rankLevel,
+    hostId: targetRoom.hostId,
+    playerCount: targetRoom.players.size,
+  });
+});
   socket.on("room:create", (payload) => {
   const {
     name,
@@ -967,15 +1000,16 @@ console.log("server broadcast room:update after ready", {
   socket.leave(code);
 
   // If host left, assign new host or delete room
-  if (room.hostId === socket.id) {
-    const next = room.players.keys().next().value;
-    if (next) {
-      room.hostId = next;
-    } else {
-      rooms.delete(code);
-      return;
-    }
+if (room.hostId === socket.id) {
+  const nextHostId = assignNextHost(room);
+  if (nextHostId) {
+    room.hostId = nextHostId;
+  } else {
+    rooms.delete(code);
+    return;
   }
+
+}
 
   applyAutoMatchSettings(room);
   broadcast(code);
