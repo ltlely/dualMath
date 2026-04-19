@@ -34,17 +34,17 @@ const [isBlocking, setIsBlocking] = useState(false);
 function getComputedStatus(friend) {
   const rawStatus = (friend?.status || "").toLowerCase();
 
-  if (rawStatus === "in_match") return "in_match";
-  if (rawStatus === "in_room") return "in_room";
-
   if (!friend?.last_seen) return "offline";
 
   const diff = Date.now() - new Date(friend.last_seen).getTime();
 
-  if (diff < 45000) return "online";
-  return "offline";
-}
+  if (diff >= 45000) return "offline";
 
+  if (rawStatus === "in_match") return "in_match";
+  if (rawStatus === "in_room") return "in_room";
+
+  return "online";
+}
 
 const getResolvedUser = useCallback(async () => {
   if (currentUser?.id) return currentUser;
