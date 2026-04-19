@@ -1,22 +1,17 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Card, Button, Select, Pill } from "./components.jsx";
 import { userManager } from "../userManagerSupabase.js";
-import noviceApprenticeRank from "/noviceApprenticeRank.png";
-import skilledRank from "/skilledRank.png";
-import professionalRank from "/professionalRank.png";
-import expertRank from "/expertRank.png";
-import kingRank from "/kingRank.png";
 
 const rankImages = {
-  "Novice Apprentice": noviceApprenticeRank,
-  Skilled: skilledRank,
-  Professional: professionalRank,
-  Expert: expertRank,
-  King: kingRank,
+  "Novice Apprentice": "/noviceApprenticeRank.png",
+  Skilled: "/skilledRank.png",
+  Professional: "/professionalRank.png",
+  Expert: "/expertRank.png",
+  King: "/kingRank.png",
 };
 
 function getRankImage(rank) {
-  return rankImages[rank] || noviceApprenticeRank;
+  return rankImages[rank] || "/noviceApprenticeRank.png";
 }
 
 function Slot({ title, player, isYou, onSit, currentUserAvatarData, username, currentUser }) {
@@ -286,7 +281,7 @@ export default function Room({
     0 0 14px rgba(145, 76, 240, 0.34),
     0 0 28px rgba(145, 76, 240, 0.24);
 }
-    
+
         .page::before {
   content: "";
   position: fixed;
