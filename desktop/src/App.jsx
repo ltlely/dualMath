@@ -207,6 +207,75 @@ export default function App() {
 const [unreadChatCount, setUnreadChatCount] = useState(0);
 const [onlineFriends, setOnlineFriends] = useState([]);
 const [isOnlineFriendsScrolling, setIsOnlineFriendsScrolling] = useState(false);
+const [teamRoundResult, setTeamRoundResult] = useState(null);
+   const clickSoundRef = useRef(null);
+const mainMusicRef = useRef(null);
+const gameMusicRef = useRef(null);
+
+  useEffect(() => {
+  const mainMusic = new Audio("/music/coding_loop.wav");
+  mainMusic.loop = true;
+  mainMusic.volume = 0.20;
+  mainMusicRef.current = mainMusic;
+
+  const gameMusic = new Audio("/music/game_loop.wav");
+  gameMusic.loop = true;
+  gameMusic.volume = 0.20;
+  gameMusicRef.current = gameMusic;
+
+  if (view === "game") {
+    mainMusic.pause();
+    mainMusic.currentTime = 0;
+
+    gameMusic.play().catch((err) => {
+      console.log("Game music blocked:", err);
+    });
+  } else {
+    gameMusic.pause();
+    gameMusic.currentTime = 0;
+
+    mainMusic.play().catch((err) => {
+      console.log("Main music blocked:", err);
+    });
+  }
+
+  return () => {
+    mainMusic.pause();
+    gameMusic.pause();
+  };
+}, [view]);
+
+ useEffect(() => {
+  const clickAudio = new Audio("/music/click.wav");
+  clickAudio.volume = 0.5;
+  clickSoundRef.current = clickAudio;
+
+  const handleGlobalClick = (e) => {
+    const target = e.target;
+    if (!target.closest("button")) return;
+
+    if (view === "game") {
+      if (gameMusicRef.current?.paused) {
+        gameMusicRef.current.play().catch(() => {});
+      }
+    } else {
+      if (mainMusicRef.current?.paused) {
+        mainMusicRef.current.play().catch(() => {});
+      }
+    }
+
+    if (clickSoundRef.current) {
+      clickSoundRef.current.currentTime = 0;
+      clickSoundRef.current.play().catch(() => {});
+    }
+  };
+
+  document.addEventListener("pointerdown", handleGlobalClick);
+
+  return () => {
+    document.removeEventListener("pointerdown", handleGlobalClick);
+  };
+}, [view]);
 
 const getComputedStatus = useCallback((friend) => {
   const rawStatus = (friend?.status || "").toLowerCase();
@@ -514,9 +583,16 @@ useEffect(() => {
       }
     });
 
+    socket.on("game:teamRoundEnd", (payload) => {
+  setTeamRoundResult(payload);
+});
+
+
+
     socket.on("room:error", ({ message }) => setError(message));
 
    socket.on("game:roundStart", async (info) => {
+    setTeamRoundResult(null);
   setRoundInfo(info);
   setLastRound(null);
   setView("game");
@@ -566,6 +642,7 @@ setView("game");
       socket.off("game:roundEnd");
       socket.off("game:ended");
       socket.off("chat:new");
+      socket.off("game:teamRoundEnd");
     };
   }, [currentUser, selfId, room, lastKnownTeam]);
 
@@ -1051,6 +1128,7 @@ onOpenStore={async () => {
         selfId={selfId}
         roundInfo={roundInfo}
         lastRound={lastRound}
+        teamRoundResult={teamRoundResult}
         onDigit={onDigit}
         onSubmit={onSubmit}
         onChatSend={actions.chatSend}

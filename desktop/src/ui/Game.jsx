@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useRef , useMemo, useState } from "react";
 import { updatePoints } from "../rankingSystem.js";
 import { userManager } from "../userManagerSupabase.js";
 
@@ -37,6 +37,7 @@ export default function Game({
   onLeaveRoom,
   onUserUpdate,
   onForfeit,
+  teamRoundResult,
 }) {
 
   const [chatText, setChatText] = useState("");
@@ -44,8 +45,14 @@ export default function Game({
   const [localOnes, setLocalOnes] = useState(null);
   const [statsUpdated, setStatsUpdated] = useState(false);
   const [showForfeitModal, setShowForfeitModal] = useState(false);
-
-  const playersSorted = useMemo(() => {
+const correctSoundRef = useRef(null);
+const incorrectSoundRef = useRef(null);
+const hasShownSwitchNoticeRef = useRef(false);
+const [showSwitchNotice, setShowSwitchNotice] = useState(false);
+const wonSoundRef = useRef(null);
+const lostSoundRef = useRef(null);
+const hasPlayedEndSoundRef = useRef(false);
+const playersSorted = useMemo(() => {
     const ps = [...(room?.players ?? [])];
     ps.sort((a, b) => b.score - a.score);
     return ps;
@@ -87,7 +94,120 @@ export default function Game({
 
   const isGameEnded = room?.state?.phase === "ended" || !!lastRound?.winner || !!lastRound?.forfeit;
   const isForfeit = !!lastRound?.forfeit;
-  const forfeitedBy = lastRound?.forfeitedBy;
+  const forfeitedBy = lastRound?.forfeitedBy; 
+  
+useEffect(() => {
+  const correct = new Audio("/music/correct.wav");
+  const incorrect = new Audio("/music/incorrect.wav");
+
+  correct.volume = 0.45;
+  incorrect.volume = 0.45;
+
+  correct.oncanplaythrough = () => console.log("✅ correct.wav loaded");
+  incorrect.oncanplaythrough = () => console.log("✅ incorrect.wav loaded");
+
+  correct.onerror = (e) => console.log("❌ correct.wav failed", e);
+  incorrect.onerror = (e) => console.log("❌ incorrect.wav failed", e);
+
+  correctSoundRef.current = correct;
+  incorrectSoundRef.current = incorrect;
+}, []);
+
+const playAnswerSound = (isCorrect) => {
+  const sound = isCorrect ? correctSoundRef.current : incorrectSoundRef.current;
+  console.log("playAnswerSound called:", isCorrect ? "correct" : "incorrect");
+
+  if (!sound) {
+    console.log("sound missing");
+    return;
+  }
+
+  sound.pause();
+  sound.currentTime = 0;
+
+  sound.play()
+    .then(() => console.log("sound played"))
+    .catch((err) => console.log("sound play failed", err));
+};
+
+useEffect(() => {
+  if (typeof teamRoundResult?.isCorrect !== "boolean") return;
+  playAnswerSound(teamRoundResult.isCorrect);
+}, [teamRoundResult]);
+
+
+
+useEffect(() => {
+  if (!room || !selfId) return;
+
+  const me = (room?.players ?? []).find((p) => p.id === selfId);
+  const myTeam = me?.team;
+  if (!myTeam) return;
+
+  const currentRound = room?.state?.teamRounds?.[myTeam] ?? 0;
+
+  if (currentRound === 5 && !hasShownSwitchNoticeRef.current) {
+    hasShownSwitchNoticeRef.current = true;
+    setShowSwitchNotice(true);
+
+    const timer = setTimeout(() => {
+      setShowSwitchNotice(false);
+    }, 2200);
+
+    return () => clearTimeout(timer);
+  }
+}, [room, selfId]);
+
+useEffect(() => {
+  const correct = new Audio("/music/correct.wav");
+  const incorrect = new Audio("/music/incorrect.wav");
+  const won = new Audio("/music/won.wav");
+  const lost = new Audio("/music/lost.wav");
+
+  correct.volume = 0.45;
+  incorrect.volume = 0.45;
+  won.volume = 0.55;
+  lost.volume = 0.55;
+
+  correctSoundRef.current = correct;
+  incorrectSoundRef.current = incorrect;
+  wonSoundRef.current = won;
+  lostSoundRef.current = lost;
+}, []);
+
+const playEndSound = (didWin) => {
+  const sound = didWin ? wonSoundRef.current : lostSoundRef.current;
+  if (!sound) return;
+
+  sound.pause();
+  sound.currentTime = 0;
+  sound.play().catch(() => {});
+};
+
+useEffect(() => {
+  if (!lastRound?.winner || !myTeam) return;
+  if (hasPlayedEndSoundRef.current) return;
+
+  const didWin = lastRound.winner === myTeam;
+  const didLose = lastRound.winner !== "tie" && lastRound.winner !== myTeam;
+  const didForfeitLose = !!lastRound?.forfeit && lastRound?.forfeitedBy === myTeam;
+
+  if (didWin) {
+    playEndSound(true);
+    hasPlayedEndSoundRef.current = true;
+  } else if (didLose || didForfeitLose) {
+    playEndSound(false);
+    hasPlayedEndSoundRef.current = true;
+  }
+}, [lastRound, myTeam]);
+
+useEffect(() => {
+  if (!isGameEnded) {
+    hasPlayedEndSoundRef.current = false;
+  }
+}, [isGameEnded]);
+
+  
 
   useEffect(() => {
     const handler = () => {
@@ -336,6 +456,18 @@ const currentRank = currentUser ? userManager.getUserRank(currentUser) : "Novice
           </div>
         </div>
       )}
+
+      {showSwitchNotice && (
+  <div className="switchNotice">
+    <div className="switchNoticeBadge">🔄 Position Switch</div>
+    <div className="switchNoticeText">
+      Round 5 reached — swap positions now!
+    </div>
+    <div className="switchNoticeSubtext">
+      Your input side has changed.
+    </div>
+  </div>
+)}
 
       <div className="grid2">
         {/* Your Team's Question */}
@@ -622,6 +754,52 @@ body{
   align-items:center;
   margin-bottom:8px;
   font-size:12px;
+}
+
+.switchNotice{
+  margin: 0 0 18px 0;
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(143, 114, 193, 0.32);
+  background: linear-gradient(180deg, #f4ecfb, #e6d7f8);
+  box-shadow: 0 14px 28px rgba(143, 114, 193, 0.16);
+  animation: switchFadeIn 0.25s ease;
+  text-align: center;
+}
+
+.switchNoticeBadge{
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  color: #6d4fb0;
+  background: rgba(255,255,255,0.72);
+  border: 1px solid rgba(143, 114, 193, 0.22);
+  margin-bottom: 8px;
+}
+
+.switchNoticeText{
+  font-size: 22px;
+  font-weight: 900;
+  color: #6c4318;
+}
+
+.switchNoticeSubtext{
+  margin-top: 4px;
+  font-size: 13px;
+  color: #8a6b45;
+}
+
+@keyframes switchFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .teamBadge{
