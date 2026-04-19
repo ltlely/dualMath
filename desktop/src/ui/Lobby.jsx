@@ -11,6 +11,7 @@ import {
 } from "../rankingSystem.js";
 // import { userManager } from "../userManagerSupabase.js";
 import Game from "./Game.jsx";
+import { getSoundSettings, saveSoundSettings, applyVolume } from "./soundSettings";
 
 const rankImages = {
   "Novice Apprentice": "/noviceApprenticeRank.png",
@@ -61,8 +62,33 @@ const [isSavingUsername, setIsSavingUsername] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
 const queueSectionRef = useRef(null);
 const [, setPresenceTick] = useState(0);
+const DEFAULT_SOUND_SETTINGS = {
+  music: 70,
+  effects: 85,
+};
+
+const [soundSettings, setSoundSettings] = useState(() => getSoundSettings());
+const [savedSoundSettings, setSavedSoundSettings] = useState(() => getSoundSettings());
+const [isSavingSound, setIsSavingSound] = useState(false);
 
    
+
+
+
+const updateSoundSetting = (key, value) => {
+  const next = {
+    ...soundSettings,
+    [key]: Number(value),
+  };
+
+  setSoundSettings(next);
+
+  window.dispatchEvent(
+    new CustomEvent("dualmath:sound-preview", {
+      detail: next,
+    })
+  );
+};
 
 
 useEffect(() => {
@@ -445,6 +471,93 @@ const visibleOnlineFriends = friends.filter((friend) => {
           </button>
         </div>
 
+        <button
+  type="button"
+  className={`settingsTab ${settingsTab === "sound" ? "active" : ""}`}
+  onClick={() => {
+    setSettingsTab("sound");
+    setSettingsMessage("");
+    setSettingsError("");
+  }}
+>
+  Sound
+</button>
+
+{settingsTab === "sound" && (
+  <div className="settingsSection">
+    
+
+    {[
+      ["music", "Music"],
+      ["effects", "Effects"],
+    ].map(([key, label]) => (
+      <div className="soundRow" key={key}>
+        <div className="soundRowTop">
+          <label className="fieldLabel">{label}</label>
+          <span className="soundPercent">{soundSettings[key]}%</span>
+        </div>
+
+        <input
+          className="soundSlider"
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value={soundSettings[key]}
+          onChange={(e) => updateSoundSetting(key, e.target.value)}
+        />
+      </div>
+    ))}
+
+    <div className="soundActions">
+      <button
+        type="button"
+        className="roomNativeButton roomNativeButtonGhost"
+        onClick={() => {
+          setSoundSettings(savedSoundSettings);
+          setSettingsMessage("");
+          setSettingsError("");
+          window.dispatchEvent(
+            new CustomEvent("dualmath:sound-preview", {
+              detail: savedSoundSettings,
+            })
+          );
+        }}
+      >
+        Cancel
+      </button>
+
+      <button
+        type="button"
+        className="roomNativeButton"
+        onClick={() => {
+          try {
+            setIsSavingSound(true);
+            saveSoundSettings(soundSettings);
+            setSavedSoundSettings(soundSettings);
+            setSettingsMessage("Sound settings saved.");
+            setSettingsError("");
+
+            window.dispatchEvent(
+              new CustomEvent("dualmath:sound-saved", {
+                detail: soundSettings,
+              })
+            );
+          } catch {
+            setSettingsError("Could not save sound settings.");
+            setSettingsMessage("");
+          } finally {
+            setIsSavingSound(false);
+          }
+        }}
+        disabled={isSavingSound}
+      >
+        {isSavingSound ? "Saving..." : "Save Sound"}
+      </button>
+    </div>
+  </div>
+)}
+
         {settingsTab === "password" && (
           <div className="settingsSection">
             <div className="fieldStack">
@@ -596,7 +709,7 @@ const visibleOnlineFriends = friends.filter((friend) => {
 </button> */}
 
             
-  {/* <button
+  <button
     className="categoryButton"
     type="button"
     onClick={onOpenGame}
@@ -606,7 +719,7 @@ const visibleOnlineFriends = friends.filter((friend) => {
       <span className="categoryTitle">Open Game</span>
       <span className="categoryCount">Preview game UI</span>
     </span>
-  </button> */}
+  </button>
 
 {/* <div className="summaryCard">
   <span className="summaryLabel">Test Rank</span>
@@ -975,6 +1088,27 @@ const visibleOnlineFriends = friends.filter((friend) => {
   padding: 20px 20px 0;
 }
 
+.soundGroup {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 253, 244, 0.5);
+  border: 1px solid rgba(93, 88, 63, 0.08);
+}
+
+.soundGroup + .soundGroup {
+  margin-top: 2px;
+}
+
+.soundGroupTitle {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brown-dark);
+}
+
 .queuePanelHeader h3 {
   margin: 4px 0 0;
   font-size: 24px;
@@ -1154,6 +1288,12 @@ const visibleOnlineFriends = friends.filter((friend) => {
   border-left: 14px solid transparent;
   border-right: 14px solid transparent;
   border-top: 12px solid #e7be73;
+}
+
+.soundActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .topNavQueueItem:hover::after {
@@ -1404,6 +1544,27 @@ const visibleOnlineFriends = friends.filter((friend) => {
   height: 100dvh;
   display: flex;
   flex-direction: column;
+}
+
+.soundGroup {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 253, 244, 0.5);
+  border: 1px solid rgba(93, 88, 63, 0.08);
+}
+
+.soundGroup + .soundGroup {
+  margin-top: 2px;
+}
+
+.soundGroupTitle {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brown-dark);
 }
 
 .rankIcon {
@@ -1776,6 +1937,31 @@ background: none;
           font-size: 18px;
           color: #4b3215;
         }
+
+        .soundRow {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.soundRowTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.soundPercent {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--brown-dark);
+}
+
+.soundSlider {
+  width: 100%;
+  accent-color: #b78642;
+  cursor: pointer;
+}
 
         .categoryCopy {
           display: flex;

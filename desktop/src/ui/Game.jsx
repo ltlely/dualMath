@@ -1,6 +1,7 @@
-import React, { useEffect, useRef , useMemo, useState } from "react";
+import React, { useEffect, useRef, useMemo, useState } from "react";
 import { updatePoints } from "../rankingSystem.js";
 import { userManager } from "../userManagerSupabase.js";
+import { applyVolume, getSoundSettings } from "./soundSettings";
 
 
 // Simple UI Components
@@ -45,6 +46,7 @@ export default function Game({
   const [localOnes, setLocalOnes] = useState(null);
   const [statsUpdated, setStatsUpdated] = useState(false);
   const [showForfeitModal, setShowForfeitModal] = useState(false);
+  const [soundsReady, setSoundsReady] = useState(false);
 const correctSoundRef = useRef(null);
 const incorrectSoundRef = useRef(null);
 const hasShownSwitchNoticeRef = useRef(false);
@@ -78,7 +80,7 @@ const playersSorted = useMemo(() => {
   // Get team-specific question
   const myQuestion = room?.state?.teamQuestions?.[myTeam];
   const otherQuestion = room?.state?.teamQuestions?.[otherTeam];
-  
+
   const qText = myQuestion
     ? `${myQuestion.a} ${myQuestion.op} ${myQuestion.b} = ?`
     : "Waiting for question...";
@@ -95,45 +97,32 @@ const playersSorted = useMemo(() => {
   const isGameEnded = room?.state?.phase === "ended" || !!lastRound?.winner || !!lastRound?.forfeit;
   const isForfeit = !!lastRound?.forfeit;
   const forfeitedBy = lastRound?.forfeitedBy; 
-  
-useEffect(() => {
-  const correct = new Audio("/music/correct.wav");
-  const incorrect = new Audio("/music/incorrect.wav");
 
-  correct.volume = 0.45;
-  incorrect.volume = 0.45;
 
-  correct.oncanplaythrough = () => console.log("✅ correct.wav loaded");
-  incorrect.oncanplaythrough = () => console.log("✅ incorrect.wav loaded");
 
-  correct.onerror = (e) => console.log("❌ correct.wav failed", e);
-  incorrect.onerror = (e) => console.log("❌ incorrect.wav failed", e);
 
-  correctSoundRef.current = correct;
-  incorrectSoundRef.current = incorrect;
-}, []);
 
 const playAnswerSound = (isCorrect) => {
   const sound = isCorrect ? correctSoundRef.current : incorrectSoundRef.current;
-  console.log("playAnswerSound called:", isCorrect ? "correct" : "incorrect");
 
-  if (!sound) {
-    console.log("sound missing");
-    return;
-  }
+  console.log("🔊 playAnswerSound", {
+    isCorrect,
+    soundExists: !!sound,
+    src: sound?.src,
+    volume: sound?.volume,
+    readyState: sound?.readyState,
+    paused: sound?.paused,
+  });
 
+  if (!sound) return;
+
+  sound.volume = 0.85;  // bypass applyVolume entirely for now
   sound.pause();
   sound.currentTime = 0;
-
   sound.play()
-    .then(() => console.log("sound played"))
-    .catch((err) => console.log("sound play failed", err));
+    .then(() => console.log("✅ play() succeeded"))
+    .catch((err) => console.log("❌ play() failed:", err.name, err.message));
 };
-
-useEffect(() => {
-  if (typeof teamRoundResult?.isCorrect !== "boolean") return;
-  playAnswerSound(teamRoundResult.isCorrect);
-}, [teamRoundResult]);
 
 
 
@@ -159,29 +148,85 @@ useEffect(() => {
 }, [room, selfId]);
 
 useEffect(() => {
+  console.log("🎯 teamRoundResult effect fired:", teamRoundResult);
+  if (!teamRoundResult) return;  // guard against null reset
+  // if (typeof teamRoundResult?.isCorrect !== "boolean") return;
+  if (!correctSoundRef.current || !incorrectSoundRef.current) return;
+  playAnswerSound(teamRoundResult.isCorrect);
+}, [teamRoundResult]);
+
+useEffect(() => {
   const correct = new Audio("/music/correct.wav");
   const incorrect = new Audio("/music/incorrect.wav");
   const won = new Audio("/music/won.wav");
   const lost = new Audio("/music/lost.wav");
 
-  correct.volume = 0.45;
-  incorrect.volume = 0.45;
-  won.volume = 0.55;
-  lost.volume = 0.55;
+  correct.preload = "auto";
+  incorrect.preload = "auto";
+  won.preload = "auto";
+  lost.preload = "auto";
+
+  applyVolume(correct, "correct", getSoundSettings());
+  applyVolume(incorrect, "incorrect", getSoundSettings());
+  applyVolume(won, "won", getSoundSettings());
+  applyVolume(lost, "lost", getSoundSettings());
 
   correctSoundRef.current = correct;
   incorrectSoundRef.current = incorrect;
   wonSoundRef.current = won;
   lostSoundRef.current = lost;
+
+  setSoundsReady(true);
+
+  return () => {
+    [correct, incorrect, won, lost].forEach((audio) => {
+      audio.pause();
+      audio.currentTime = 0;
+    });
+  };
+}, []);
+
+
+
+useEffect(() => {
+  const handleSoundPreview = (event) => {
+    applyVolume(correctSoundRef.current, "correct", event.detail);
+    applyVolume(incorrectSoundRef.current, "incorrect", event.detail);
+    applyVolume(wonSoundRef.current, "won", event.detail);
+    applyVolume(lostSoundRef.current, "lost", event.detail);
+  };
+
+  window.addEventListener("dualmath:sound-preview", handleSoundPreview);
+  window.addEventListener("dualmath:sound-saved", handleSoundPreview);
+
+  return () => {
+    window.removeEventListener("dualmath:sound-preview", handleSoundPreview);
+    window.removeEventListener("dualmath:sound-saved", handleSoundPreview);
+  };
 }, []);
 
 const playEndSound = (didWin) => {
   const sound = didWin ? wonSoundRef.current : lostSoundRef.current;
-  if (!sound) return;
+
+  if (!sound) {
+    console.log("end sound missing", { didWin });
+    return;
+  }
+
+  applyVolume(sound, didWin ? "won" : "lost", getSoundSettings());
+
+  console.log("playing end sound", {
+    type: didWin ? "won" : "lost",
+    volume: sound.volume,
+    src: sound.src,
+  });
 
   sound.pause();
   sound.currentTime = 0;
-  sound.play().catch(() => {});
+
+  sound.play().catch((err) => {
+    console.log("end sound play failed", err);
+  });
 };
 
 useEffect(() => {
@@ -319,6 +364,8 @@ const currentRank = currentUser ? userManager.getUserRank(currentUser) : "Novice
     <div className="page">
       {/* Race Progress Header */}
       <div className="raceHeader">
+
+        
         <div className="raceTitle">
           <span className="raceIcon">🏁</span>
           Race to {targetCorrect}!

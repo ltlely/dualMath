@@ -10,6 +10,7 @@ import { userManager } from "./userManagerSupabase.js";
 import { updatePoints, getRank } from "./rankingSystem.js";
 import Rank from "./ui/Rank.jsx";
 import FriendList from "./ui/FriendList.jsx";
+import { applyVolume, getSoundSettings } from "./ui/soundSettings";
 
 const isDev = window.location.hostname === "localhost";
 const SOCKET_URL =
@@ -211,16 +212,39 @@ const [teamRoundResult, setTeamRoundResult] = useState(null);
    const clickSoundRef = useRef(null);
 const mainMusicRef = useRef(null);
 const gameMusicRef = useRef(null);
+const [previewTeamRoundResult, setPreviewTeamRoundResult] = useState(null);
 
-  useEffect(() => {
+socket.onAny((event, ...args) => {
+  console.log("🛎️ RAW:", event, args);
+});
+
+function solvePreviewQuestion(q) {
+  if (!q) return null;
+  if (q.op === "+") return q.a + q.b;
+  if (q.op === "-") return q.a - q.b;
+  if (q.op === "×") return q.a * q.b;
+  return null;
+}
+
+useEffect(() => {
+  const handleAny = (event, ...args) => {
+    console.log("🛎️ RAW socket event:", event, args);
+  };
+  socket.onAny(handleAny);
+  return () => socket.offAny(handleAny);
+}, []);
+
+ useEffect(() => {
+  const settings = getSoundSettings();
+
   const mainMusic = new Audio("/music/coding_loop.wav");
   mainMusic.loop = true;
-  mainMusic.volume = 0.20;
+  applyVolume(mainMusic, "mainMusic", settings);
   mainMusicRef.current = mainMusic;
 
   const gameMusic = new Audio("/music/game_loop.wav");
   gameMusic.loop = true;
-  gameMusic.volume = 0.20;
+  applyVolume(gameMusic, "gameMusic", settings);
   gameMusicRef.current = gameMusic;
 
   if (view === "game") {
@@ -242,17 +266,47 @@ const gameMusicRef = useRef(null);
   return () => {
     mainMusic.pause();
     gameMusic.pause();
+    mainMusic.currentTime = 0;
+    gameMusic.currentTime = 0;
   };
 }, [view]);
 
+useEffect(() => {
+  console.log("App passing teamRoundResult to Game:", teamRoundResult);
+}, [teamRoundResult]);
+
+useEffect(() => {
+  const handleSoundPreview = (event) => {
+    const settings = event.detail || getSoundSettings();
+
+    applyVolume(mainMusicRef.current, "mainMusic", settings);
+    applyVolume(gameMusicRef.current, "gameMusic", settings);
+    applyVolume(clickSoundRef.current, "click", settings);
+  };
+
+  window.addEventListener("dualmath:sound-preview", handleSoundPreview);
+  window.addEventListener("dualmath:sound-saved", handleSoundPreview);
+
+  return () => {
+    window.removeEventListener("dualmath:sound-preview", handleSoundPreview);
+    window.removeEventListener("dualmath:sound-saved", handleSoundPreview);
+  };
+}, []);
+
+
  useEffect(() => {
+  const settings = getSoundSettings();
+
   const clickAudio = new Audio("/music/click.wav");
-  clickAudio.volume = 0.5;
+  clickAudio.preload = "auto";
+  applyVolume(clickAudio, "click", settings);
   clickSoundRef.current = clickAudio;
 
   const handleGlobalClick = (e) => {
     const target = e.target;
-    if (!target.closest("button")) return;
+    const clickable = target.closest("button, [role='button'], .settingsTab, .roomNativeButton, .roomNativeButtonGhost");
+
+    if (!clickable) return;
 
     if (view === "game") {
       if (gameMusicRef.current?.paused) {
@@ -264,9 +318,15 @@ const gameMusicRef = useRef(null);
       }
     }
 
+    const latest = getSoundSettings();
+
     if (clickSoundRef.current) {
+      applyVolume(clickSoundRef.current, "click", latest);
+      clickSoundRef.current.pause();
       clickSoundRef.current.currentTime = 0;
-      clickSoundRef.current.play().catch(() => {});
+      clickSoundRef.current.play().catch((err) => {
+        console.log("Click sound blocked:", err);
+      });
     }
   };
 
@@ -274,6 +334,8 @@ const gameMusicRef = useRef(null);
 
   return () => {
     document.removeEventListener("pointerdown", handleGlobalClick);
+    clickAudio.pause();
+    clickAudio.currentTime = 0;
   };
 }, [view]);
 
@@ -384,35 +446,46 @@ useEffect(() => {
 );
 
   const handlePreviewSubmit = useCallback(({ tens, ones }) => {
-    setPreviewGame((prev) => {
-      if (!prev) return prev;
+  setPreviewGame((prev) => {
+    if (!prev) return prev;
 
-      const nextRound = Math.min(
-        (prev.state.round || 0) + 1,
-        prev.state.totalRounds
-      );
+    const myQuestion = prev.state?.teamQuestions?.A;
+    const correctAnswer = solvePreviewQuestion(myQuestion);
+    const submittedAnswer = Number(`${tens}${ones}`);
+    const isCorrect = correctAnswer === submittedAnswer;
 
-      return {
-        ...prev,
-        state: {
-          ...prev.state,
-          round: nextRound,
-          teamRounds: {
-            A: (prev.state.teamRounds?.A || 0) + 1,
-            B: (prev.state.teamRounds?.B || 0) + 1,
-          },
-          teamQuestions: {
-            A: createPreviewQuestion(),
-            B: createPreviewQuestion(),
-          },
-          teamDigits: {
-            A: createPreviewDigits(),
-            B: createPreviewDigits(),
-          },
+    setPreviewTeamRoundResult({ isCorrect });
+
+    setTimeout(() => {
+      setPreviewTeamRoundResult(null);
+    }, 250);
+
+    const nextRound = Math.min(
+      (prev.state.round || 0) + 1,
+      prev.state.totalRounds
+    );
+
+    return {
+      ...prev,
+      state: {
+        ...prev.state,
+        round: nextRound,
+        teamRounds: {
+          A: (prev.state.teamRounds?.A || 0) + 1,
+          B: (prev.state.teamRounds?.B || 0) + 1,
         },
-      };
-    });
-  }, []);
+        teamQuestions: {
+          A: createPreviewQuestion(),
+          B: createPreviewQuestion(),
+        },
+        teamDigits: {
+          A: createPreviewDigits(),
+          B: createPreviewDigits(),
+        },
+      },
+    };
+  });
+}, []);
 
   useEffect(() => {
     const raw = localStorage.getItem("pending_forfeit");
@@ -549,6 +622,20 @@ useEffect(() => {
     };
   }, [pendingAction]);
 
+
+useEffect(() => {
+  const handleTeamRoundEnd = (payload) => {
+    console.log("game:teamRoundEnd received:", payload);
+    setTeamRoundResult({ ...payload, _ts: Date.now() });
+  };
+
+  socket.on("game:teamRoundEnd", handleTeamRoundEnd);
+
+  return () => {
+    socket.off("game:teamRoundEnd", handleTeamRoundEnd);
+  };
+}, []);
+
   useEffect(() => {
     socket.on("room:joined", async ({ roomCode, selfId }) => {
   console.log("✅ Room joined:", roomCode);
@@ -583,9 +670,9 @@ useEffect(() => {
       }
     });
 
-    socket.on("game:teamRoundEnd", (payload) => {
-  setTeamRoundResult(payload);
-});
+   
+
+
 
 
 
@@ -596,6 +683,7 @@ useEffect(() => {
   setRoundInfo(info);
   setLastRound(null);
   setView("game");
+  setScreen("lobby");
 
   if (currentUser?.id) {
     await userManager.updateStatus(currentUser.id, "in_match");
@@ -642,7 +730,7 @@ setView("game");
       socket.off("game:roundEnd");
       socket.off("game:ended");
       socket.off("chat:new");
-      socket.off("game:teamRoundEnd");
+      
     };
   }, [currentUser, selfId, room, lastKnownTeam]);
 
@@ -1007,6 +1095,7 @@ if (currentUser?.id) {
         onSubmit={handlePreviewSubmit}
         onBack={() => setScreen("lobby")}
         onLeaveRoom={() => setScreen("lobby")}
+        teamRoundResult={previewTeamRoundResult}
       />
     );
   }
@@ -1119,6 +1208,8 @@ onOpenStore={async () => {
       </>
     );
   }
+
+  
 
   return (
     <>
