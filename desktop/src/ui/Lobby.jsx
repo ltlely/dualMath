@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Card } from "./components.jsx";
 import Auth from "./Auth.jsx";
 import { userManager } from "../userManagerSupabase.js";
@@ -117,7 +117,7 @@ useEffect(() => {
 }, [currentUser?.id]);
 
 
-function getComputedStatus(friend) {
+const getComputedStatus = useCallback((friend) => {
   const rawStatus = (friend?.status || "").toLowerCase();
 
   if (rawStatus === "in_match") return "in_match";
@@ -129,7 +129,7 @@ function getComputedStatus(friend) {
 
   if (diff < 45000) return "online";
   return "offline";
-}
+}, []);
 
 
 

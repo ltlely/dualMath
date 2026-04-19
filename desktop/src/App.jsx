@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { io } from "socket.io-client";
 import Lobby from "./ui/Lobby.jsx";
 import Room from "./ui/Room.jsx";
@@ -208,6 +208,20 @@ const [unreadChatCount, setUnreadChatCount] = useState(0);
 const [onlineFriends, setOnlineFriends] = useState([]);
 const [isOnlineFriendsScrolling, setIsOnlineFriendsScrolling] = useState(false);
 
+const getComputedStatus = useCallback((friend) => {
+  const rawStatus = (friend?.status || "").toLowerCase();
+
+  if (rawStatus === "in_match") return "in_match";
+  if (rawStatus === "in_room") return "in_room";
+
+  if (!friend?.last_seen) return "offline";
+
+  const diff = Date.now() - new Date(friend.last_seen).getTime();
+
+  if (diff < 45000) return "online";
+  return "offline";
+}, []);
+
 useEffect(() => {
   let isMounted = true;
 
@@ -228,23 +242,19 @@ useEffect(() => {
         : (friendsResult?.data || []);
 
       const nextOnline = friendsData.filter((friend) => {
-  const status = (friend.status || "").toLowerCase();
-  return status === "online" || status === "in_room" || status === "in_match";
-});
-
-if (!isOnlineFriendsScrolling) {
-  setOnlineFriends((prev) => {
-    const prevIds = prev.map((f) => `${f.id}:${f.status}`).join("|");
-    const nextIds = nextOnline.map((f) => `${f.id}:${f.status}`).join("|");
-
-    return prevIds === nextIds ? prev : nextOnline;
-  });
-}
+        const value = getComputedStatus(friend);
+        return value === "online" || value === "in_room" || value === "in_match";
+      });
 
       if (isMounted) {
         setOnlineFriends((prev) => {
-          const prevIds = prev.map((f) => `${f.id}:${f.status}`).join("|");
-          const nextIds = nextOnline.map((f) => `${f.id}:${f.status}`).join("|");
+          const prevIds = prev
+            .map((f) => `${f.id}:${getComputedStatus(f)}:${f.last_seen || ""}`)
+            .join("|");
+
+          const nextIds = nextOnline
+            .map((f) => `${f.id}:${getComputedStatus(f)}:${f.last_seen || ""}`)
+            .join("|");
 
           return prevIds === nextIds ? prev : nextOnline;
         });
@@ -262,7 +272,7 @@ if (!isOnlineFriendsScrolling) {
     isMounted = false;
     clearInterval(interval);
   };
-}, [currentUser]);
+}, [currentUser, getComputedStatus]);
 
 const loadUnreadChatCount = useCallback(async () => {
   if (!currentUser?.id) {
