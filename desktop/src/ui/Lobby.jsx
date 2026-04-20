@@ -638,7 +638,7 @@ const visibleOnlineFriends = friends.filter((friend) => {
   Open Game
 </button> */}
 
-    <div className="lobbyLayout">
+    <div className="lobbyLayout lobbySparkles ">
       {!showQueue ? (
         <div className="mainPanelWrapper">
           <main className="mainPanel">
@@ -651,7 +651,7 @@ const visibleOnlineFriends = friends.filter((friend) => {
               </div>
 
 
-
+           
               <div className="statsGrid">
                 <div className="statItem rankStatCard">
                   <div className="statLabel">Rank</div>
@@ -671,6 +671,7 @@ const visibleOnlineFriends = friends.filter((friend) => {
                   <div className="statSubtext">{stats.winRate}% win rate</div>
                 </div>
               </div>
+             
 
               <div className="rankProgressSection">
                 <div className="rankProgressHeader">
@@ -1131,8 +1132,8 @@ const visibleOnlineFriends = friends.filter((friend) => {
 
 .statsGrid,
 .rankProgressSection {
-  width: min(100%, 1320px) !important;
-  max-width: 1320px !important;
+  width: min(100%, 1100px) !important;
+  max-width: 1100px !important;
   min-width: 0 !important;
   margin-left: auto !important;
   margin-right: auto !important;
@@ -1142,18 +1143,6 @@ const visibleOnlineFriends = friends.filter((friend) => {
   display: none !important;
 }
 
-.statsGrid,
-.rankProgressSection {
-  width: min(100%, 1320px) !important;
-  max-width: 1320px !important;
-  min-width: 0 !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-}
-
-.sidebarPanel {
-  display: none !important;
-}
 
 /* ─── LOBBY SHELL ─────────────────────────────────────────────── */
 
@@ -1904,7 +1893,7 @@ const visibleOnlineFriends = friends.filter((friend) => {
   gap: 10px;
   margin-top: 12px;
   margin-bottom: 22px;
-  padding: 34px 34px 22px;
+  padding: 14px 14px 12px;
   border-radius: 34px;
   background:
     radial-gradient(circle at 50% 20%, rgba(255, 247, 225, 0.18), transparent 32%),
@@ -1941,7 +1930,7 @@ const visibleOnlineFriends = friends.filter((friend) => {
 .currentRankBadge {
   position: absolute;
   left: 50%;
-  top: -322.6px;
+  top: -310px;
   transform: translateX(-50%);
 
   width: clamp(390px, 34vw, 560px);
@@ -3202,6 +3191,70 @@ const visibleOnlineFriends = friends.filter((friend) => {
 
 .rankProgressSection {
   position: relative;
+}
+
+@keyframes lobbySparkleDrift {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-6px) translateX(4px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.7;
+  }
+}
+
+@keyframes lobbySparkleGlow {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+.lobbySparkles {
+  position: relative;
+  z-index: 0;
+}
+
+.lobbySparkles > * {
+  position: relative;
+  z-index: 2;
+}
+
+.lobbySparkles::before,
+.lobbySparkles::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 28px;
+  z-index: 1;
+}
+
+.lobbySparkles::before {
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.95) 0 1px, transparent 2px),
+    radial-gradient(circle, rgba(255, 240, 190, 0.9) 0 1.2px, transparent 2.2px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.75) 0 0.8px, transparent 1.8px);
+  background-size: 140px 140px, 180px 180px, 220px 220px;
+  background-position: 18px 20px, 90px 60px, 150px 30px;
+  animation: lobbySparkleDrift 5s linear infinite;
+  opacity: 0.8;
+}
+
+.lobbySparkles::after {
+  background:
+    radial-gradient(circle at 18% 30%, rgba(255, 255, 255, 0.18), transparent 10%),
+    radial-gradient(circle at 76% 35%, rgba(255, 245, 210, 0.14), transparent 12%),
+    radial-gradient(circle at 55% 75%, rgba(255, 255, 255, 0.12), transparent 14%);
+  filter: blur(10px);
+  animation: lobbySparkleGlow 2.4s ease-in-out infinite;
 }
 
       `}</style>
