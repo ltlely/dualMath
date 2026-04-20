@@ -287,10 +287,10 @@ function allReady(room) {
 }
 
 function maybeSwapTeamSlots(room, teamKey) {
-  const currentRound = room.state.teamRounds?.[teamKey] ?? 0;
+  const correctCount = room.state.teamStats?.[teamKey]?.correctCount ?? 0;
 
-  // switch when team reaches round 5
-  if (currentRound !== 5) return;
+  // switch only when team reaches 5 correct answers
+  if (correctCount !== 5) return;
 
   const teamPlayers = Array.from(room.players.values()).filter(
     (p) => p.team === teamKey
@@ -333,7 +333,6 @@ function startRound(roomCode, team = null) {
   room.state.teamRounds = { A: 0, B: 0 };
 }
 room.state.teamRounds[t] += 1;
-maybeSwapTeamSlots(room, t);
 
     // Reset team digits for this team
     if (!room.state.teamDigits) {
@@ -450,6 +449,21 @@ function endRoundForTeam(roomCode, team) {
       room.state.teamStats[team].timeToTarget = now - (room.state.matchStartAt || now);
     }
   }
+
+  if (isCorrect) {
+  room.state.teamStats[team].correctCount =
+    (room.state.teamStats[team].correctCount || 0) + 1;
+
+  maybeSwapTeamSlots(room, team);
+
+  if (
+    room.state.teamStats[team].correctCount >= target &&
+    room.state.teamStats[team].timeToTarget == null
+  ) {
+    room.state.teamStats[team].timeToTarget =
+      now - (room.state.matchStartAt || now);
+  }
+}
 
   // DECLARE playersArray FIRST before using it anywhere
   const playersArray = Array.from(room.players.values());
