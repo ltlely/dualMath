@@ -304,15 +304,12 @@ export default function Room({
 }
 
 .rankBadgeIcon {
-  width: 34px;
-  height: 34px;
+  width: 20px;
+  height: 20px;
   object-fit: contain;
   flex-shrink: 0;
   display: block;
-  margin-top: -6px;
-  margin-bottom: -6px;
-  margin-left: -10px;
-  margin-right: -8px;
+  margin: 0px;
 }
 
 .page .rankBadge {

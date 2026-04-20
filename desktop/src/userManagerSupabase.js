@@ -818,144 +818,178 @@ if (!updateSuccess) {
   }
 },
   // Login user
-loginUser: async (emailOrUsername, password) => {
-  try {
-    let email = emailOrUsername;
-    let foundProfile = null;
-
-    // If not an email, look up by username
-    if (!emailOrUsername.includes("@")) {
-      const normalizedUsername = emailOrUsername.trim().toLowerCase();
-
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, email, active_session_token, last_active")
-        .eq("username", normalizedUsername)
-        .maybeSingle();
-
-      if (profileError || !profile) {
-        return { success: false, message: "User not found" };
+ loginUser: async (emailOrUsername, password) => {
+    try {
+      let email = emailOrUsername;
+      let foundProfile = null;
+ 
+      // If not an email, look up by username
+      if (!emailOrUsername.includes("@")) {
+        const normalizedUsername = emailOrUsername.trim().toLowerCase();
+ 
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, email, active_session_token, active_device_id, last_active")
+          .eq("username", normalizedUsername)
+          .maybeSingle();
+ 
+        if (profileError || !profile) {
+          return { success: false, message: "User not found" };
+        }
+ 
+        if (!profile.email) {
+          return { success: false, message: "Please login with your email address" };
+        }
+ 
+        foundProfile = profile;
+        email = profile.email;
+      } else {
+        const normalizedEmail = emailOrUsername.trim().toLowerCase();
+ 
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, email, active_session_token, active_device_id, last_active")
+          .eq("email", normalizedEmail)
+          .maybeSingle();
+ 
+        if (profileError) {
+          return { success: false, message: "Login failed. Please try again." };
+        }
+ 
+        foundProfile = profile || null;
+        email = normalizedEmail;
       }
-
-      if (!profile.email) {
-        return { success: false, message: "Please login with your email address" };
+ 
+      // ── Device-based session check ──────────────────────────────────────────
+      // Allow login freely if:
+      //   (a) no active session exists, OR
+      //   (b) the request is coming from the same browser (same device_id), OR
+      //   (c) the existing session has gone stale (> 2 min since last_active)
+      //
+      // Block only when a *different* device/browser has an active, fresh session.
+      if (foundProfile?.active_session_token && foundProfile?.active_device_id) {
+        const currentDeviceId = getOrCreateDeviceId();
+        const isSameDevice = foundProfile.active_device_id === currentDeviceId;
+ 
+        if (!isSameDevice) {
+          const lastActiveMs = foundProfile.last_active
+            ? new Date(foundProfile.last_active).getTime()
+            : 0;
+          const SESSION_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+          const isSessionFresh = Date.now() - lastActiveMs < SESSION_TIMEOUT_MS;
+ 
+          if (isSessionFresh) {
+            return { success: false, message: "This account is already logged in on another device." };
+          }
+ 
+          // Stale session on a different device — clear it and proceed
+          await supabase
+            .from("profiles")
+            .update({
+              active_session_token: null,
+              active_device_id: null,
+              status: "offline",
+              last_seen: new Date().toISOString(),
+            })
+            .eq("id", foundProfile.id);
+        }
+        // Same device → fall through and let them log in normally
+      } else if (foundProfile?.active_session_token && !foundProfile?.active_device_id) {
+        // Legacy row without device_id: fall back to the old time-based check
+        const lastActiveMs = foundProfile.last_active
+          ? new Date(foundProfile.last_active).getTime()
+          : 0;
+        const SESSION_TIMEOUT_MS = 2 * 60 * 1000;
+        const isSessionFresh = Date.now() - lastActiveMs < SESSION_TIMEOUT_MS;
+ 
+        if (isSessionFresh) {
+          return { success: false, message: "User is already logged in." };
+        }
+ 
+        await supabase
+          .from("profiles")
+          .update({
+            active_session_token: null,
+            status: "offline",
+            last_seen: new Date().toISOString(),
+          })
+          .eq("id", foundProfile.id);
       }
-
-      foundProfile = profile;
-      email = profile.email;
-    } else {
-      const normalizedEmail = emailOrUsername.trim().toLowerCase();
-
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, email, active_session_token, last_active")
-        .eq("email", normalizedEmail)
-        .maybeSingle();
-
-      if (profileError) {
-        return { success: false, message: "Login failed. Please try again." };
+      // ───────────────────────────────────────────────────────────────────────
+ 
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+ 
+      if (error) {
+        return { success: false, message: error.message };
       }
-
-      foundProfile = profile || null;
-      email = normalizedEmail;
-    }
-
-    // Only block login if the existing session is still fresh
-    if (foundProfile?.active_session_token) {
-      const lastActiveMs = foundProfile.last_active
-        ? new Date(foundProfile.last_active).getTime()
-        : 0;
-
-      const nowMs = Date.now();
-      const SESSION_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
-      const isSessionFresh = nowMs - lastActiveMs < SESSION_TIMEOUT_MS;
-
-      if (isSessionFresh) {
-        return { success: false, message: "User is already logged in." };
+ 
+      if (!data.user) {
+        return { success: false, message: "Login failed" };
       }
-
-      // stale/crashed session -> clear it and allow login
+ 
+      const sessionToken = getOrCreateSessionToken();
+      const deviceId = getOrCreateDeviceId();
+      const emailVerified = data.user.email_confirmed_at !== null;
+ 
       await supabase
         .from("profiles")
         .update({
-          active_session_token: null,
-          status: "offline",
-          last_seen: new Date().toISOString(),
+          active_session_token: sessionToken,
+          active_device_id: deviceId,
+          last_active: new Date().toISOString(),
+          status: "online",
         })
-        .eq("id", foundProfile.id);
+        .eq("id", data.user.id);
+ 
+      const { data: fullProfile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", data.user.id)
+        .single();
+ 
+      const user = {
+        id: data.user.id,
+        username: fullProfile?.username || data.user.user_metadata?.username || "Player",
+        email: data.user.email,
+        emailVerified,
+        avatarData: fullProfile?.avatar_data || null,
+        skinTone: fullProfile?.skin_tone || "light",
+        starterCharacter: fullProfile?.starter_character || null,
+        equippedHair: fullProfile?.equipped_hair || null,
+        equippedTop: fullProfile?.equipped_top || null,
+        equippedBottom: fullProfile?.equipped_bottom || null,
+        equippedOutfit: fullProfile?.equipped_outfit || "",
+        equippedShoes: fullProfile?.equipped_shoes || null,
+        equippedAccessory: fullProfile?.equipped_accessory || "",
+        ownedItems: fullProfile?.owned_items || [],
+        coins: fullProfile?.coins ?? 2000,
+        rankPoints: fullProfile?.rank_points || 0,
+        wins: fullProfile?.wins || 0,
+        losses: fullProfile?.losses || 0,
+        totalGames: fullProfile?.total_games || 0,
+      };
+ 
+      localStorage.setItem("dualmath_current_user", JSON.stringify(user));
+ 
+      if (!emailVerified) {
+        localStorage.setItem("dualmath_pending_verification_email", data.user.email);
+      } else {
+        localStorage.removeItem("dualmath_pending_verification_email");
+      }
+ 
+      return {
+        success: true,
+        user,
+        requiresVerification: !emailVerified,
+      };
+    } catch (error) {
+      console.error("Login error:", error);
+      return { success: false, message: "Login failed. Please try again." };
     }
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      return { success: false, message: error.message };
-    }
-
-    if (!data.user) {
-      return { success: false, message: "Login failed" };
-    }
-
-    const sessionToken = getOrCreateSessionToken();
-    const emailVerified = data.user.email_confirmed_at !== null;
-
-    await supabase
-      .from("profiles")
-      .update({
-        active_session_token: sessionToken,
-        last_active: new Date().toISOString(),
-        status: "online",
-      })
-      .eq("id", data.user.id);
-
-    const { data: fullProfile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", data.user.id)
-      .single();
-
-    const user = {
-      id: data.user.id,
-      username: fullProfile?.username || data.user.user_metadata?.username || "Player",
-      email: data.user.email,
-      emailVerified,
-      avatarData: fullProfile?.avatar_data || null,
-      skinTone: fullProfile?.skin_tone || "light",
-      starterCharacter: fullProfile?.starter_character || null,
-      equippedHair: fullProfile?.equipped_hair || null,
-      equippedTop: fullProfile?.equipped_top || null,
-      equippedBottom: fullProfile?.equipped_bottom || null,
-      equippedOutfit: fullProfile?.equipped_outfit || "",
-      equippedShoes: fullProfile?.equipped_shoes || null,
-      equippedAccessory: fullProfile?.equipped_accessory || "",
-      ownedItems: fullProfile?.owned_items || [],
-      coins: fullProfile?.coins ?? 2000,
-      rankPoints: fullProfile?.rank_points || 0,
-      wins: fullProfile?.wins || 0,
-      losses: fullProfile?.losses || 0,
-      totalGames: fullProfile?.total_games || 0,
-    };
-
-    localStorage.setItem("dualmath_current_user", JSON.stringify(user));
-
-    if (!emailVerified) {
-      localStorage.setItem("dualmath_pending_verification_email", data.user.email);
-    } else {
-      localStorage.removeItem("dualmath_pending_verification_email");
-    }
-
-    return {
-      success: true,
-      user,
-      requiresVerification: !emailVerified,
-    };
-  } catch (error) {
-    console.error("Login error:", error);
-    return { success: false, message: "Login failed. Please try again." };
-  }
-},
+  },
 
   // Logout user
   logoutUser: async () => {
@@ -963,22 +997,24 @@ loginUser: async (emailOrUsername, password) => {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session?.user?.id) {
-        // Clear the active session token
         await supabase
-  .from("profiles")
-  .update({
-    active_session_token: null,
-    status: "offline",
-    last_seen: new Date().toISOString(),
-    last_active: new Date().toISOString(),
-  })
-  .eq("id", session.user.id);
+          .from("profiles")
+          .update({
+            active_session_token: null,
+            active_device_id: null,
+            status: "offline",
+            last_seen: new Date().toISOString(),
+            last_active: new Date().toISOString(),
+          })
+          .eq("id", session.user.id);
       }
-
+ 
       await supabase.auth.signOut();
       localStorage.removeItem('dualmath_current_user');
       localStorage.removeItem('dualmath_pending_verification_email');
       sessionStorage.removeItem('dualmath_session_token');
+      // NOTE: we intentionally do NOT remove dualmath_device_id so the same
+      // browser can log back in without being blocked by its own stale session.
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -1264,37 +1300,42 @@ return { success: true, user: mergedUser };
   },
 
   // Check if session is still valid (call periodically)
-  validateSession: async () => {
+validateSession: async () => {
     try {
-      // Skip validation during password recovery
       const isRecoveryMode = localStorage.getItem('dualmath_password_recovery_mode') === 'true' ||
                              window.location.hash.includes('type=recovery');
       if (isRecoveryMode) {
         return { valid: true, reason: 'recovery_mode' };
       }
-
+ 
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session?.user) {
         return { valid: false, reason: 'no_session' };
       }
-
+ 
       const currentSessionToken = getOrCreateSessionToken();
-
+      const currentDeviceId = getOrCreateDeviceId();
+ 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('active_session_token')
+        .select('active_session_token, active_device_id')
         .eq('id', session.user.id)
         .single();
-
-      if (profile?.active_session_token && profile.active_session_token !== currentSessionToken) {
-        // Session was invalidated by another login
+ 
+      // Session is invalid only if another *different* device has taken over
+      if (
+        profile?.active_session_token &&
+        profile.active_session_token !== currentSessionToken &&
+        profile?.active_device_id &&
+        profile.active_device_id !== currentDeviceId
+      ) {
         await supabase.auth.signOut();
         localStorage.removeItem('dualmath_current_user');
         sessionStorage.removeItem('dualmath_session_token');
         return { valid: false, reason: 'session_replaced' };
       }
-
+ 
       return { valid: true };
     } catch (error) {
       console.error('Session validation error:', error);
@@ -1730,6 +1771,17 @@ acceptFriendRequest: async (requestId, currentUserId, senderId) => {
     return { success: false, message: "Could not accept request." };
   }
 },
+
+
+};
+
+const getOrCreateDeviceId = () => {
+  let deviceId = localStorage.getItem('dualmath_device_id');
+  if (!deviceId) {
+    deviceId = `dev-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+    localStorage.setItem('dualmath_device_id', deviceId);
+  }
+  return deviceId;
 };
 
 export { supabase };

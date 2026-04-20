@@ -84,13 +84,37 @@ function mixTracks(...tracks) {
     }
   }
 
-  let maxAmp = 1;
-  for (const s of mixed) {
+  return normalize(mixed);
+}
+
+function normalize(samples) {
+  let maxAmp = 0.0001;
+  for (const s of samples) {
     const a = Math.abs(s);
     if (a > maxAmp) maxAmp = a;
   }
+  return samples.map((s) => s / maxAmp);
+}
 
-  return mixed.map((s) => s / maxAmp);
+function addLoopTail(samples, tailMs = 250) {
+  const tailLen = Math.floor((SAMPLE_RATE * tailMs) / 1000);
+  if (samples.length <= tailLen) return samples;
+
+  const head = samples.slice(0, tailLen);
+  const tail = samples.slice(samples.length - tailLen);
+  const out = samples.slice();
+
+  for (let i = 0; i < tailLen; i++) {
+    const fadeIn = i / tailLen;
+    const fadeOut = 1 - fadeIn;
+    out.push(tail[i] * fadeOut + head[i] * fadeIn);
+  }
+
+  return normalize(out);
+}
+
+function repeatPattern(pattern, times = 4) {
+  return Array.from({ length: times }, () => pattern).flat();
 }
 
 function writeWav(filename, samples) {
@@ -139,9 +163,14 @@ const bassPattern = [
   ["C4", 0.5], ["C4", 0.5],
 ];
 
-const melody = sequence(melodyPattern, "sine");
-const bass = sequence(bassPattern, "sine");
+const longMelodyPattern = repeatPattern(melodyPattern, 4);
+const longBassPattern = repeatPattern(bassPattern, 4);
+
+const melody = sequence(longMelodyPattern, "sine");
+const bass = sequence(longBassPattern, "sine");
 const song = mixTracks(melody, bass);
 
-writeWav("coding_loop.wav", song);
+const loopReadySong = addLoopTail(song, 0);
+
+writeWav("coding_loop.wav", loopReadySong);
 console.log("Saved coding_loop.wav");

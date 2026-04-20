@@ -287,10 +287,12 @@ export default function Rank({ currentUser, onBack }) {
 }
 
 .leaderRankIcon {
-  width: 40px;
-  height: 40px;
+  width: 25px;
+  height: 25px;
   object-fit: contain;
   flex-shrink: 0;
+  margin-left: 8px;
+  margin-right: 8px;
 }
 
 .friendBadge {
@@ -307,14 +309,54 @@ export default function Rank({ currentUser, onBack }) {
 }
 
         .rankShell {
-          min-height: 100vh;
-          padding: 24px;
-          background:
-            radial-gradient(circle at top, rgba(255, 248, 230, 0.75), transparent 35%),
-            linear-gradient(180deg, #f8f0dd 0%, #e6d2ac 100%);
-          color: var(--ink);
-          box-sizing: border-box;
-        }
+  height: 100vh;
+  overflow: hidden;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top, rgba(255, 248, 230, 0.75), transparent 35%),
+    linear-gradient(180deg, #f8f0dd 0%, #e6d2ac 100%);
+  color: var(--ink);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.rankGrid.singleColumn {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  flex: 1;
+  min-height: 0;
+}
+
+.rankPanel {
+  background: linear-gradient(180deg, var(--cream), var(--tan));
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  border-radius: 24px;
+  padding: 18px;
+  box-shadow: 0 12px 24px rgba(95, 70, 48, 0.10);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.leaderList {
+  display: grid;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.leaderList::-webkit-scrollbar {
+  display: none;
+}
 
         .rankTopbar {
           display: flex;

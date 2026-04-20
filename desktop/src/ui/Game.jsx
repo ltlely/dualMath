@@ -133,9 +133,9 @@ useEffect(() => {
   const myTeam = me?.team;
   if (!myTeam) return;
 
-  const currentRound = room?.state?.teamRounds?.[myTeam] ?? 0;
+  const correctCount = room?.state?.teamStats?.[myTeam]?.correctCount ?? 0;
 
-  if (currentRound === 5 && !hasShownSwitchNoticeRef.current) {
+  if (correctCount === 5 && !hasShownSwitchNoticeRef.current) {
     hasShownSwitchNoticeRef.current = true;
     setShowSwitchNotice(true);
 

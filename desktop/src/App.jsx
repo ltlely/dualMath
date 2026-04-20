@@ -21,10 +21,11 @@ console.log("SOCKET_URL =", SOCKET_URL);
 
 export const socket = io(SOCKET_URL, {
   autoConnect: true,
-  transports: ["websocket", "polling"],
+  transports: ["polling", "websocket"],
   reconnection: true,
-  reconnectionAttempts: 5,
+  reconnectionAttempts: 10,
   reconnectionDelay: 1000,
+  timeout: 20000,
 });
 
 function createPreviewQuestion() {
@@ -218,6 +219,12 @@ socket.onAny((event, ...args) => {
   console.log("🛎️ RAW:", event, args);
 });
 
+const isInGameMusicState =
+  view === "game" ||
+  screen === "game" ||
+  room?.state?.phase === "playing" ||
+  !!roundInfo;
+
 function solvePreviewQuestion(q) {
   if (!q) return null;
   if (q.op === "+") return q.a + q.b;
@@ -234,34 +241,20 @@ useEffect(() => {
   return () => socket.offAny(handleAny);
 }, []);
 
- useEffect(() => {
+useEffect(() => {
   const settings = getSoundSettings();
 
   const mainMusic = new Audio("/music/coding_loop.wav");
   mainMusic.loop = true;
+  mainMusic.preload = "auto";
   applyVolume(mainMusic, "mainMusic", settings);
   mainMusicRef.current = mainMusic;
 
   const gameMusic = new Audio("/music/game_loop.wav");
   gameMusic.loop = true;
+  gameMusic.preload = "auto";
   applyVolume(gameMusic, "gameMusic", settings);
   gameMusicRef.current = gameMusic;
-
-  if (view === "game") {
-    mainMusic.pause();
-    mainMusic.currentTime = 0;
-
-    gameMusic.play().catch((err) => {
-      console.log("Game music blocked:", err);
-    });
-  } else {
-    gameMusic.pause();
-    gameMusic.currentTime = 0;
-
-    mainMusic.play().catch((err) => {
-      console.log("Main music blocked:", err);
-    });
-  }
 
   return () => {
     mainMusic.pause();
@@ -269,7 +262,46 @@ useEffect(() => {
     mainMusic.currentTime = 0;
     gameMusic.currentTime = 0;
   };
-}, [view]);
+}, []);
+
+useEffect(() => {
+  const mainMusic = mainMusicRef.current;
+  const gameMusic = gameMusicRef.current;
+
+  if (!mainMusic || !gameMusic) return;
+
+  if (!currentUser) {
+    mainMusic.pause();
+    gameMusic.pause();
+    mainMusic.currentTime = 0;
+    gameMusic.currentTime = 0;
+    return;
+  }
+
+  if (isInGameMusicState) {
+    if (!mainMusic.paused) {
+      mainMusic.pause();
+      mainMusic.currentTime = 0;
+    }
+
+    if (gameMusic.paused) {
+      gameMusic.play().catch((err) => {
+        console.log("Game music blocked:", err);
+      });
+    }
+  } else {
+    if (!gameMusic.paused) {
+      gameMusic.pause();
+      gameMusic.currentTime = 0;
+    }
+
+    if (mainMusic.paused) {
+      mainMusic.play().catch((err) => {
+        console.log("Main music blocked:", err);
+      });
+    }
+  }
+}, [currentUser, isInGameMusicState]);
 
 useEffect(() => {
   console.log("App passing teamRoundResult to Game:", teamRoundResult);
@@ -294,7 +326,7 @@ useEffect(() => {
 }, []);
 
 
- useEffect(() => {
+useEffect(() => {
   const settings = getSoundSettings();
 
   const clickAudio = new Audio("/music/click.wav");
@@ -304,19 +336,11 @@ useEffect(() => {
 
   const handleGlobalClick = (e) => {
     const target = e.target;
-    const clickable = target.closest("button, [role='button'], .settingsTab, .roomNativeButton, .roomNativeButtonGhost");
+    const clickable = target.closest(
+      "button, [role='button'], .settingsTab, .roomNativeButton, .roomNativeButtonGhost"
+    );
 
     if (!clickable) return;
-
-    if (view === "game") {
-      if (gameMusicRef.current?.paused) {
-        gameMusicRef.current.play().catch(() => {});
-      }
-    } else {
-      if (mainMusicRef.current?.paused) {
-        mainMusicRef.current.play().catch(() => {});
-      }
-    }
 
     const latest = getSoundSettings();
 
@@ -328,6 +352,24 @@ useEffect(() => {
         console.log("Click sound blocked:", err);
       });
     }
+
+    if (!currentUser) return;
+
+    if (isInGameMusicState) {
+      mainMusicRef.current?.pause();
+      if (mainMusicRef.current) mainMusicRef.current.currentTime = 0;
+
+      if (gameMusicRef.current?.paused) {
+        gameMusicRef.current.play().catch(() => {});
+      }
+    } else {
+      gameMusicRef.current?.pause();
+      if (gameMusicRef.current) gameMusicRef.current.currentTime = 0;
+
+      if (mainMusicRef.current?.paused) {
+        mainMusicRef.current.play().catch(() => {});
+      }
+    }
   };
 
   document.addEventListener("pointerdown", handleGlobalClick);
@@ -337,7 +379,7 @@ useEffect(() => {
     clickAudio.pause();
     clickAudio.currentTime = 0;
   };
-}, [view]);
+}, [currentUser, isInGameMusicState]);
 
 const getComputedStatus = useCallback((friend) => {
   const rawStatus = (friend?.status || "").toLowerCase();
@@ -918,10 +960,16 @@ if (currentUser?.id) {
     socket.emit("team:submit", { roomCode: room?.roomCode, tens, ones });
   };
 
-  const handleLoginSuccess = (user) => {
 
 
+const handleLoginSuccess = (user) => {
   if (!user) {
+    mainMusicRef.current?.pause();
+    gameMusicRef.current?.pause();
+
+    if (mainMusicRef.current) mainMusicRef.current.currentTime = 0;
+    if (gameMusicRef.current) gameMusicRef.current.currentTime = 0;
+
     setCurrentUser(null);
     setPendingNewUser(null);
     setShowPickCharacter(false);
@@ -934,23 +982,20 @@ if (currentUser?.id) {
     userManager.updateStatus(user.id, "online");
   }
 
-  
-    if (!user.avatarData && !user.starterCharacter && !user.ownedItems?.length) {
-  setPendingNewUser(user);
-  setShowPickCharacter(true);
-}
+  if (!user.avatarData && !user.starterCharacter && !user.ownedItems?.length) {
+    setPendingNewUser(user);
+    setShowPickCharacter(true);
+  }
 
   setCurrentUser(user);
   setPendingNewUser(null);
   setShowPickCharacter(false);
   setSessionError(null);
 
-  // Only navigate to lobby if not already in store
   if (view !== "store") {
     setView("lobby");
   }
 };
-
   useEffect(() => {
   if (!currentUser?.id) return;
 
@@ -989,70 +1034,107 @@ if (currentUser?.id) {
 
     return (
       <div className="sessionErrorOverlay">
-        <div className="sessionErrorModal">
-          <div className="sessionErrorIcon">⚠️</div>
-          <h2>Session Ended</h2>
-          <p>{sessionError}</p>
-          <button
-            className="sessionErrorBtn"
-            onClick={() => {
-              setSessionError(null);
-              setCurrentUser(null);
-            }}
-          >
-            Login Again
-          </button>
-        </div>
+  <div className="sessionErrorModal">
+    <div className="sessionErrorIcon">⚠️</div>
+    <h2>Session Ended</h2>
+    <p>{sessionError}</p>
+    <button
+      className="sessionErrorBtn"
+      onClick={() => {
+        setSessionError(null);
+        setCurrentUser(null);
+      }}
+    >
+      Login Again
+    </button>
+  </div>
 
-        <style>{`
-          .sessionErrorOverlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(11, 11, 18, 0.95);
-            backdrop-filter: blur(10px);
-            z-index: 2000;
-            display: grid;
-            place-items: center;
-          }
-          .sessionErrorModal {
-            text-align: center;
-            padding: 40px;
-            border-radius: 24px;
-            border: 1px solid rgba(251, 113, 133, 0.3);
-            background: linear-gradient(180deg, rgba(251, 113, 133, 0.05), transparent), #121222;
-            box-shadow: 0 20px 60px rgba(0,0,0,.5);
-            max-width: 400px;
-          }
-          .sessionErrorIcon {
-            font-size: 64px;
-            margin-bottom: 16px;
-          }
-          .sessionErrorModal h2 {
-            margin: 0 0 12px 0;
-            color: #fb7185;
-          }
-          .sessionErrorModal p {
-            color: #9aa0c3;
-            margin-bottom: 24px;
-          }
-          .sessionErrorBtn {
-            background: #7c5cff;
-            color: #0b0b12;
-            border: none;
-            border-radius: 12px;
-            padding: 14px 28px;
-            font-weight: 700;
-            font-size: 16px;
-            cursor: pointer;
-          }
-          .sessionErrorBtn:hover {
-            background: #8b6fff;
-          }
-        `}</style>
-      </div>
+  <style>{`
+    .sessionErrorOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at top, rgba(255, 223, 138, 0.18), transparent 32%),
+        rgba(91, 63, 42, 0.28);
+      backdrop-filter: blur(10px);
+    }
+
+    .sessionErrorModal {
+      width: min(100%, 420px);
+      text-align: center;
+      padding: 34px 28px 28px;
+      border-radius: 28px;
+      border: 1px solid rgba(155, 119, 88, 0.24);
+      background: linear-gradient(180deg, rgba(255, 248, 235, 0.98), rgba(245, 225, 186, 0.96));
+      box-shadow:
+        0 24px 60px rgba(91, 63, 42, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.65);
+      color: #5b3f2a;
+    }
+
+    .sessionErrorIcon {
+      width: 78px;
+      height: 78px;
+      margin: 0 auto 16px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      font-size: 38px;
+      background: linear-gradient(180deg, #fff6df, #efd39d);
+      border: 1px solid rgba(155, 119, 88, 0.28);
+      box-shadow:
+        0 10px 24px rgba(179, 132, 55, 0.18),
+        inset 0 1px 0 rgba(255,255,255,0.8);
+    }
+
+    .sessionErrorModal h2 {
+      margin: 0 0 10px;
+      font-size: 1.55rem;
+      font-weight: 800;
+      color: #7a532c;
+      letter-spacing: 0.01em;
+    }
+
+    .sessionErrorModal p {
+      margin: 0 0 24px;
+      color: #8a684b;
+      font-size: 0.98rem;
+      line-height: 1.5;
+    }
+
+    .sessionErrorBtn {
+      border: none;
+      border-radius: 16px;
+      padding: 14px 24px;
+      min-width: 170px;
+      font-weight: 800;
+      font-size: 15px;
+      cursor: pointer;
+      color: #fffaf0;
+      background: linear-gradient(180deg, #c79652 0%, #9b6a37 100%);
+      box-shadow:
+        0 12px 24px rgba(155, 119, 88, 0.24),
+        inset 0 1px 0 rgba(255,255,255,0.22);
+      transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+    }
+
+    .sessionErrorBtn:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.04);
+      box-shadow:
+        0 16px 30px rgba(155, 119, 88, 0.28),
+        inset 0 1px 0 rgba(255,255,255,0.22);
+    }
+
+    .sessionErrorBtn:active {
+      transform: translateY(0);
+    }
+  `}</style>
+</div>
     );
   };
 

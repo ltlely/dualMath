@@ -2,6 +2,32 @@
 import { userManager } from "../userManagerSupabase.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+
+const rankImages = {
+  "Novice Apprentice": "/noviceApprenticeRank.png",
+  Skilled: "/skilledRank.png",
+  Professional: "/professionalRank.png",
+  Expert: "/expertRank.png",
+  King: "/kingRank.png",
+};
+
+function getRankImage(rank) {
+  return rankImages[rank] || "/noviceApprenticeRank.png";
+}
+
+function getDisplayRank(user) {
+  if (user?.rank) return user.rank;
+  if (user?.rankLevel) return user.rankLevel;
+
+  const points = Number(user?.rankPoints ?? 0);
+
+  if (points >= 2000) return "King";
+  if (points >= 1500) return "Expert";
+  if (points >= 1000) return "Professional";
+  if (points >= 500) return "Skilled";
+  return "Novice Apprentice";
+}
+
 export default function FriendList({ currentUser, onBack, onUnreadCountChange,refreshUnreadCount,  onOnlineFriendsChange}) {
   const [friends, setFriends] = useState([]);
   const [blockTarget, setBlockTarget] = useState(null);
@@ -136,11 +162,12 @@ const loadUnreadChatSummary = useCallback(async () => {
         ? friendsResult
         : (friendsResult?.data || []);
 
-        console.log("friendsData statuses:", friendsData.map(f => ({
-  username: f.username,
-  status: f.status,
-  last_seen: f.last_seen
-})));
+//         console.log("friendsData statuses:", friendsData.map(f => ({
+//   username: f.username,
+//   status: f.status,
+//   last_seen: f.last_seen
+// })
+// ));
 
       setFriends(friendsData);
       setRequests(requestsData || []);
@@ -329,7 +356,27 @@ const handleSendRequest = async () => {
   }
 
   setMessage(result.message || "Friend added.");
-  loadData(false);
+
+  // instant UI update
+  setRequests((prev) => prev.filter((r) => r.id !== request.id));
+  setFriends((prev) => [
+  ...prev,
+  {
+    id: request.senderId,
+    username: request.username,
+    avatarData: request.avatarData ?? null,
+    wins: request.wins ?? 0,
+    totalGames: request.totalGames ?? 0,
+    winRate: request.winRate ?? 0,
+    rankPoints: request.rankPoints ?? 0,
+    rank: request.rank ?? getDisplayRank(request),
+    rankLevel: request.rankLevel ?? getDisplayRank(request),
+    status: request.status ?? "online",
+    last_seen: request.last_seen ?? new Date().toISOString(),
+  },
+]);
+
+  await loadData(false);
 };
 
   const handleDecline = async (requestId) => {
@@ -830,7 +877,11 @@ const ONLINE_WINDOW_MS = 30000; // 30 sec
                             <div className="friendNameRow">
                              <span className={`connectionDot ${getComputedStatus(friend)}`} />
                               <div className="friendName">{friend.username}</div>
-                           
+ <img
+                          className="onlineFriendRankBadge"
+                          src={getRankImage(getDisplayRank(friend))}
+alt={getDisplayRank(friend)}
+                        />
                             </div>
                             <div className="friendSub">
                               {friend.totalGames} games • {friend.winRate}% WR •{" "}
@@ -894,9 +945,13 @@ const ONLINE_WINDOW_MS = 30000; // 30 sec
 
                         <div>
                           <div className="friendNameRow">
-                            <span className={`connectionDot ${getComputedStatus(request)}`} />
-                            <div className="friendName">{request.username}</div>
-                          </div>
+  <div className="friendName">{request.username}</div>
+                          <img
+  className="friendRankBadge"
+  src={getRankImage(getDisplayRank(request))}
+alt={getDisplayRank(request)}
+/>
+</div>
                           <div className="friendSub">
                             {request.wins} wins • {request.winRate}% WR
                           </div>
@@ -985,9 +1040,15 @@ onClick={async () => {
                             </div>
 
                             <div>
-                            <div className="friendNameRow">
+                            
+<div className="friendNameRow">
   <span className={`connectionDot ${getComputedStatus(friend)}`} />
   <div className="friendName">{friend.username}</div>
+ <img
+  className="onlineFriendRankBadge"
+  src={getRankImage(getDisplayRank(friend))}
+  alt={getDisplayRank(friend)}
+/>
   {unreadSenders.includes(friend.id) && (
     <span className="messageUnreadTag">New</span>
   )}
@@ -1280,6 +1341,22 @@ onClick={async () => {
           flex-shrink: 0;
         }
 
+
+        .friendNameRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.friendRankBadge {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+  margin-left: -4px;
+}
+
         .profileAvatar {
           width: 56px;
           height: 56px;
@@ -1428,6 +1505,15 @@ onClick={async () => {
           flex-shrink: 0;
         }
 
+        .onlineFriendRankBadge {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+  margin-left: -4px;
+}
+
         .searchInput {
           flex: 1;
           min-width: 160px;
@@ -1503,6 +1589,26 @@ onClick={async () => {
           height: 100%;
           object-fit: contain;
         }
+
+
+        .chatHeaderUser {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chatHeaderUser h2 {
+  margin: 4px 0 0;
+}
+
+.chatHeaderRankBadge {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
 
         .friendNameRow {
           display: flex;

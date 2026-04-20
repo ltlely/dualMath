@@ -375,11 +375,14 @@ const composeCharacterAvatar = async (
 };
 
 export default function Store({ currentUser, onLoginSuccess, onClose }) {
+  const [buyTarget, setBuyTarget] = useState(null);
 
   const [animationFrame, setAnimationFrame] = useState(0);
   const [selectedSkinTone, setSelectedSkinTone] = useState(
   currentUser?.skinTone || "light"
 );
+
+
 
 useEffect(() => {
   setSelectedSkinTone(currentUser?.skinTone || "light");
@@ -389,31 +392,35 @@ useEffect(() => {
   const activeGender = userGender;
 
   const categoryMeta = useMemo(() => ({
-    hair: {
-      label: "Hair",
-      asset: activeGender === "female" ? girlHair1 : boyHair1,
-    },
-    tops: {
-      label: "Tops",
-      asset: activeGender === "female" ? GirlTop1 : BoyTop6,
-    },
-    bottoms: {
-      label: "Bottoms",
-      asset: activeGender === "female" ? GirlSkirt1 : BoyShorts1,
-    },
-    outfits: {
-      label: "Outfits",
-      asset: activeGender === "female" ? girlDress1 : BoyOutfit1,
-    },
-    shoes: {
-      label: "Shoes",
-      asset: UniShoes1,
-    },
-    accessories: {
-      label: "Accessories",
-      asset: uniHat1,
-    },
-  }), [activeGender]);
+  owned: {
+    label: "Owned",
+    asset: activeGender === "female" ? girlHair2 : boyHair1,
+  },
+  hair: {
+    label: "Hair",
+    asset: activeGender === "female" ? girlHair1 : boyHair1,
+  },
+  tops: {
+    label: "Tops",
+    asset: activeGender === "female" ? GirlTop1 : BoyTop6,
+  },
+  bottoms: {
+    label: "Bottoms",
+    asset: activeGender === "female" ? GirlSkirt1 : BoyShorts1,
+  },
+  outfits: {
+    label: "Outfits",
+    asset: activeGender === "female" ? girlDress1 : BoyOutfit1,
+  },
+  shoes: {
+    label: "Shoes",
+    asset: UniShoes1,
+  },
+  accessories: {
+    label: "Accessories",
+    asset: uniHat1,
+  },
+}), [activeGender]);
 
 useEffect(() => {
   const maxFrames = Math.max(
@@ -464,13 +471,31 @@ useEffect(() => {
   setCoins(currentUser?.coins ?? STARTING_COINS);
 }, [currentUser?.id]);
 
-  const categoryItems = useMemo(() => {
-    return normalizedStoreItems[activeCategory].filter((item) => {
-      const matchesGender = item.gender === "all" || item.gender === activeGender;
-      const matchesSearch = item.label.toLowerCase().includes(search.toLowerCase());
-      return matchesGender && matchesSearch;
-    });
-  }, [activeCategory, activeGender, search]);
+ const categoryItems = useMemo(() => {
+  if (activeCategory === "owned") {
+    return Object.entries(normalizedStoreItems)
+      .flatMap(([category, items]) =>
+        items.map((item) => ({ ...item, storeCategory: category }))
+      )
+      .filter((item) => {
+        const matchesGender =
+          item.gender === "all" || item.gender === activeGender;
+        const matchesSearch = item.label
+          .toLowerCase()
+          .includes(search.toLowerCase());
+        const isOwned = ownedItems.has(item.id);
+
+        return matchesGender && matchesSearch && isOwned;
+      });
+  }
+
+  return normalizedStoreItems[activeCategory].filter((item) => {
+    const matchesGender =
+      item.gender === "all" || item.gender === activeGender;
+    const matchesSearch = item.label.toLowerCase().includes(search.toLowerCase());
+    return matchesGender && matchesSearch;
+  });
+}, [activeCategory, activeGender, search, ownedItems]);
 
   // const equippedCount = Object.values(selectedItems).filter(Boolean).length;
   const ownedCount = Array.from(ownedItems).length;
@@ -779,41 +804,60 @@ return (
 
           <div className="sidebarSectionTitle">Categories</div>
           <div className="categoryList">
-            {Object.keys(normalizedStoreItems).map((category) => {
-              const isActive = activeCategory === category;
-              const meta = categoryMeta[category];
-              const availableCount = normalizedStoreItems[category].filter(
-                (item) => item.gender === "all" || item.gender === activeGender
-              ).length;
+  {Object.keys(categoryMeta).map((category) => {
+    const isActive = activeCategory === category;
+    const meta = categoryMeta[category];
 
-              return (
-                <button
-  key={category}
-  className={`categoryButton ${isActive ? "active" : ""}`}
-  onClick={() => {
-    setActiveCategory(category);
-    setSearch("");
-  }}
->
-  <span className="categoryEmoji">
-    <img src={meta.asset} alt={meta.label} className="categoryIconImg" />
-  </span>
+    const visibleItems =
+      category === "owned"
+        ? Object.values(normalizedStoreItems)
+            .flat()
+            .filter(
+              (item) => item.gender === "all" || item.gender === activeGender
+            )
+        : normalizedStoreItems[category].filter(
+            (item) => item.gender === "all" || item.gender === activeGender
+          );
 
-  <span className="categoryCopy">
-    <span className="categoryTitle">{meta.label}</span>
-    <span className="categoryCount">{availableCount} items</span>
-  </span>
-</button>
-              );
-            })}
-          </div>
+    const availableCount = visibleItems.length;
+    const ownedCategoryCount = visibleItems.filter((item) =>
+      ownedItems.has(item.id)
+    ).length;
 
-          <div className="sidebarSummary">
+    return (
+      <button
+        key={category}
+        className={`categoryButton ${isActive ? "active" : ""}`}
+        onClick={() => {
+          setActiveCategory(category);
+          setSearch("");
+        }}
+      >
+        <span className="categoryEmoji">
+          <img src={meta.asset} alt={meta.label} className="categoryIconImg" />
+        </span>
+
+        <span className="categoryCopy">
+          <span className="categoryTitle">{meta.label}</span>
+          <span className="categoryCount">
+            {category === "owned"
+              ? `${ownedCategoryCount} owned`
+              : `${availableCount} items`}
+          </span>
+        </span>
+      </button>
+    );
+  })}
+
+ 
+</div>
+
+          {/* <div className="sidebarSummary">
             <div className="summaryCard">
               <span className="summaryLabel">Owned</span>
               <strong>{ownedCount} items</strong>
             </div>
-          </div>
+          </div> */}
         </aside>
 
         <main className="catalogPanel">
@@ -883,13 +927,13 @@ return (
                           </button>
 
                           {!isOwned && (
-                            <button
-                              type="button"
-                              className="actionButton buy"
-                              onClick={() => handleBuyItem(item)}
-                            >
-                              Buy {item.price}
-                            </button>
+                           <button
+  type="button"
+  className="actionButton buy"
+  onClick={() => setBuyTarget(item)}
+>
+  Buy {item.price}
+</button>
                           )}
                         </div>
                       </div>
@@ -1023,6 +1067,41 @@ return (
 
     </div>
 
+    {buyTarget && (
+  <div className="confirmModal">
+    <div className="confirmOverlay" onClick={() => setBuyTarget(null)} />
+    <div className="confirmCard">
+      <div className="miniLabel">Confirm Purchase</div>
+      <h3>Buy Item?</h3>
+      <p className="confirmText">
+        Are you sure you want to buy <strong>{buyTarget.label}</strong> for{" "}
+        <strong>{buyTarget.price}</strong> coins?
+      </p>
+
+      <div className="confirmActions">
+        <button
+          type="button"
+          className="declineButton"
+          onClick={() => setBuyTarget(null)}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="acceptButton"
+          onClick={async () => {
+            const itemToBuy = buyTarget;
+            setBuyTarget(null);
+            await handleBuyItem(itemToBuy);
+          }}
+        >
+          Buy
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
 
       <style>{`
        :root{
@@ -1050,6 +1129,75 @@ return (
   --glow-brown: 0 0 24px rgba(157, 107, 47, 0.22);
   --olive: #9a7444;
   --olive-soft: rgba(154, 116, 68, 0.18);
+}
+
+.confirmModal {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: grid;
+  place-items: center;
+  pointer-events: all;
+}
+
+.confirmOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(76, 56, 38, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.confirmCard {
+  position: relative;
+  z-index: 1;
+  width: min(92vw, 420px);
+  background: linear-gradient(180deg, var(--cream), var(--tan));
+  border: 1px solid rgba(93, 88, 63, 0.08);
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: 0 18px 36px rgba(95, 70, 48, 0.18);
+  color: var(--ink);
+  pointer-events: all;
+}
+
+.confirmCard h3 {
+  margin: 8px 0 10px;
+  font-size: 24px;
+}
+
+.confirmText {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.confirmActions {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.acceptButton,
+.declineButton {
+  border: none;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.acceptButton {
+  background: linear-gradient(180deg, var(--gold-2), var(--gold));
+  color: #4a3218;
+}
+
+.declineButton {
+  background: rgba(255,255,255,0.7);
+  color: var(--brown-dark);
 }
 
 .categoryEmoji {

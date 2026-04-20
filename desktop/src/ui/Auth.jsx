@@ -19,6 +19,9 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   const [resendCooldown, setResendCooldown] = useState(0);
   const [checkingVerification, setCheckingVerification] = useState(false);
   const [newUser, setNewUser] = useState(null);
+  // pendingVerifyEmail is used to show the verify screen after signup
+  // without having a logged-in currentUser yet
+  const [pendingVerifyEmail, setPendingVerifyEmail] = useState(null);
 
 
   // Update avatar state when currentUser changes
@@ -51,39 +54,18 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
     console.log('🔗 URL hash detected:', { type, hasToken: !!accessToken });
     
     if (type === 'recovery' && accessToken) {
-      // Password reset flow
-      // Set recovery mode flag
       localStorage.setItem('dualmath_password_recovery_mode', 'true');
       console.log('🔐 Recovery link detected - showing reset form');
       setMode("reset");
       
     } else if (type === 'signup' && accessToken) {
-      // Email verification callback
+      // Email verification callback — just land on login with a success banner.
+      // We do NOT auto-login here; the user must log in manually so the normal
+      // login flow (including character pick for new accounts) runs cleanly.
       console.log('✅ Email verification link detected');
-      
-      const handleEmailVerification = async () => {
-        try {
-          // Wait for Supabase to process the token
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Refresh the user data
-          const freshUser = await userManager.getCurrentUser();
-          if (freshUser?.emailVerified && onLoginSuccess) {
-            setSuccess('Email verified successfully! You can now play.');
-            onLoginSuccess(freshUser);
-          } else {
-            setSuccess('Email verified! Please login to continue.');
-          }
-        } catch (err) {
-          console.error('Error handling email verification:', err);
-        }
-        
-        // Clear the hash
-        window.history.replaceState(null, '', window.location.pathname);
-      };
-      
-      handleEmailVerification();
+      window.history.replaceState(null, '', window.location.pathname);
       setMode("login");
+      setSuccess("✅ Email verified! You can now log in and start playing.");
       
     } else if (type === 'magiclink' && accessToken) {
       console.log('🔗 Magic link detected');
@@ -109,7 +91,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
         setError("You've been logged out because another device signed in.");
         if (onLoginSuccess) onLoginSuccess(null);
       }
-    }, 30000); // Check every 30 seconds
+    }, 30000);
 
     return () => clearInterval(validateInterval);
   }, [isLoggedIn, onLoginSuccess]);
@@ -149,24 +131,34 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
         return;
       }
 
-      // Check if email verification is required
-//    if (result.requiresVerification) {
-//   setMode("verify");
-//   setSuccess("Account created! Please verify your email, then create your character.");
-//   if (onLoginSuccess) {
-//     onLoginSuccess(result.user);
-//   }
-//   return;
-// }
-
-
+      // Block login if email is not verified — send them to the verify screen
+      if (result.requiresVerification || (result.user && result.user.emailVerified === false)) {
+        setPendingVerifyEmail(result.user?.email || null);
+        setMode("verify");
+        setError("Please verify your email before logging in. Check your inbox for the verification link.");
+        return;
+      }
 
       const freshUser = await userManager.getCurrentUser();
-      setAvatarData(freshUser?.avatarData || result.user.avatarData);
+      const loggedInUser = freshUser || result.user;
+
+      setAvatarData(loggedInUser?.avatarData || null);
       setEmailOrUsername("");
       setPassword("");
+
+      // New user with no character yet — go pick one
+      if (!loggedInUser?.starterCharacter) {
+        if (onOpenPickCharacter) {
+          onOpenPickCharacter(loggedInUser);
+          return;
+        }
+        setNewUser(loggedInUser);
+        setMode("pickCharacter");
+        return;
+      }
+
       if (onLoginSuccess) {
-        onLoginSuccess(freshUser || result.user);
+        onLoginSuccess(loggedInUser);
       }
     } catch (err) {
       setIsLoading(false);
@@ -176,96 +168,89 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   };
 
   const handleSignup = async () => {
-  const trimmedUsername = username.trim();
-  const trimmedEmail = email.trim();
+    const trimmedUsername = username.trim();
+    const trimmedEmail = email.trim();
 
-  if (!trimmedUsername) {
-    setError("Please enter a username");
-    return;
-  }
-
-  if (trimmedUsername.length < 3) {
-    setError("Username must be at least 3 characters");
-    return;
-  }
-
-  if (!trimmedEmail) {
-    setError("Please enter an email");
-    return;
-  }
-
-
-  if (!validateEmail(trimmedEmail)) {
-    setError("Please enter a valid email address");
-    return;
-  }
-
-  if (!password) {
-    setError("Please enter a password");
-    return;
-  }
-
-  if (password.length < 6) {
-    setError("Password must be at least 6 characters");
-    return;
-  }
-
-  if (password !== passwordConfirm) {
-    setError("Passwords do not match");
-    return;
-  }
-
-  setIsLoading(true);
-  clearMessages();
-
-  try {
-    const result = await userManager.signupUser(trimmedUsername, trimmedEmail, password);
-    setIsLoading(false);
-
-    if (!result.success) {
-      setError(result.message);
+    if (!trimmedUsername) {
+      setError("Please enter a username");
       return;
     }
 
-    setAvatarData(result.user?.avatarData || null);
-    setUsername("");
-    setEmail("");
-    setPassword("");
-    setPasswordConfirm("");
+    if (trimmedUsername.length < 3) {
+      setError("Username must be at least 3 characters");
+      return;
+    }
 
-    if (onOpenPickCharacter) {
-  onOpenPickCharacter(result.user);
-  return;
-}
+    if (!trimmedEmail) {
+      setError("Please enter an email");
+      return;
+    }
 
-    // Set up for character selection
-    setNewUser(result.user);
-    setMode("pickCharacter");
-    setSuccess("Account created! Now pick your character.");
-  } catch (err) {
-    setIsLoading(false);
-    setError("Signup failed. Please try again.");
-    console.error("Signup error:", err);
-  }
-};
+    if (!validateEmail(trimmedEmail)) {
+      setError("Please enter a valid email address");
+      return;
+    }
 
-const handleCharacterComplete = (userWithAvatar) => {
-  setNewUser(null);
-  setMode("login");
-  setSuccess("");
+    if (!password) {
+      setError("Please enter a password");
+      return;
+    }
 
-  if (onLoginSuccess) {
-    onLoginSuccess(userWithAvatar);
-  }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
 
-  if (onClose) {
-    onClose();
-  }
-};
+    if (password !== passwordConfirm) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    setIsLoading(true);
+    clearMessages();
+
+    try {
+      const result = await userManager.signupUser(trimmedUsername, trimmedEmail, password);
+      setIsLoading(false);
+
+      if (!result.success) {
+        setError(result.message);
+        return;
+      }
+
+      // Always go to verify screen after signup.
+      // Character selection happens after the user verifies + logs in.
+      setPendingVerifyEmail(trimmedEmail);
+      setUsername("");
+      setEmail("");
+      setPassword("");
+      setPasswordConfirm("");
+      setMode("verify");
+      setSuccess("Account created! Check your inbox for a verification link.");
+    } catch (err) {
+      setIsLoading(false);
+      setError("Signup failed. Please try again.");
+      console.error("Signup error:", err);
+    }
+  };
+
+  const handleCharacterComplete = (userWithAvatar) => {
+    setNewUser(null);
+    setMode("login");
+    setSuccess("");
+
+    if (onLoginSuccess) {
+      onLoginSuccess(userWithAvatar);
+    }
+
+    if (onClose) {
+      onClose();
+    }
+  };
 
   const handleCharacterBack = () => {
     setNewUser(null);
-    setMode("signup");
+    setMode("login");
     setSuccess("");
   };
 
@@ -331,23 +316,14 @@ const handleCharacterComplete = (userWithAvatar) => {
         return;
       }
 
-      // Clear recovery mode flag
-localStorage.removeItem('dualmath_password_recovery_mode');
+      localStorage.removeItem('dualmath_password_recovery_mode');
+      window.history.replaceState(null, '', window.location.pathname);
 
-// Clear the hash from URL
-window.history.replaceState(null, '', window.location.pathname);
+      setSuccess("Password updated! Please log in with your new password.");
+      setNewPassword("");
+      setNewPasswordConfirm("");
+      setMode("login");
 
-setSuccess("Password updated! Please log in with your new password.");
-setNewPassword("");
-setNewPasswordConfirm("");
-setMode("login");
-// Do NOT call onLoginSuccess(null) here — that triggers the logged-out
-// character pick flow. updatePassword() already signs the user out internally.
-      
-      // Important: Tell parent we're logged out so they show Auth component
-    
-      
-      // Switch to login mode after a short delay
       setTimeout(() => {
         setMode("login");
       }, 100);
@@ -366,8 +342,7 @@ setMode("login");
     clearMessages();
 
     try {
-      // Pass the email we have (from currentUser or state)
-      const emailToUse = currentUser?.email || email;
+      const emailToUse = pendingVerifyEmail || currentUser?.email || email;
       console.log('📧 Resending verification to:', emailToUse);
       
       const result = await userManager.resendVerificationEmail(emailToUse);
@@ -379,7 +354,7 @@ setMode("login");
       }
 
       setSuccess(result.message);
-      setResendCooldown(60); // 60 second cooldown
+      setResendCooldown(60);
     } catch (err) {
       setIsLoading(false);
       setError("Failed to resend verification email.");
@@ -392,14 +367,12 @@ setMode("login");
     clearMessages();
 
     try {
-      // Force refresh from Supabase to get latest verification status
       const result = await userManager.refreshEmailVerificationStatus();
       
       console.log('📧 Verification check result:', result);
       
       if (result.verified) {
         setSuccess("Email verified! Logging you in...");
-        // Get fresh user data and update parent
         const freshUser = await userManager.getCurrentUser();
         if (freshUser && onLoginSuccess) {
           onLoginSuccess(freshUser);
@@ -423,6 +396,7 @@ setMode("login");
     setEmail("");
     setPassword("");
     setPasswordConfirm("");
+    setPendingVerifyEmail(null);
     setAvatarData(null);
     clearMessages();
     if (onLoginSuccess) {
@@ -473,8 +447,7 @@ setMode("login");
     }
   };
 
-  // PASSWORD RESET SCREEN - Must be first, before any other checks
-  // This ensures users can reset password even if "logged in" via recovery token
+  // PASSWORD RESET SCREEN
   const isRecoveryMode = mode === "reset" || 
                          localStorage.getItem('dualmath_password_recovery_mode') === 'true' ||
                          window.location.hash.includes('type=recovery');
@@ -517,12 +490,10 @@ setMode("login");
             <button
               className="linkBtn"
               onClick={() => {
-                // Clear recovery mode and go to login
                 localStorage.removeItem('dualmath_password_recovery_mode');
                 setMode("login");
                 clearMessages();
                 window.history.replaceState(null, '', window.location.pathname);
-                // Tell parent we're logged out
                 if (onLoginSuccess) {
                   onLoginSuccess(null);
                 }
@@ -548,8 +519,9 @@ setMode("login");
     );
   }
 
-  // Email Verification Screen
-  if (mode === "verify" || (currentUser && !currentUser.emailVerified)) {
+  // Email Verification Screen — shown after signup OR if a logged-in user isn't verified
+  if (mode === "verify") {
+    const displayEmail = pendingVerifyEmail || currentUser?.email || email;
     return (
       <div className="authModal">
         <Card title="📧 Verify Your Email">
@@ -558,23 +530,28 @@ setMode("login");
             <p className="verifyText">
               We've sent a verification link to:
             </p>
-            <div className="emailDisplay">{currentUser?.email || email}</div>
+            <div className="emailDisplay">{displayEmail}</div>
             <p className="muted" style={{ textAlign: 'center' }}>
-              Please check your inbox (and spam folder) and click the verification link to continue playing.
+              Click the link in your inbox (check spam too). Once verified, come back here and log in to start playing!
             </p>
             
             {success && <div className="success">{success}</div>}
             {error && <div className="error">{error}</div>}
+
+            <div className="divider"><span>already clicked the link?</span></div>
             
             <Button 
-              onClick={handleCheckVerification}
-              disabled={checkingVerification}
+              onClick={() => {
+                setPendingVerifyEmail(null);
+                setMode("login");
+                clearMessages();
+              }}
             >
-              {checkingVerification ? "Checking..." : "🔄 I've Verified My Email"}
+              Go to Login
             </Button>
             
             <div className="divider">
-              <span>or</span>
+              <span>didn't get the email?</span>
             </div>
             
             <Button 
@@ -591,7 +568,11 @@ setMode("login");
             
             <button
               className="linkBtn"
-              onClick={handleLogout}
+              onClick={() => {
+                setPendingVerifyEmail(null);
+                setMode("signup");
+                clearMessages();
+              }}
               style={{ marginTop: '10px' }}
             >
               Use a different account
@@ -656,18 +637,18 @@ setMode("login");
           <div className="stack">
             <p className="muted">Enter your email address and we'll send you a link to reset your password.</p>
         
-          <Input
-  className="forgotEmailInput"
-  type="email"
-  value={email}
-  onChange={(e) => {
-    setEmail(e.target.value);
-    clearMessages();
-  }}
-  placeholder="Email address"
-  onKeyPress={(e) => e.key === "Enter" && handleForgotPassword()}
-  disabled={isLoading}
-/>
+            <Input
+              className="forgotEmailInput"
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                clearMessages();
+              }}
+              placeholder="Email address"
+              onKeyPress={(e) => e.key === "Enter" && handleForgotPassword()}
+              disabled={isLoading}
+            />
             {success && <div className="success">{success}</div>}
             {error && <div className="error">{error}</div>}
             <Button 
@@ -693,51 +674,51 @@ setMode("login");
         
         <style>{`
         .authModal .forgotEmailInput,
-  .authModal .forgotEmailInput input,
-  .authModal input.forgotEmailInput {
-    border: 2px solid #c9ab86 !important;
-    border-radius: 12px !important;
-    background: #fffaf2 !important;
-    color: #6b4f34 !important;
-    height: 46px;
-    padding: 0 14px;
-    box-shadow: inset 0 1px 2px rgba(107, 79, 52, 0.06) !important;
-  }
+        .authModal .forgotEmailInput input,
+        .authModal input.forgotEmailInput {
+          border: 2px solid #c9ab86 !important;
+          border-radius: 12px !important;
+          background: #fffaf2 !important;
+          color: #6b4f34 !important;
+          height: 46px;
+          padding: 0 14px;
+          box-shadow: inset 0 1px 2px rgba(107, 79, 52, 0.06) !important;
+        }
 
-  .authModal .forgotEmailInput:focus,
-  .authModal .forgotEmailInput input:focus,
-  .authModal input.forgotEmailInput:focus {
-    outline: none;
-    border-color: #b88e63 !important;
-    box-shadow: 0 0 0 3px rgba(201, 171, 134, 0.22) !important;
-  }
+        .authModal .forgotEmailInput:focus,
+        .authModal .forgotEmailInput input:focus,
+        .authModal input.forgotEmailInput:focus {
+          outline: none;
+          border-color: #b88e63 !important;
+          box-shadow: 0 0 0 3px rgba(201, 171, 134, 0.22) !important;
+        }
 
-  .authModal button:not(.linkBtn) {
-    border: 2px solid #c9ab86 !important;
-    border-radius: 12px !important;
-    background: linear-gradient(180deg, #fffaf2 0%, #f6ead8 100%) !important;
-    color: #6b4f34 !important;
-    font-weight: 700;
-    box-shadow: 0 4px 10px rgba(107, 79, 52, 0.08) !important;
-    width: 170px;
-    height: 42px;
-    align-self: center;
-  }
+        .authModal button:not(.linkBtn) {
+          border: 2px solid #c9ab86 !important;
+          border-radius: 12px !important;
+          background: linear-gradient(180deg, #fffaf2 0%, #f6ead8 100%) !important;
+          color: #6b4f34 !important;
+          font-weight: 700;
+          box-shadow: 0 4px 10px rgba(107, 79, 52, 0.08) !important;
+          width: 170px;
+          height: 42px;
+          align-self: center;
+        }
 
-  .authModal button:not(.linkBtn):hover {
-    background: linear-gradient(180deg, #fdf1df 0%, #ecd3ad 100%) !important;
-    border-color: #b88e63 !important;
-  }
+        .authModal button:not(.linkBtn):hover {
+          background: linear-gradient(180deg, #fdf1df 0%, #ecd3ad 100%) !important;
+          border-color: #b88e63 !important;
+        }
 
-  .success {
-    padding: 12px;
-    background: rgba(45,212,191,.08);
-    border: 1px solid rgba(45,212,191,.5);
-    border-radius: 8px;
-    color: rgba(45,212,191,.9);
-    font-size: 14px;
-    text-align: center;
-  }
+        .success {
+          padding: 12px;
+          background: rgba(45,212,191,.08);
+          border: 1px solid rgba(45,212,191,.5);
+          border-radius: 8px;
+          color: rgba(45,212,191,.9);
+          font-size: 14px;
+          text-align: center;
+        }
         `}</style>
       </div>
     );
@@ -745,7 +726,7 @@ setMode("login");
 
   // Not logged in - show login or signup
   if (!isLoggedIn) {
-   if (mode === "pickCharacter" && newUser && !newUser.starterCharacter) {
+    if (mode === "pickCharacter" && newUser && !newUser.starterCharacter) {
       return (
         <div className="authModal">
           <PickCharacter
@@ -811,14 +792,12 @@ setMode("login");
                 >
                   Sign up
                 </button>
-                
               </div>
             </div>
           </Card>
         ) : (
           <Card title="Create Account">
             <div className="stack">
-              
               <Input
                 value={username}
                 onChange={(e) => {
@@ -861,27 +840,13 @@ setMode("login");
                 disabled={isLoading}
               />
               {error && <div className="error">{error}</div>}
-<Button
-  className="nextBtn"
-  onClick={handleSignup}
-  disabled={!username.trim() || !email.trim() || !password || !passwordConfirm || isLoading}
->
-  {isLoading ? "Creating account..." : "Next"}
-</Button>
-{/* <Button
-  variant="secondary"
-  onClick={() => {
-    setNewUser({
-      id: "test-user",
-      username: "testuser",
-      email: "test@example.com",
-      avatarData: null,
-    });
-    setMode("pickCharacter");
-  }}
->
-  Test Pick Character
-</Button> */}
+              <Button
+                className="nextBtn"
+                onClick={handleSignup}
+                disabled={!username.trim() || !email.trim() || !password || !passwordConfirm || isLoading}
+              >
+                {isLoading ? "Creating account..." : "Next"}
+              </Button>
               <div className="authToggle">
                 <span className="muted">Already have an account? </span>
                 <button
@@ -899,7 +864,6 @@ setMode("login");
         )}
         
         <style>{`
-  
 .authModal button {
   border: none !important;
   box-shadow: none !important;
@@ -975,7 +939,6 @@ setMode("login");
   border-color: #8d6b4f !important;
   box-shadow: 0 0 0 3px rgba(201, 171, 134, 0.22);
 }
-          
         `}</style>
       </div>
     );
@@ -1014,7 +977,6 @@ setMode("login");
                 )}
               </div>
             </div>
-
           </div>
         </div>
       </Card>
@@ -1053,7 +1015,6 @@ setMode("login");
         .authPanel .userInfo {
           flex: 1;
         }
-
 
         .authPanel .username {
           font-size: 18px;
@@ -1094,26 +1055,25 @@ setMode("login");
         }
 
         .authModal button {
-  opacity: 1;
-}
+          opacity: 1;
+        }
 
-.authModal button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  filter: grayscale(0.15);
-}
+        .authModal button:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+          filter: grayscale(0.15);
+        }
 
-.authModal button:not(:disabled) {
-  opacity: 1;
-  cursor: pointer;
-  box-shadow: 0 8px 18px rgba(107, 79, 52, 0.18);
-}
+        .authModal button:not(:disabled) {
+          opacity: 1;
+          cursor: pointer;
+          box-shadow: 0 8px 18px rgba(107, 79, 52, 0.18);
+        }
+
         .authModal > * {
-  border: 2px solid #c9ab86;
-  border-radius: 18px;
-}
-
-
+          border: 2px solid #c9ab86;
+          border-radius: 18px;
+        }
       `}</style>
     </div>
   );
