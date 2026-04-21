@@ -1419,11 +1419,7 @@ const totalUsersOnline = friends.filter((friend) => {
   flex-shrink: 0;
 }
 
-.topNavItem.active {
-  background: rgba(255, 240, 205, 0.86);
-  border-color: rgba(107, 79, 52, 0.28);
-  box-shadow: 0 10px 20px rgba(176, 129, 53, 0.14);
-}
+
 
 .topNavBadge {
   min-width: 18px;
