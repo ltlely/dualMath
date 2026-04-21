@@ -1682,8 +1682,8 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   font-weight: 800 !important;
   letter-spacing: 0.14em !important;
   text-transform: uppercase !important;
-  color: rgba(107, 79, 52, 0.88) !important;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.35) !important;
+  color: rgba(248, 205, 165, 0.88) !important;
+  text-shadow: 0 1px 0 rgba(15, 8, 8, 0.35) !important;
   line-height: 1.2 !important;
   white-space: normal !important;
 }
