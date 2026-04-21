@@ -517,6 +517,23 @@ const countEquippedWearables = (items) => {
 
 const handleUnequip = (category) => {
   const equippedCount = countEquippedWearables(selectedItems);
+  const defaultHair = activeGender === "female" ? "GirlHair2" : "BoyHair1";
+
+  if (category === "hair") {
+    const ownedHairIds = normalizedStoreItems.hair
+      .filter((item) => ownedItems.has(item.id))
+      .map((item) => item.id);
+
+    const onlyHasDefaultHair =
+      ownedHairIds.length === 1 && ownedHairIds[0] === defaultHair;
+
+    const isTryingToUnequipDefaultHair = selectedItems.hair === defaultHair;
+
+    if (onlyHasDefaultHair && isTryingToUnequipDefaultHair) {
+      setError("You cannot unequip your default hair unless you own another hair.");
+      return;
+    }
+  }
 
   if (equippedCount <= 1) {
     setError("You must keep at least one item equipped.");
@@ -525,7 +542,7 @@ const handleUnequip = (category) => {
 
   setSelectedItems((prev) => ({
     ...prev,
-    [category]: ""
+    [category]: "",
   }));
 };
 
@@ -1234,7 +1251,7 @@ return (
 }
       
 
-        .miniLabel, .sidebarSectionTitle, .summaryLabel { text-transform: uppercase; letter-spacing: 0.18em; font-size: 11px; color: var(--muted); }
+        .miniLabel, .sidebarSectionTitle, .summaryLabel { text-transform: uppercase; letter-spacing: 0.18em; font-size: 11px; color: var(--ink); }
         .storeHeading { margin: 6px 0 8px; font-size: clamp(32px, 4vw, 48px); line-height: 1; font-weight: 900; color: var(--ink); }
         .topbarActions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
         .currencyPill {
@@ -1247,11 +1264,25 @@ return (
   padding: 10px 2px;
   border-radius: 999px;
   border: 1px solid rgba(107, 79, 52, 0.12);
-  background: var(--brown);
   box-shadow: 0 10px 18px rgba(102, 69, 42, 0.18);
   font-weight: 700;
-  color: #f9f1dd;
+  background: linear-gradient(180deg, rgba(112, 83, 36, 0.95), rgba(82, 61, 27, 0.95)) !important;
+  color: #fff2d2 !important;
 }
+
+.backButton,
+.btn.secondary {
+  padding: 12px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(214, 172, 95, 0.22) !important;
+  background: linear-gradient(180deg, rgba(98, 73, 33, 0.96), rgba(74, 55, 25, 0.96)) !important;
+  color: #fff1cf !important;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+
+
         .genderTab { padding: 12px 16px; border-radius: 999px; border: 1px solid rgba(107, 79, 52, 0.12); background: var(--brown); box-shadow: 0 10px 18px rgba(102, 69, 42, 0.18); font-weight: 700; color: #f9f1dd; }
         .genderTab { cursor: pointer; transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease; }
         .genderTab.active { background: var(--brown-soft); box-shadow: 0 10px 18px rgba(102, 69, 42, 0.18); }
@@ -1263,10 +1294,10 @@ return (
         .searchInput { width: 100%; padding: 12px 14px; border-radius: 16px; border: 1px solid rgba(93, 88, 63, 0.12); background: #fffdf5; color: var(--ink); outline: none; }
         .searchInput::placeholder { color: var(--muted); }
         .catalogGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 10px;}
-        .itemCard { display: grid; grid-template-columns: 84px 1fr; gap: 14px; align-items: center; min-height: 132px; padding: 14px; border-radius: 22px; border: 1px solid rgba(93, 88, 63, 0.08); background: linear-gradient(180deg, var(--cream-2), var(--base)); color: var(--ink); transition: 0.18s ease; position: relative; }
+        .itemCard { display: grid; grid-template-columns: 84px 1fr; gap: 14px; align-items: center; min-height: 132px; padding: 14px; border-radius: 22px; border: 1px solid rgba(93, 88, 63, 0.08); background: rgba(254, 255, 210, 0.36); transition: 0.18s ease; position: relative; }
         .itemCard::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; box-shadow: var(--glow-gold); transition: opacity 0.18s ease; }
-        .itemCard:hover, .itemCard.selected { border-color: rgba(107, 79, 52, 0.45); box-shadow: 0 12px 22px rgba(107, 79, 52, 0.16); transform: translateY(-1px); }
-        .itemCard:hover::after, .itemCard.selected::after { opacity: 1; }
+        .itemCard:hover, .itemCard.selected { border-color: rgba(107, 79, 52, 0.45); box-shadow: 0 12px 22px rgba(107, 79, 52, 0.16); transform: translateY(-1px); background:  background: rgba(254, 255, 210, 0.68);}
+        .itemCard:hover::after, .itemCard.selected::after { opacity: 1; background:  background: rgba(254, 255, 210, 0.68); }
         .itemThumb { width: 84px; height: 84px; border-radius: 18px; background: radial-gradient(circle at top, var(--brown-soft), var(--brown-dark)); border: 1px solid rgba(107, 79, 52, 0.08); display: grid; place-items: center; overflow: hidden; }
         .itemThumb img { width: 70px; height: 70px; object-fit: contain; image-rendering: pixelated; }
         .itemInfo { display: flex; flex-direction: column; gap: 10px; }
@@ -1296,7 +1327,7 @@ return (
   padding: 10px 14px;
   min-height: 84px;
   border-radius: 20px;
-  background: linear-gradient(180deg, #f9f7ea 0%, var(--cream-3) 100%);
+  background: rgba(254, 255, 210, 0.53);
   border: 1px solid rgba(93, 88, 63, 0.08);
   align-items: center;
 }
@@ -1316,6 +1347,19 @@ return (
   margin-top: -8px;
   margin-bottom: -18px;
   
+}
+
+.catalogPanel,
+.previewPanel {
+  background: rgba(255, 253, 244, 0.22) !important;
+  backdrop-filter: blur(18px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(160%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow:
+    0 10px 30px rgba(91, 63, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45) !important;
+  position: relative;
+  overflow: hidden;
 }
 
 .skinTonePicker {
@@ -1435,6 +1479,7 @@ return (
   gap: 12px;
 }
 
+
 .previewStage {
   position: relative;
   flex: 1;
@@ -1517,11 +1562,11 @@ return (
   font-weight: 800;
   font-size: 14px;
   margin-top: 0;
-  background: linear-gradient(180deg, #f3d578, #d8a63a) !important;
+  background: rgb(0, 0, 0) !important;
   color: #4a3218 !important;
   box-shadow:
     0 10px 18px rgba(202,166,58,0.22),
-    inset 0 1px 0 rgba(255,255,255,0.28);
+    inset 0 1px 0 rgba(255, 29, 29, 0.28);
   cursor: pointer;
 }
 
@@ -1606,9 +1651,9 @@ return (
   font-weight: 700;
   font-size: 14px;
   margin-top: 0;
-  background: linear-gradient(180deg, #e6c96a, #caa63a) !important;
+  background: rgba(254, 255, 210, 0.36) !important;
   color: #4a3b2a !important;
-  box-shadow: 0 6px 14px rgba(202,166,58,0.35);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.97));
   cursor: pointer;
 }
 
@@ -1634,13 +1679,18 @@ return (
   pointer-events: all;
 }
 
-              // .equippedList { display: grid; gap: 10px; }
+
+
+
+
+
+
+            
         .card { background: linear-gradient(180deg, #fbf7e7, #e7d7b5); border: 2px solid #c7a87a; border-radius: 18px; box-shadow: 0 10px 24px rgba(95,70,48,0.18); padding: 16px; }
-        // .equippedRow { display: flex; justify-content: space-between; gap: 14px; padding: 12px 14px; border-radius: 16px; background: rgba(255, 253, 244, 0.8); border: 1px solid rgba(93, 88, 63, 0.08); font-size: 13px; color: var(--ink); }
-        // .equippedRow span { color: var(--muted); }
+      
         .statusMessage { margin-top: 12px; padding: 12px 14px; border-radius: 14px; font-size: 13px; }
-        .statusMessage.success { background: var(--success-bg); border: 1px solid var(--success-border); color: #5e7a58; }
-        .statusMessage.error { background: var(--error-bg); border: 1px solid var(--error-border); color: #b06c6c; }
+        .statusMessage.success { background: var(--success-bg); border: 1px solid var(--success-border); color: #4d7e41; }
+        .statusMessage.error { background: var(--error-bg); border: 1px solid var(--error-border); color: #c23b3b !important; }
       `}</style>
     </div>
   );

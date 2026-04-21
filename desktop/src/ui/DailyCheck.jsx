@@ -220,81 +220,91 @@ const handleOpenChest = () => {
       </div>
 
       <style>{`
+
+      
         .dailyRewardOverlay {
-          position: fixed;
-          inset: 0;
-          z-index: 4000;
-          display: grid;
-          place-items: center;
-          padding: 20px;
-          background: rgba(91, 63, 42, 0.32);
-          backdrop-filter: blur(10px);
-        }
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(10, 9, 8, 0.56);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
 
-        .dailyRewardShell {
-          position: relative;
-          width: min(940px, 96vw);
-          border-radius: 34px;
-          padding: 28px 24px 22px;
-          background:
-            radial-gradient(circle at top, rgba(255, 232, 180, 0.32), transparent 30%),
-            linear-gradient(180deg, #f7e2ad 0%, #e5c28a 56%, #d6ae6b 100%);
-          border: 2px solid rgba(154, 108, 52, 0.25);
-          box-shadow:
-            0 28px 60px rgba(95, 70, 48, 0.24),
-            inset 0 1px 0 rgba(255,255,255,0.55);
-          color: #5a3817;
-        }
+.dailyRewardShell {
+  position: relative;
+  width: min(940px, 96vw);
+  border-radius: 34px;
+  padding: 28px 24px 22px;
+  background:
+    radial-gradient(circle at top, rgba(255, 214, 120, 0.08), transparent 30%),
+    linear-gradient(180deg, rgba(50, 42, 30, 0.97), rgba(34, 28, 20, 0.97));
+  border: 1px solid rgba(214, 172, 95, 0.18);
+  box-shadow:
+    0 28px 60px rgba(0, 0, 0, 0.32),
+    0 0 18px rgba(224, 171, 63, 0.08),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05);
+  color: #f5e7c6;
+}
 
-        .dailyRewardClose {
-          position: absolute;
-          top: 16px;
-          right: 16px;
-          width: 38px;
-          height: 38px;
-          border: none;
-          border-radius: 50%;
-          cursor: pointer;
-          font-size: 22px;
-          font-weight: 800;
-          color: #6b4520;
-          background: linear-gradient(180deg, #fff3d6, #e5c28a);
-          box-shadow: 0 8px 16px rgba(95, 70, 48, 0.16);
-        }
+.dailyRewardClose {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff1cf;
+  background: linear-gradient(180deg, rgba(65, 54, 37, 0.95), rgba(46, 38, 25, 0.95));
+  border: 1px solid rgba(214, 172, 95, 0.18);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04);
+}
 
-        .dailyRewardBanner {
-          width: fit-content;
-          margin: 0 auto;
-          padding: 14px 34px;
-          border-radius: 999px;
-          background: linear-gradient(180deg, #9a6c34, #6b4520);
-          color: #fff3d6;
-          font-size: 32px;
-          font-weight: 900;
-          line-height: 1;
-          box-shadow:
-            0 12px 22px rgba(95, 70, 48, 0.22),
-            inset 0 1px 0 rgba(255,255,255,0.18);
-        }
+.dailyRewardBanner {
+  width: fit-content;
+  margin: 0 auto;
+  padding: 14px 34px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(112, 83, 36, 0.95), rgba(82, 61, 27, 0.95));
+  color: #fff2d2;
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+  border: 1px solid rgba(214, 172, 95, 0.22);
+  box-shadow:
+    0 12px 22px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05);
+}
 
-        .dailyRewardSubtitle {
-          text-align: center;
-          color: #7a5a37;
-          font-weight: 700;
-          margin: 16px 0 18px;
-          font-size: 17px;
-        }
+.dailyRewardSubtitle {
+  text-align: center;
+  color: #d0bb95;
+  font-weight: 700;
+  margin: 16px 0 18px;
+  font-size: 17px;
+}
 
-        .dailyRewardBody {
-          display: grid;
-          grid-template-columns: 1fr 240px;
-          gap: 18px;
-          padding: 18px;
-          border-radius: 28px;
-          background: linear-gradient(180deg, rgba(255, 248, 232, 0.86), rgba(247, 226, 173, 0.76));
-          border: 1px solid rgba(154, 108, 52, 0.18);
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
-        }
+.dailyRewardBody {
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  gap: 18px;
+  padding: 18px;
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(56, 46, 31, 0.97), rgba(39, 32, 21, 0.95));
+  border: 1px solid rgba(214, 172, 95, 0.14);
+  box-shadow:
+    0 12px 24px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04);
+}
+
 
         .dailyRewardGrid {
           display: grid;
@@ -303,36 +313,32 @@ const handleOpenChest = () => {
         }
 
         .dailyRewardTile {
-          position: relative;
-          min-height: 140px;
-          padding: 12px 10px;
-          border-radius: 22px;
-          background: linear-gradient(180deg, #fff8ee, #f7e2ad);
-          border: 1px solid rgba(154, 108, 52, 0.18);
-          box-shadow:
-            0 10px 18px rgba(95, 70, 48, 0.08),
-            inset 0 1px 0 rgba(255,255,255,0.7);
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: flex-start;
-        }
-
-        .dailyRewardTile.today {
-          transform: translateY(-2px);
-          border-color: rgba(154, 108, 52, 0.42);
-          box-shadow:
-            0 0 0 3px rgba(224, 171, 63, 0.16),
-            0 14px 24px rgba(95, 70, 48, 0.12);
-        }
-
-        .dailyRewardTile.claimed {
-  background: linear-gradient(180deg, rgba(214, 174, 107, 0.95), rgba(191, 141, 86, 0.95));
-  border-color: rgba(154, 108, 52, 0.42);
+  position: relative;
+  min-height: 140px;
+  padding: 12px 10px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(60, 49, 33, 0.96), rgba(42, 34, 22, 0.94));
+  border: 1px solid rgba(214, 172, 95, 0.18);
   box-shadow:
-    0 10px 18px rgba(95, 70, 48, 0.10),
-    inset 0 1px 0 rgba(255,255,255,0.35);
-  opacity: 1;
+    0 10px 18px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  color: #f5e7c6;
+}
+
+.dailyRewardTile.today {
+  border-color: rgba(237, 187, 87, 0.30);
+  box-shadow:
+    0 0 0 3px rgba(224, 171, 63, 0.12),
+    0 14px 24px rgba(0, 0, 0, 0.20);
+}
+
+.dailyRewardTile.claimed {
+  background: linear-gradient(180deg, rgba(81, 69, 45, 0.95), rgba(58, 48, 31, 0.95));
+  border-color: rgba(214, 172, 95, 0.24);
 }
 
 .dailyRewardTile.claimed .dailyRewardAmount,
@@ -351,29 +357,38 @@ const handleOpenChest = () => {
 }
 
         .dailyRewardDayPill {
-          padding: 7px 16px;
-          border-radius: 999px;
-          background: linear-gradient(180deg, #bf8d56, #9a6c34);
-          color: #fff8ee;
-          font-size: 14px;
-          font-weight: 800;
-          box-shadow: 0 6px 10px rgba(95, 70, 48, 0.16);
-        }
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(112, 83, 36, 0.95), rgba(82, 61, 27, 0.95));
+  color: #fff2d2;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.16);
+}
 
         .dailyRewardDayPill.final {
           background: linear-gradient(180deg, #e0ab3f, #9a6c34);
         }
 
-        .dailyRewardIconWrap {
-          width: 72px;
-          height: 72px;
-          margin-top: 12px;
-          border-radius: 50%;
-          display: grid;
-          place-items: center;
-          background: radial-gradient(circle at 30% 30%, #fffdf6, #ffefc8);
-          box-shadow: inset 0 2px 0 rgba(255,255,255,0.75);
-        }
+
+.dailyRewardAmount,
+.treasureRewardText,
+.dailyRewardFooter {
+  color: #fff1cf;
+}
+
+
+        
+.dailyRewardIconWrap {
+  width: 72px;
+  height: 72px;
+  margin-top: 12px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.18), rgba(255, 214, 120, 0.08));
+  box-shadow: inset 0 2px 0 rgba(255,255,255,0.08);
+}
 
         .rewardIcon {
   width: 28px;
@@ -394,7 +409,7 @@ const handleOpenChest = () => {
           color: #6b4520;
         }
 
-        .dailyRewardCheck {
+.dailyRewardCheck {
   position: absolute;
   right: 10px;
   bottom: 8px;
@@ -410,37 +425,40 @@ const handleOpenChest = () => {
   box-shadow: 0 6px 10px rgba(63, 168, 91, 0.22);
 }
 
-        .dailyRewardFinalCol {
-          border-radius: 24px;
-          padding: 12px;
-          background: linear-gradient(180deg, rgba(255, 243, 214, 0.75), rgba(229, 194, 138, 0.92));
-          border: 1px solid rgba(154, 108, 52, 0.16);
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: space-between;
-          min-height: 100%;
-        }
 
-        .treasureChestCard {
-          position: relative;
-          width: 100%;
-          flex: 1;
-          margin: 14px 0 6px;
-          border-radius: 22px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          text-align: center;
-          cursor: pointer;
-          padding: 18px 12px;
-          background: linear-gradient(180deg, #fff3d6, #e5c28a);
-          border: 1px solid rgba(154, 108, 52, 0.22);
-          overflow: hidden;
-          transition: transform 0.18s ease, filter 0.18s ease;
-          box-shadow: 0 12px 20px rgba(95, 70, 48, 0.10);
-        }
+      .dailyRewardFinalCol {
+  border-radius: 24px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(60, 49, 33, 0.96), rgba(42, 34, 22, 0.94));
+  border: 1px solid rgba(214, 172, 95, 0.16);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 100%;
+}
+
+       .treasureChestCard {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  margin: 14px 0 6px;
+  border-radius: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  padding: 18px 12px;
+  background: linear-gradient(180deg, rgba(66, 54, 36, 0.98), rgba(45, 36, 23, 0.96));
+  border: 1px solid rgba(214, 172, 95, 0.18);
+  overflow: hidden;
+  transition: transform 0.18s ease, filter 0.18s ease;
+  box-shadow:
+    0 12px 20px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04);
+}
 
         .treasureChestCard:hover {
           transform: translateY(-2px);
@@ -475,21 +493,21 @@ const handleOpenChest = () => {
           position: relative;
           z-index: 1;
           margin-top: 12px;
-          color: #6b4520;
+           color: #f0ddb8;
           font-weight: 800;
           font-size: 16px;
           line-height: 1.35;
           max-width: 170px;
         }
 
-        .dailyRewardFooter {
-          margin-top: 16px;
-          text-align: center;
-          color: #6b4520;
-          font-weight: 800;
-          font-size: 17px;
-          min-height: 24px;
-        }
+       .dailyRewardFooter {
+  margin-top: 16px;
+  text-align: center;
+  color: #f0ddb8;
+  font-weight: 800;
+  font-size: 17px;
+  min-height: 24px;
+}
 
         @keyframes popChest {
           0% { transform: scale(0.82) rotate(-4deg); }
@@ -586,6 +604,7 @@ const handleOpenChest = () => {
   width: 200px;
   height: 200px;
 }
+
 
 
       `}</style>

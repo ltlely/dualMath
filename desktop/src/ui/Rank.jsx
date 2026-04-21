@@ -272,18 +272,22 @@ export default function Rank({ currentUser, onBack }) {
 
       <style>{`
        :root{
-  --base: rgba(249, 236, 196, 0.97);
-  --cream:#fff2cf;
-  --cream-2:#ffedc1;
-  --cream-3:#f7dd9d;
-  --tan:#e4bb75;
-  --brown:#9a682d;
-  --brown-dark:#6a4218;
-  --brown-soft:#bc8346;
-  --gold:#e0a632;
-  --gold-2:#efbc4c;
-  --ink:#583511;
-  --muted:#a17142;
+  --base: rgba(204, 173, 92, 0.96);
+  --cream:#fff3d6;
+  --cream-2:#ffefc8;
+  --cream-3:#f7e2ad;
+  --tan:#e5c28a;
+  --tan-2:#d6ae6b;
+  --brown:#9a6c34;
+  --brown-dark:#6b4520;
+  --brown-soft:#bf8d56;
+  --brown-light:#e4bc8e;
+  --gold:#e0ab3f;
+  --gold-2:#edbb57;
+  --gold-3:#f7cd76;
+  --ink:#5a3817;
+  --muted:#9d754c;
+  --card-border:#d2a75c;
 }
 
 .leaderRankIcon {
@@ -313,14 +317,17 @@ export default function Rank({ currentUser, onBack }) {
   overflow: hidden;
   padding: 24px;
   background:
-    radial-gradient(circle at top, rgba(255, 248, 230, 0.75), transparent 35%),
-    linear-gradient(180deg, #f8f0dd 0%, #e6d2ac 100%);
+    radial-gradient(circle at top, rgba(120, 92, 38, 0.20), transparent 32%),
+    radial-gradient(circle at top center, rgba(255, 214, 120, 0.08), transparent 42%),
+    linear-gradient(180deg, #3a342b 0%, #26211c 52%, #171411 100%);
   color: var(--ink);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
+
+
 
 .rankGrid.singleColumn {
   display: grid;
@@ -341,6 +348,194 @@ export default function Rank({ currentUser, onBack }) {
   min-height: 0;
   overflow: hidden;
 }
+
+/* ─── DARK SHELL OVERRIDES ────────────────────────────────────── */
+
+/* ─── DARK SHELL OVERRIDES ────────────────────────────────────── */
+
+.topNavShell {
+  background: rgba(34, 29, 22, 0.68) !important;
+  border-color: rgba(255, 220, 150, 0.10) !important;
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 240, 205, 0.06) !important;
+}
+
+.statsGrid {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 210, 110, 0.08), transparent 30%),
+    linear-gradient(180deg, #3a3126 0%, #2a231b 52%, #1b1712 100%) !important;
+  box-shadow:
+    0 18px 26px -10px rgba(0, 0, 0, 0.28),
+    0 34px 54px -22px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 236, 190, 0.06) !important;
+}
+
+.rankProgressSection,
+.meCard,
+.rankPanel,
+.roomCard,
+.onlineFriendsCard,
+.settingsCard {
+  background: linear-gradient(180deg, rgba(50, 42, 30, 0.97), rgba(34, 28, 20, 0.97)) !important;
+  border-color: rgba(214, 172, 95, 0.18) !important;
+  color: #f5e7c6 !important;
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.22),
+    0 0 18px rgba(224, 171, 63, 0.08),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05) !important;
+}
+
+.statItem,
+.winsStatCard,
+.lossesStatCard {
+  background: linear-gradient(180deg, rgba(63, 52, 35, 0.96), rgba(43, 35, 22, 0.94)) !important;
+  border-color: rgba(214, 172, 95, 0.20) !important;
+  color: #f5e7c6 !important;
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04) !important;
+}
+
+.leaderRow {
+  background: linear-gradient(
+    180deg,
+    rgba(140, 118, 82, 0.42),
+    rgba(140, 118, 82, 0.42)
+  ) !important;
+  border: 1px solid rgba(214, 172, 95, 0.16) !important;
+  color: #f4e3be !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 236, 190, 0.10) !important;
+}
+
+.friendsDrawerInner {
+  background: linear-gradient(180deg, rgba(43, 36, 24, 0.98), rgba(29, 24, 16, 0.98)) !important;
+  border-left-color: rgba(214, 172, 95, 0.12) !important;
+}
+
+.topNavItem {
+  background: rgba(61, 50, 32, 0.76) !important;
+  color: #f6e7c3 !important;
+  border-color: rgba(214, 172, 95, 0.16) !important;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04) !important;
+}
+
+.topNavItem.active {
+  background: linear-gradient(180deg, rgba(112, 83, 36, 0.95), rgba(82, 61, 27, 0.95)) !important;
+  color: #fff2d2 !important;
+  border-color: rgba(237, 187, 87, 0.28) !important;
+}
+
+.progressBarBg {
+  background: rgba(24, 20, 14, 0.80) !important;
+  border-color: rgba(214, 172, 95, 0.18) !important;
+}
+
+/* ─── TEXT READABILITY ────────────────────────────────────────── */
+
+.rankHeading,
+.panelHeader h2,
+.meName,
+.leaderName,
+.statValue,
+.leaderStatBox strong,
+.statPill strong,
+.rpEarned,
+.nextRankBadgeName,
+.rankName {
+  color: #fff1cf !important;
+}
+
+.rankMuted,
+.meSub,
+.leaderSub,
+.statSubtext,
+.rpNeeded,
+.rpText,
+.miniLabel,
+.statPill span,
+.leaderStatBox span,
+.fieldLabel,
+.heroMuted {
+  color: #d9c39a !important;
+}
+
+.statLabel,
+.rankLabelTop {
+  color: #e6c886 !important;
+}
+
+.backButton,
+.roomNativeButton,
+.roomNativeButtonGhost,
+.settingsTab {
+  background: linear-gradient(180deg, rgba(98, 73, 33, 0.96), rgba(74, 55, 25, 0.96)) !important;
+  color: #fff1cf !important;
+  border-color: rgba(214, 172, 95, 0.22) !important;
+}
+
+.roomNativeInput {
+  background: rgba(28, 24, 18, 0.88) !important;
+  color: #f5e7c6 !important;
+  border-color: rgba(214, 172, 95, 0.18) !important;
+}
+
+.roomNativeInput::placeholder {
+  color: #bca885 !important;
+}
+
+.meStats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.meStats .statPill {
+  background: linear-gradient(180deg, rgba(66, 54, 36, 0.98), rgba(45, 36, 23, 0.96)) !important;
+  border: 1px solid rgba(224, 171, 63, 0.22) !important;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.18),
+    0 0 12px rgba(224, 171, 63, 0.08),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05) !important;
+}
+
+.meStats .statPill span {
+  color: #d9c39a !important;
+}
+
+.meStats .statPill strong {
+  color: #fff1cf !important;
+}
+
+.leaderStats {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.leaderStats .leaderStatBox {
+  background: linear-gradient(180deg, rgba(60, 49, 33, 0.96), rgba(42, 34, 22, 0.94)) !important;
+  border: 1px solid rgba(214, 172, 95, 0.18) !important;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04) !important;
+}
+
+.leaderStats .leaderStatBox span {
+  color: #d9c39a !important;
+}
+
+.leaderStats .leaderStatBox strong {
+  color: #fff1cf !important;
+}
+
 
 .leaderList {
   display: grid;
@@ -399,14 +594,16 @@ export default function Rank({ currentUser, onBack }) {
           margin-bottom: 18px;
         }
 
-        .meCard,
-        .rankPanel {
-          background: linear-gradient(180deg, var(--cream), var(--tan));
-          border: 1px solid rgba(93, 88, 63, 0.08);
-          border-radius: 24px;
-          padding: 18px;
-          box-shadow: 0 12px 24px rgba(95, 70, 48, 0.10);
-        }
+       .meCard,
+.rankPanel {
+  background: linear-gradient(180deg, rgba(255, 243, 214, 0.98), rgba(229, 194, 138, 0.94));
+  border: 1px solid rgba(154, 108, 52, 0.14);
+  border-radius: 24px;
+  padding: 18px;
+  box-shadow:
+    0 12px 24px rgba(95, 70, 48, 0.10),
+    0 0 22px rgba(224, 171, 63, 0.10);
+}
 
         .meCard {
           margin-top: 8px;
@@ -511,7 +708,7 @@ export default function Rank({ currentUser, onBack }) {
           gap: 12px;
           padding: 12px 14px;
           border-radius: 18px;
-          background: linear-gradient(180deg, #f9f7ea, var(--cream-3));
+          background: linear-gradient(180deg, rgba(255, 249, 236, 0.96), rgba(247, 226, 173, 0.92));
           border: 1px solid rgba(93, 88, 63, 0.08);
         }
 
@@ -525,7 +722,7 @@ export default function Rank({ currentUser, onBack }) {
         .leaderPlace {
           width: 34px;
           font-weight: 900;
-          color: var(--brown-dark);
+          color: #fff1cf;
           flex-shrink: 0;
         }
 

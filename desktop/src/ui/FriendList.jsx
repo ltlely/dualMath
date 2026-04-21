@@ -1231,28 +1231,173 @@ onClick={async () => {
 
       <style>{`
       :root {
-  --cream: #fff2cf;
-  --cream-2: #ffedc0;
-  --cream-3: #f6dda2;
-  --tan: #e4bb74;
-  --brown: #9a682d;
-  --brown-dark: #6a4218;
-  --ink: #573411;
-  --muted: #a17345;
+  --cream: #3a3126;
+  --cream-2: #44382a;
+  --cream-3: #51412e;
+  --tan: #2d241b;
+  --brown: #8f6a32;
+  --brown-dark: #f0ddb8;
+  --ink: #f5e7c6;
+  --muted: #d0bb95;
+}
+.friendsShell {
+  box-sizing: border-box;
+  padding: 14px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, rgba(120, 92, 38, 0.20), transparent 32%),
+    radial-gradient(circle at top center, rgba(255, 214, 120, 0.08), transparent 42%),
+    linear-gradient(180deg, #3a342b 0%, #26211c 52%, #171411 100%);
+  color: var(--ink);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-        .friendsShell {
-          box-sizing: border-box;
-          padding: 14px;
-          overflow: hidden;
-          background:
-            radial-gradient(circle at top, rgba(255, 248, 230, 0.75), transparent 35%),
-            linear-gradient(180deg, #f8f0dd 0%, #e6d2ac 100%);
-          color: var(--ink);
-          height: 100vh;
-          display: flex;
-          flex-direction: column;
-        }
+.profileCard,
+.friendsPanel,
+.confirmCard {
+  background: linear-gradient(180deg, rgba(50, 42, 30, 0.97), rgba(34, 28, 20, 0.97)) !important;
+  border: 1px solid rgba(214, 172, 95, 0.18) !important;
+  color: #f5e7c6 !important;
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.22),
+    0 0 18px rgba(224, 171, 63, 0.08),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05) !important;
+}
+
+.navCard {
+  background: rgba(61, 50, 32, 0.76) !important;
+  color: #f6e7c3 !important;
+  border: 1px solid rgba(214, 172, 95, 0.16) !important;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04) !important;
+}
+
+.navCard:hover,
+.navCard.active {
+  background: linear-gradient(
+    180deg,
+    rgba(140, 118, 82, 0.42),
+    rgba(140, 118, 82, 0.42)
+  ) !important;
+  color: #fff2d2 !important;
+  border-color: rgba(237, 187, 87, 0.28) !important;
+}
+
+.friendRow {
+  background: linear-gradient(
+    180deg,
+    rgba(140, 118, 82, 0.42),
+    rgba(140, 118, 82, 0.42)
+  ) !important;
+  border: 1px solid rgba(214, 172, 95, 0.16) !important;
+  color: #f4e3be !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 236, 190, 0.10) !important;
+}
+
+.chatBubble.left {
+  background: linear-gradient(180deg, rgba(56, 46, 31, 0.97), rgba(39, 32, 21, 0.95)) !important;
+  border: 1px solid rgba(214, 172, 95, 0.14) !important;
+  color: #f4e3be !important;
+}
+
+.chatBubble.right {
+  background: linear-gradient(180deg, rgba(112, 83, 36, 0.95), rgba(82, 61, 27, 0.95)) !important;
+  color: #fff2d2 !important;
+}
+
+.searchInput {
+  background: rgba(28, 24, 18, 0.88) !important;
+  color: #f5e7c6 !important;
+  border: 1px solid rgba(214, 172, 95, 0.18) !important;
+}
+
+.searchInput::placeholder {
+  color: #bca885 !important;
+}
+
+.actionButton,
+.acceptButton,
+.declineButton,
+.removeButton,
+.blockButton,
+.backButton {
+  border-radius: 12px;
+  border: 1px solid rgba(214, 172, 95, 0.18) !important;
+  font-weight: 700;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04) !important;
+}
+
+.actionButton,
+.acceptButton,
+.backButton {
+  background: linear-gradient(180deg, rgba(112, 83, 36, 0.95), rgba(82, 61, 27, 0.95)) !important;
+  color: #fff2d2 !important;
+}
+
+.declineButton,
+.removeButton {
+  background: linear-gradient(180deg, rgba(65, 54, 37, 0.95), rgba(46, 38, 25, 0.95)) !important;
+  color: #f0ddb8 !important;
+}
+
+.blockButton {
+  background: linear-gradient(180deg, rgba(140, 67, 67, 0.95), rgba(110, 50, 50, 0.95)) !important;
+  color: #fff2d2 !important;
+}
+
+.emptyState,
+.chatDayDivider span {
+  background: rgba(36, 30, 22, 0.82) !important;
+  border-color: rgba(214, 172, 95, 0.12) !important;
+  color: #d0bb95 !important;
+}
+
+.statusMessage.success {
+  background: rgba(120, 96, 44, 0.18) !important;
+  border: 1px solid rgba(214, 172, 95, 0.24) !important;
+  color: #f0ddb8 !important;
+}
+
+.statusMessage.error {
+  background: rgba(120, 54, 54, 0.18) !important;
+  border: 1px solid rgba(180, 90, 90, 0.24) !important;
+  color: #f0c3b8 !important;
+}
+
+.profileName,
+.friendName,
+.friendsHeading,
+.panelHeader h2,
+.confirmCard h3 {
+  color: #fff1cf !important;
+}
+
+.profileSub,
+.friendsMuted,
+.friendSub,
+.navHint,
+.navSubPreview,
+.chatTime,
+.chatSender,
+.miniLabel,
+.summaryLabel {
+  color: #d0bb95 !important;
+}
+
+.navCount,
+.friendRankBadge,
+.onlineFriendRankBadge {
+  color: #fff1cf !important;
+}
 
         .friendRow {
   align-items: center;

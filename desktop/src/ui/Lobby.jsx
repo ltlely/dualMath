@@ -378,7 +378,7 @@ const totalUsersOnline = friends.filter((friend) => {
 }).length;
 
  return (
-  <div className="lobbyShell">
+  <div className="lobbyShell ">
     <div className="lobbyTopbar">
 <div className="topNavShell">
   
@@ -1282,8 +1282,9 @@ const totalUsersOnline = friends.filter((friend) => {
   padding: 24px 24px 36px;
   overflow: hidden;
   background:
-    radial-gradient(circle at top, rgba(255, 235, 190, 0.62), transparent 34%),
-    linear-gradient(180deg, #ecdcb8 10%, #cfb07a 55%, #b98f58 100%);
+  radial-gradient(circle at top, rgba(120, 92, 38, 0.20), transparent 32%),
+  radial-gradient(circle at top center, rgba(255, 214, 120, 0.08), transparent 42%),
+  linear-gradient(180deg, #3a342b 0%, #26211c 52%, #171411 100%);
   color: var(--ink);
   position: relative;
   height: 100dvh;
@@ -2115,7 +2116,7 @@ const totalUsersOnline = friends.filter((friend) => {
   border: 1px solid rgba(207, 186, 148, 0.34);
   box-shadow:
   0 0 20px rgba(255, 255, 255, 0.55),
-  0 0 50px rgba(255, 244, 210, 0.35),
+  0 0 0px rgba(255, 244, 210, 0.35),
   0 18px 40px rgba(104, 78, 47, 0.14),
   inset 0 1px 0 rgba(255, 255, 255, 0.95);
   z-index: 5;
@@ -2521,7 +2522,7 @@ const totalUsersOnline = friends.filter((friend) => {
   padding: 12px 14px;
   border-radius: 18px;
   border: 1px solid rgba(93, 88, 63, 0.08);
-  background: linear-gradient(180deg, #f9f7ea, var(--cream-3));
+  background: rgba(254, 255, 210, 0.54);
   color: var(--ink);
   text-align: left;
   cursor: pointer;
@@ -2531,7 +2532,7 @@ const totalUsersOnline = friends.filter((friend) => {
 .categoryButton:hover,
 .categoryButton.active {
   border-color: rgba(107, 79, 52, 0.45);
-  background: linear-gradient(180deg, #f5eed7, #e1c89d);
+  background: rgba(254, 255, 210, 0.68);
   transform: translateY(-1px);
   box-shadow: var(--glow-brown);
 }
@@ -3538,6 +3539,301 @@ const totalUsersOnline = friends.filter((friend) => {
 .friendsHeaderRow .sidebarSectionTitle {
   font-size: 12px;
   white-space: nowrap;
+}
+
+.friendsDrawerToggle {
+  position: fixed;
+  right: 0;
+  top: 46%;
+  transform: translateY(-50%);
+  z-index: 40;
+  width: 46px;
+  height: 70px;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-right: none;
+  border-radius: 18px 0 0 18px;
+  background: rgba(255, 248, 232, 0.32);
+  box-shadow:
+    0 14px 34px rgba(107, 79, 52, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #f5e7c6;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: right 0.25s ease, transform 0.2s ease;
+}
+
+.friendsDrawerToggle:hover {
+  transform: translateY(-50%) translateX(-2px);
+  box-shadow:
+    -8px 12px 28px rgba(0, 0, 0, 0.26),
+    0 0 12px rgba(224, 171, 63, 0.10),
+    inset 0 1px 0 rgba(255, 236, 190, 0.06);
+}
+
+.friendsDrawerToggleArrow {
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.friendsDrawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100dvh;
+  width: min(340px, 88vw);
+  z-index: 35;
+  pointer-events: none;
+}
+
+.friendsDrawerInner {
+  position: absolute;
+  top: 110px;
+  right: 0;
+  bottom: 24px;
+  width: 100%;
+  padding: 18px;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, rgba(45, 38, 26, 0.98), rgba(28, 24, 17, 0.98));
+  border-left: 1px solid rgba(214, 172, 95, 0.14);
+  box-shadow:
+    -18px 0 40px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05);
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  color: #f5e7c6;
+}
+
+.friendsDrawerInner::-webkit-scrollbar {
+  display: none;
+}
+
+.friendsHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.sidebarSectionTitle {
+  color: #fff1cf;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.onlineFriendsCard {
+  background: linear-gradient(180deg, rgba(56, 46, 31, 0.97), rgba(39, 32, 21, 0.95)) !important;
+  border: 1px solid rgba(214, 172, 95, 0.14) !important;
+  border-radius: 20px;
+  box-shadow:
+    0 12px 24px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04);
+  color: #f4e3be !important;
+}
+
+.onlineFriendsHeader .miniLabel,
+.onlineFriendsTitle,
+.onlineFriendName,
+.onlineFriendSub,
+.onlineFriendsEmpty {
+  color: #f4e3be !important;
+}
+
+.onlineFriendSub,
+.publicLobbyText {
+  color: #d0bb95 !important;
+}
+  
+.onlineFriendsEmpty {
+  color: #202020 !important;
+}
+
+.onlineFriendRow {
+  background: linear-gradient(180deg, rgba(66, 54, 36, 0.98), rgba(45, 36, 23, 0.96)) !important;
+  border: 1px solid rgba(214, 172, 95, 0.10) !important;
+  border-radius: 16px;
+  color: #f4e3be !important;
+}
+
+.onlineFriendRow:hover {
+  background: linear-gradient(180deg, rgba(78, 64, 42, 0.98), rgba(53, 43, 27, 0.96)) !important;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.18),
+    0 0 10px rgba(224, 171, 63, 0.08);
+}
+
+.publicLobbyActionBtn,
+.onlineFriendsViewAll {
+  background: linear-gradient(180deg, rgba(112, 83, 36, 0.95), rgba(82, 61, 27, 0.95)) !important;
+  color: #fff2d2 !important;
+  border: 1px solid rgba(214, 172, 95, 0.20) !important;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05);
+}
+
+.settingsOverlay {
+  background: rgba(10, 9, 8, 0.56) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.settingsPanel {
+  background: transparent !important;
+}
+
+.settingsCard {
+  background: linear-gradient(180deg, rgba(50, 42, 30, 0.97), rgba(34, 28, 20, 0.97)) !important;
+  border: 1px solid rgba(214, 172, 95, 0.18) !important;
+  color: #f5e7c6 !important;
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.30),
+    0 0 18px rgba(224, 171, 63, 0.08),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05) !important;
+}
+
+.settingsHeader h3,
+.settingsCard h3,
+.settingsCard .miniLabel,
+.fieldLabel,
+.soundPercent,
+.settingsMessage,
+.settingsError {
+  color: #fff1cf !important;
+}
+
+.settingsHeader .miniLabel,
+.settingsCard .miniLabel,
+.heroMuted,
+.settingsSection .heroMuted,
+.soundRowTop .fieldLabel {
+  color: #d0bb95 !important;
+}
+
+.settingsCloseBtn {
+  background: linear-gradient(180deg, rgba(65, 54, 37, 0.95), rgba(46, 38, 25, 0.95)) !important;
+  color: #fff1cf !important;
+  border: 1px solid rgba(214, 172, 95, 0.18) !important;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04) !important;
+}
+
+.settingsTabs {
+  gap: 10px;
+}
+
+.settingsTab {
+  background: rgba(61, 50, 32, 0.76) !important;
+  color: #f6e7c3 !important;
+  border: 1px solid rgba(214, 172, 95, 0.16) !important;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04) !important;
+}
+
+.settingsTab:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.20),
+    0 0 10px rgba(224, 171, 63, 0.08),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05) !important;
+}
+
+.settingsTab.active {
+  background: linear-gradient(180deg, rgba(112, 83, 36, 0.95), rgba(82, 61, 27, 0.95)) !important;
+  color: #fff2d2 !important;
+  border-color: rgba(237, 187, 87, 0.28) !important;
+}
+
+
+
+.roomNativeInput,
+.settingsSection input,
+.settingsSection .roomNativeInput {
+  background: rgba(28, 24, 18, 0.88) !important;
+  color: #f5e7c6 !important;
+  border: 1px solid rgba(214, 172, 95, 0.18) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.22) !important;
+}
+
+
+.roomNativeInput::placeholder,
+.settingsSection input::placeholder {
+  color: #bca885 !important;
+}
+
+.roomNativeInput:focus,
+.settingsSection input:focus {
+  border-color: rgba(237, 187, 87, 0.30) !important;
+  box-shadow:
+    0 0 0 3px rgba(224, 171, 63, 0.12),
+    inset 0 1px 2px rgba(0, 0, 0, 0.22) !important;
+}
+
+.soundRow {
+  background: rgba(43, 36, 24, 0.72) !important;
+  border: 1px solid rgba(214, 172, 95, 0.10) !important;
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+
+.soundSlider {
+  accent-color: #e0ab3f;
+}
+
+.soundActions,
+.settingsCard .soundActions {
+  gap: 10px;
+}
+
+.roomNativeButton,
+.roomNativeButtonGhost {
+  border-radius: 12px;
+  font-weight: 700;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04) !important;
+}
+
+.roomNativeButton {
+  background: linear-gradient(180deg, rgba(112, 83, 36, 0.95), rgba(82, 61, 27, 0.95)) !important;
+  color: #fff2d2 !important;
+  border: 1px solid rgba(214, 172, 95, 0.20) !important;
+}
+
+.roomNativeButtonGhost {
+  background: linear-gradient(180deg, rgba(65, 54, 37, 0.95), rgba(46, 38, 25, 0.95)) !important;
+  color: #f0ddb8 !important;
+  border: 1px solid rgba(214, 172, 95, 0.16) !important;
+}
+
+.roomNativeButton:hover,
+.roomNativeButtonGhost:hover,
+.settingsCloseBtn:hover {
+  transform: translateY(-1px);
+}
+
+.statusMessage.success {
+  background: rgba(120, 96, 44, 0.18) !important;
+  border: 1px solid rgba(214, 172, 95, 0.24) !important;
+  color: #f0ddb8 !important;
+}
+
+.statusMessage.error {
+  background: rgba(120, 54, 54, 0.18) !important;
+  border: 1px solid rgba(180, 90, 90, 0.24) !important;
+  color: #f0c3b8 !important;
 }
       `}</style>
     </div>

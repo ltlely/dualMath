@@ -551,18 +551,25 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
 }
 
 .authModal {
-  width: min(900px, 94vw);
-  max-width: 900px;
-  position: relative;
-  z-index: 1;
-  margin-top: 140px;
+  width: min(94vw, 1200px) !important;
+  max-width: 1200px !important;
+  position: relative !important;
+  z-index: 1 !important;
+  margin: 0 !important;
+  min-height: 70vh;
 }
 
-.authModal {
-  position: relative;
-  z-index: 1;
-  max-width: 520px;
-  margin-top: 00px;
+.authModal > * {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 300px !important;
+}
+
+.authModal .card,
+.authModal [class*="card"],
+.authModal > * > * {
+  width: 100% !important;
+  max-width: none !important;
 }
 
 .authCloud {
@@ -643,8 +650,9 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(circle at top, rgba(255, 235, 190, 0.62), transparent 34%),
-    linear-gradient(180deg, #ecdcb8 10%, #cfb07a 55%, #b98f58 100%);
+    radial-gradient(circle at top, rgba(120, 92, 38, 0.20), transparent 32%),
+  radial-gradient(circle at top center, rgba(255, 214, 120, 0.08), transparent 42%),
+  linear-gradient(180deg, #3a342b 0%, #26211c 52%, #171411 100%);
 }
 
 
@@ -1108,16 +1116,25 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
 }
 
 .authModal {
-  width: min(900px, 94vw);
-  max-width: 900px;
-  position: relative;
-  z-index: 1;
+  width: min(94vw, 1200px) !important;
+  max-width: 500px !important;
+  position: relative !important;
+  z-index: 1 !important;
+  margin: 0 !important;
+  min-height: 70vh;
 }
 
 .authModal > * {
   width: 100% !important;
-  min-width: 360px;
-  max-width: 900px;
+  max-width: none !important;
+  min-width: 300px !important;
+}
+
+.authModal .card,
+.authModal [class*="card"],
+.authModal > * > * {
+  width: 100% !important;
+  max-width: none !important;
 }
 
 .authCloud {
@@ -1198,8 +1215,9 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(circle at top, rgba(255, 235, 190, 0.62), transparent 34%),
-    linear-gradient(180deg, #ecdcb8 10%, #cfb07a 55%, #b98f58 100%);
+    radial-gradient(circle at top, rgba(120, 92, 38, 0.20), transparent 32%),
+  radial-gradient(circle at top center, rgba(255, 214, 120, 0.08), transparent 42%),
+  linear-gradient(180deg, #3a342b 0%, #26211c 52%, #171411 100%);
 }
 
 
@@ -1819,8 +1837,9 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(circle at top, rgba(255, 235, 190, 0.62), transparent 34%),
-    linear-gradient(180deg, #ecdcb8 10%, #cfb07a 55%, #b98f58 100%);
+   radial-gradient(circle at top, rgba(120, 92, 38, 0.20), transparent 32%),
+  radial-gradient(circle at top center, rgba(255, 214, 120, 0.08), transparent 42%),
+  linear-gradient(180deg, #3a342b 0%, #26211c 52%, #171411 100%);
 }
 
 

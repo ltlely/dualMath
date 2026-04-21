@@ -288,8 +288,9 @@ const updatedUser = {
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(circle at top, rgba(255, 235, 190, 0.62), transparent 34%),
-    linear-gradient(180deg, #ecdcb8 10%, #cfb07a 55%, #b98f58 100%);
+    radial-gradient(circle at top, rgba(120, 92, 38, 0.20), transparent 32%),
+  radial-gradient(circle at top center, rgba(255, 214, 120, 0.08), transparent 42%),
+  linear-gradient(180deg, #3a342b 0%, #26211c 52%, #171411 100%);
 }
 
 .pickShell::before {
