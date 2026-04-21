@@ -532,7 +532,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
 
 .authBrand {
   position: absolute;
-  top: 100px;
+  top: 72px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 2;
@@ -540,27 +540,22 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   pointer-events: none;
 }
 
-.authBrandTitle {
-  font-size: clamp(38px, 6vw, 72px);
-  font-weight: 1000;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #fff7e3;
-  text-shadow:
-    0 2px 0 #c99437,
-    0 4px 0 #b07a25,
-    0 10px 24px rgba(95, 70, 48, 0.28),
-    0 0 20px rgba(255, 226, 150, 0.42);
-}
-
 .authBrandSubtitle {
-  margin-top: 20px;
+  margin-top: 10px;
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: rgba(107, 79, 52, 0.88);
   text-shadow: 0 1px 0 rgba(255,255,255,0.35);
+}
+
+.authModal {
+  width: min(900px, 94vw);
+  max-width: 900px;
+  position: relative;
+  z-index: 1;
+  margin-top: 140px;
 }
 
 .authModal {
@@ -595,7 +590,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   width: 480px;
   top: 120px;
   right: 180px;
-  --cloud-flip: -1;
+ 
   animation-duration: 8.2s;
   animation-delay: 0.8s;
 }
@@ -604,7 +599,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   width: 640px;
   bottom: 26px;
   left: 10px;
-  --cloud-flip: -1;
+  
   animation-duration: 9s;
   animation-delay: 1.4s;
 }
@@ -622,15 +617,23 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   width: 440px;
   top: -200px;
   left: 100%;
-  --cloud-flip: -1;
+  
   animation-duration: 7.8s;
   animation-delay: 1.1s;
   margin-left: -220px;
 }
 
 .authModal {
+  width: min(900px, 94vw);
+  max-width: 900px;
   position: relative;
   z-index: 1;
+}
+
+.authModal > * {
+  width: 100% !important;
+  min-width: 360px;
+  max-width: 900px;
 }
         .authScreen {
   min-height: 100dvh;
@@ -660,15 +663,20 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
 }
 
 .authModal {
-max-width: 520px;
+  width: min(900px, 94vw);
+  max-width: 900px;
   position: relative;
   z-index: 1;
 }
 
 .authModal > * {
-  width: min(560px, 92vw) !important;
+  width: 100% !important;
   min-width: 360px;
-  max-width: 560px;
+  max-width: 900px;
+}
+
+.authModal > * {
+  
   background: linear-gradient(180deg, rgba(255, 249, 236, 0.96), rgba(238, 212, 155, 0.92)) !important;
   border: 1px solid rgba(224, 171, 63, 0.32) !important;
   box-shadow:
@@ -736,10 +744,10 @@ max-width: 520px;
     return (
       <div className="authScreen lobbySparkles">
          <img src="/clouds.png" alt="" className="authCloud authCloud1" />
-  <img src="/clouds.png" alt="" className="authCloud authCloud2" />
-  <img src="/clouds.png" alt="" className="authCloud authCloud3" />
+  <img src="/clouds2.png" alt="" className="authCloud authCloud2" />
+  <img src="/clouds2.png" alt="" className="authCloud authCloud3" />
   <img src="/clouds.png" alt="" className="authCloud authCloud4" />
-  <img src="/clouds.png" alt="" className="authCloud authCloud5" />
+  <img src="/clouds2.png" alt="" className="authCloud authCloud5" />
       <div className="authModal">
         <Card title="📧 Verify Your Email">
           <div className="stack">
@@ -818,14 +826,14 @@ max-width: 520px;
   width: 180px;
   top: 120px;
   right: -10px;
-  transform: scaleX(-1);
+ 
 }
 
 .authCloud3 {
   width: 240px;
   bottom: 26px;
   left: 10px;
-  transform: scaleX(-1);
+  
 }
 
 .authCloud4 {
@@ -838,12 +846,20 @@ max-width: 520px;
   width: 140px;
   top: 260px;
   left: 50%;
-  transform: translateX(-50%) scaleX(-1);
+ 
 }
 
 .authModal {
+  width: min(900px, 94vw);
+  max-width: 900px;
   position: relative;
   z-index: 1;
+}
+
+.authModal > * {
+  width: 100% !important;
+  min-width: 360px;
+  max-width: 900px;
 }
         .authScreen.lobbySparkles::after {
   content: "";
@@ -899,16 +915,20 @@ max-width: 520px;
 }
 
 .authModal {
+  width: min(900px, 94vw);
+  max-width: 900px;
   position: relative;
   z-index: 1;
-  max-width: 520px;
 }
 
 .authModal > * {
- width: min(560px, 92vw) !important;
-    min-width: 360px;
+  width: 100% !important;
+  min-width: 360px;
+  max-width: 900px;
+}
 
-  max-width: 560px;
+.authModal > * {
+ 
   background: linear-gradient(180deg, rgba(255, 249, 236, 0.92), rgba(238, 212, 155, 0.9)) !important;
   box-shadow:
     0 20px 40px rgba(95, 70, 48, 0.14),
@@ -1059,6 +1079,8 @@ max-width: 520px;
   z-index: 2;
   text-align: center;
   pointer-events: none;
+  margin-bottom: 20px;
+  
 }
 
 .authBrandTitle {
@@ -1082,13 +1104,20 @@ max-width: 520px;
   text-transform: uppercase;
   color: rgba(107, 79, 52, 0.88);
   text-shadow: 0 1px 0 rgba(255,255,255,0.35);
+   margin-bottom: 20px;
 }
 
 .authModal {
+  width: min(900px, 94vw);
+  max-width: 900px;
   position: relative;
   z-index: 1;
-  max-width: 520px;
-  margin-top: 00px;
+}
+
+.authModal > * {
+  width: 100% !important;
+  min-width: 360px;
+  max-width: 900px;
 }
 
 .authCloud {
@@ -1116,7 +1145,7 @@ max-width: 520px;
   width: 480px;
   top: 120px;
   right: 180px;
-  --cloud-flip: -1;
+  
   animation-duration: 8.2s;
   animation-delay: 0.8s;
 }
@@ -1125,7 +1154,7 @@ max-width: 520px;
   width: 640px;
   bottom: 26px;
   left: 10px;
-  --cloud-flip: -1;
+ 
   animation-duration: 9s;
   animation-delay: 1.4s;
 }
@@ -1143,15 +1172,23 @@ max-width: 520px;
   width: 440px;
   top: -200px;
   left: 100%;
-  --cloud-flip: -1;
+  
   animation-duration: 7.8s;
   animation-delay: 1.1s;
   margin-left: -220px;
 }
 
 .authModal {
+  width: min(900px, 94vw);
+  max-width: 900px;
   position: relative;
   z-index: 1;
+}
+
+.authModal > * {
+  width: 100% !important;
+  min-width: 360px;
+  max-width: 900px;
 }
         .authScreen {
   min-height: 100dvh;
@@ -1181,15 +1218,20 @@ max-width: 520px;
 }
 
 .authModal {
-max-width: 520px;
+  width: min(900px, 94vw);
+  max-width: 900px;
   position: relative;
   z-index: 1;
 }
 
 .authModal > * {
-  width: min(560px, 92vw) !important;
+  width: 100% !important;
   min-width: 360px;
-  max-width: 560px;
+  max-width: 900px;
+}
+
+.authModal > * {
+ 
   background: linear-gradient(180deg, rgba(255, 249, 236, 0.96), rgba(238, 212, 155, 0.92)) !important;
   border: 1px solid rgba(224, 171, 63, 0.32) !important;
   box-shadow:
@@ -1251,16 +1293,20 @@ max-width: 520px;
 }
 
 .authModal {
+  width: min(900px, 94vw);
+  max-width: 900px;
   position: relative;
   z-index: 1;
-  max-width: 520px;
 }
 
 .authModal > * {
- width: min(560px, 92vw) !important;
-    min-width: 360px;
+  width: 100% !important;
+  min-width: 360px;
+  max-width: 900px;
+}
 
-  max-width: 560px;
+.authModal > * {
+
   background: linear-gradient(180deg, rgba(255, 249, 236, 0.92), rgba(238, 212, 155, 0.9)) !important;
   box-shadow:
     0 20px 40px rgba(95, 70, 48, 0.14),
@@ -1339,6 +1385,8 @@ max-width: 520px;
   <img src="/clouds.png" alt="" className="authCloud authCloud4" />
   <img src="/clouds.png" alt="" className="authCloud authCloud5" />
 
+  <div className="shootingStar" />
+
    <div className="authBrand">
     <div className="authBrandTitle">Digi Rush</div>
     <div className="authBrandSubtitle">Battle, learn, and level up</div>
@@ -1386,7 +1434,7 @@ max-width: 520px;
                 Forgot password?
               </button>
               
-              <div className="authToggle">
+              <div className="authToggle authToggleCentered">
                 <span className="muted">Don't have an account? </span>
                 <button
                   className="linkBtn"
@@ -1469,6 +1517,90 @@ max-width: 520px;
         )}
         
         <style>{`
+
+.authToggleCentered {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 6px;
+  text-align: center;
+}
+
+.authToggleCentered .muted,
+.authToggleCentered .linkBtn {
+  display: inline;
+}
+        @keyframes shootingStarFly {
+  0% {
+    transform: translate3d(-10vw, -10vh, 0) rotate(25deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  30% {
+    transform: translate3d(35vw, 20vh, 0) rotate(25deg);
+    opacity: 1;
+  }
+  45% {
+    transform: translate3d(55vw, 32vh, 0) rotate(25deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translate3d(55vw, 32vh, 0) rotate(25deg);
+    opacity: 0;
+  }
+}
+
+.shootingStar {
+  position: absolute;
+  top: 40px;
+  left: 80px;
+  width: 140px;
+  height: 3px;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0),
+    rgba(255,248,220,0.9),
+    rgba(255,215,120,1)
+  );
+  box-shadow:
+    0 0 8px rgba(255, 248, 220, 0.9),
+    0 0 18px rgba(255, 215, 120, 0.75),
+    0 0 28px rgba(224, 171, 63, 0.45);
+  animation: shootingStarFly 5.5s linear infinite;
+}
+
+.shootingStar::before {
+  content: "";
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffdf4 0%, #ffd86b 55%, rgba(255,216,107,0) 100%);
+  box-shadow:
+    0 0 10px rgba(255,255,255,0.9),
+    0 0 18px rgba(255,216,107,0.8);
+}
+
+@media (max-width: 700px) {
+  .shootingStar {
+    width: 90px;
+    top: 28px;
+    left: 30px;
+    animation-duration: 6.5s;
+  }
+}
+  
 @keyframes authCloudFloat {
   0% {
     transform: translate3d(0, 0, 0) scaleX(var(--cloud-flip, 1));
@@ -1487,44 +1619,126 @@ max-width: 520px;
   }
 }
 
+.authScreen {
+  min-height: 100dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  padding: 24px !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
 .authBrand {
-  position: absolute;
-  top: 100px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2;
-  text-align: center;
-  pointer-events: none;
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  z-index: 2 !important;
+  text-align: center !important;
+  pointer-events: none !important;
+  width: min(92vw, 1200px) !important;
+  margin: 150px 0 20 0 !important;
+
 }
 
 .authBrandTitle {
-  font-size: clamp(38px, 6vw, 72px);
-  font-weight: 1000;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #fff7e3;
+  font-size: clamp(32px, 7vw, 96px) !important;
+  font-weight: 1000 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: #fff7e3 !important;
   text-shadow:
     0 2px 0 #c99437,
     0 4px 0 #b07a25,
     0 10px 24px rgba(95, 70, 48, 0.28),
-    0 0 20px rgba(255, 226, 150, 0.42);
+    0 0 20px rgba(255, 226, 150, 0.42) !important;
+  line-height: 1 !important;
+  white-space: normal !important;
 }
 
 .authBrandSubtitle {
-  margin-top: 20px;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(107, 79, 52, 0.88);
-  text-shadow: 0 1px 0 rgba(255,255,255,0.35);
+  margin-top: 6px !important;
+  font-size: clamp(10px, 1.4vw, 16px) !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: rgba(107, 79, 52, 0.88) !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.35) !important;
+  line-height: 1.2 !important;
+  white-space: normal !important;
 }
 
 .authModal {
+  width: min(94vw, 1200px) !important;
+  max-width: 1200px !important;
+  position: relative !important;
+  z-index: 1 !important;
+  margin: 0 !important;
+  min-height: 70vh;
+}
+
+.authModal > * {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 300px !important;
+}
+
+.authModal .card,
+.authModal [class*="card"],
+.authModal > * > * {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+@media (max-width: 700px) {
+  .authBrand {
+    width: 94vw !important;
+    margin: 16px 0 0 0 !important;
+  }
+
+  .authBrandTitle {
+    font-size: clamp(26px, 9vw, 40px) !important;
+  }
+
+  .authBrandSubtitle {
+    font-size: 10px !important;
+    letter-spacing: 0.08em !important;
+  }
+
+  .authModal > * {
+    min-width: 0 !important;
+  }
+}
+
+.card {
+  width: 100%;
+  max-width: none;
+  margin-bottom: 250px;
+}
+
+.authModal {
+  width: min(94vw, 1200px) !important;
+  max-width: 500px !important;
   position: relative;
   z-index: 1;
-  max-width: 520px;
-  margin-top: 00px;
+  margin-top: 0 !important;
+}
+
+.authModal > * {
+  width: 100% !important;
+  max-width: 1200px !important;
+  min-width: 300px !important;
+}
+
+.authModal .card,
+.authModal [class*="card"],
+.authModal > * > * {
+  width: 100% !important;
+  max-width: 1200px !important;
+  margin-top: 0 !important;
+
 }
 
 .authCloud {
@@ -1552,16 +1766,16 @@ max-width: 520px;
   width: 480px;
   top: 120px;
   right: 180px;
-  --cloud-flip: -1;
+  
   animation-duration: 8.2s;
   animation-delay: 0.8s;
 }
 
 .authCloud3 {
   width: 640px;
-  bottom: 26px;
+  bottom: -36px;
   left: 10px;
-  --cloud-flip: -1;
+ 
   animation-duration: 9s;
   animation-delay: 1.4s;
 }
@@ -1579,15 +1793,23 @@ max-width: 520px;
   width: 440px;
   top: -200px;
   left: 100%;
-  --cloud-flip: -1;
+  
   animation-duration: 7.8s;
   animation-delay: 1.1s;
   margin-left: -220px;
 }
 
 .authModal {
+  width: min(900px, 94vw);
+  max-width: 900px;
   position: relative;
   z-index: 1;
+}
+
+.authModal > * {
+  width: 100% !important;
+  min-width: 360px;
+  max-width: 900px;
 }
         .authScreen {
   min-height: 100dvh;
@@ -1617,15 +1839,20 @@ max-width: 520px;
 }
 
 .authModal {
-max-width: 520px;
+  width: min(900px, 94vw);
+  max-width: 900px;
   position: relative;
   z-index: 1;
 }
 
 .authModal > * {
-  width: min(560px, 92vw) !important;
+  width: 100% !important;
   min-width: 360px;
-  max-width: 560px;
+  max-width: 900px;
+}
+
+.authModal > * {
+ 
   background: linear-gradient(180deg, rgba(255, 249, 236, 0.96), rgba(238, 212, 155, 0.92)) !important;
   border: 1px solid rgba(224, 171, 63, 0.32) !important;
   box-shadow:

@@ -166,10 +166,10 @@ const updatedUser = {
   return (
     <div className="pickShell">
         <img src="/clouds.png" alt="" className="authCloud authCloud1" />
-  <img src="/clouds.png" alt="" className="authCloud authCloud2" />
-  <img src="/clouds.png" alt="" className="authCloud authCloud3" />
+  <img src="/clouds2.png" alt="" className="authCloud authCloud2" />
+  <img src="/clouds2.png" alt="" className="authCloud authCloud3" />
   <img src="/clouds.png" alt="" className="authCloud authCloud4" />
-  <img src="/clouds.png" alt="" className="authCloud authCloud5" />
+  <img src="/clouds2.png" alt="" className="authCloud authCloud5" />
       <div className="pickCardWrap">
         <Card title="Pick Your Character">
           <div className="pickStack">
@@ -362,7 +362,7 @@ const updatedUser = {
   width: 480px;
   top: 120px;
   right: 180px;
-  --cloud-flip: -1;
+  
   animation-duration: 8.2s;
   animation-delay: 0.8s;
 }
@@ -371,7 +371,7 @@ const updatedUser = {
   width: 640px;
   bottom: 26px;
   left: 10px;
-  --cloud-flip: -1;
+ 
   animation-duration: 9s;
   animation-delay: 1.4s;
 }
@@ -389,7 +389,7 @@ const updatedUser = {
   width: 440px;
   top: -200px;
   left: 100%;
-  --cloud-flip: -1;
+ 
   animation-duration: 7.8s;
   animation-delay: 1.1s;
   margin-left: -220px;

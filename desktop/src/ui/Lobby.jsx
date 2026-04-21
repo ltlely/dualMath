@@ -1324,6 +1324,8 @@ const totalUsersOnline = friends.filter((friend) => {
 }
 
 
+
+
 /* ─── TOP NAV ─────────────────────────────────────────────────── */
 
 .topNavShell {
@@ -1384,7 +1386,11 @@ const totalUsersOnline = friends.filter((friend) => {
   white-space: nowrap;
   flex-shrink: 0;
 }
-
+  
+.topNavItem:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 22px rgba(176, 129, 53, 0.18);
+}
 
 .topNavQueueItem {
   position: relative;
@@ -1985,12 +1991,12 @@ const totalUsersOnline = friends.filter((friend) => {
 
 .winsStatCard {
   margin-right: 0px !important;
-  background: linear-gradient(180deg, rgba(248, 238, 220, 0.9), rgba(229, 202, 159, 0.84));
+  background: linear-gradient(180deg, rgba(248, 238, 220, 0.9), rgba(37, 124, 80, 0.84));
 }
 
 .lossesStatCard {
   margin-left: 0px !important;
-  background: linear-gradient(180deg, rgba(248, 238, 220, 0.9), rgba(229, 202, 159, 0.84));
+  background: linear-gradient(180deg, rgba(248, 238, 220, 0.9), rgba(163, 68, 68, 0.84));
 }
 
 .statLabel {
@@ -2038,6 +2044,18 @@ const totalUsersOnline = friends.filter((friend) => {
   min-height: 250px;
 }
 
+@keyframes statsGridFloat {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
 .statsGrid {
   position: relative;
   display: grid;
@@ -2047,15 +2065,8 @@ const totalUsersOnline = friends.filter((friend) => {
   margin-top: 12px;
   margin-bottom: 22px;
   padding: 14px 14px 12px;
-  border-radius: 34px;
-  background:
-    radial-gradient(circle at 50% 20%, rgba(255, 247, 225, 0.18), transparent 32%),
-    linear-gradient(180deg, #dcc292 0%, #caa66f 52%, #bc945b 100%);
-  box-shadow:
-    0 18px 26px -10px rgba(101, 70, 35, 0.16),
-    0 34px 54px -22px rgba(101, 70, 35, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
   overflow: visible;
+  animation: statsGridFloat 4s ease-in-out infinite;
 }
 
 .statsGrid::before {
@@ -2100,7 +2111,7 @@ const totalUsersOnline = friends.filter((friend) => {
 
   background:
     radial-gradient(circle at center, rgba(255, 255, 255, 0.5), transparent 62%),
-    linear-gradient(180deg, rgba(255, 252, 247, 0.98), rgba(242, 232, 212, 0.95));
+    linear-gradient(180deg, rgba(255, 252, 247, 0.98), rgba(184, 135, 38, 0.95));
   border: 1px solid rgba(207, 186, 148, 0.34);
   box-shadow:
   0 0 20px rgba(255, 255, 255, 0.55),
@@ -2134,7 +2145,7 @@ const totalUsersOnline = friends.filter((friend) => {
 
 .rankAvatarWrap {
   width: 100%;
-  height: 200px;
+  height: 235px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -2151,6 +2162,9 @@ const totalUsersOnline = friends.filter((friend) => {
   margin: 0 auto;
   padding: 0;
   transform: translateY(48px);
+ filter:
+    drop-shadow(0 0 8px rgba(255, 230, 150, 0.7))
+    drop-shadow(0 0 16px rgba(237, 187, 87, 0.5));
 }
 
 .rankLabelTop {
@@ -2161,17 +2175,35 @@ const totalUsersOnline = friends.filter((friend) => {
   color: #b39468;
   margin-bottom: 2px;
   line-height: 1;
-  transform: translateY(10px);
+  transform: translateY(0px);
 }
 
 .rankName {
-  margin-top: -5px;
+  margin-top: -12px;
   font-size: 15px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-align: center;
   color: #6b4a2f;
+}
+
+.winsStatCard,
+.lossesStatCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  position: relative;
+}
+
+.winsStatCard {
+  clip-path: polygon(18% 0, 100% 0, 100% 100%, 18% 100%, 0 50%);
+}
+
+.lossesStatCard {
+  clip-path: polygon(0 0, 82% 0, 100% 50%, 82% 100%, 0 100%);
 }
 
 
