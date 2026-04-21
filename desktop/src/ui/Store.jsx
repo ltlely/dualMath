@@ -109,9 +109,9 @@ const storeItems = {
   hair: [
     { id: "BoyHair1", label: "Soft Brown Cut", asset: boyHair1, price: 20, rarity: "Common" },
     { id: "BoyHair2", label: "Layered Sweep", asset: boyHair2, price: 35, rarity: "Common" },
-    { id: "BoyHair3", label: "Silver Breeze", asset: boyHair3, price: 550, rarity: "Rare" },
+    { id: "BoyHair3", label: "Silver Breeze", asset: boyHair3, price: 1550, rarity: "Rare" },
     { id: "BoyHair4", label: "Moss cut", asset: boyHair4, price: 75, rarity: "Common" },
-    { id: "BoyHair5", label: "Stormy Waves", asset: boyHair5, price: 1200, rarity: "Epic" },
+    { id: "BoyHair5", label: "Stormy Waves", asset: boyHair5, price: 2200, rarity: "Epic" },
     { id: "BoyHair6", label: "Aura Shag", asset: boyHair6, price: 1300, rarity: "Rare" },
     { id: "BoyHair7", label: "Crimson Comet", asset: boyHair7, price: 650, rarity: "Uncommon" },
     { id: "GirlHair2", label: "Northwind Hair", asset: girlHair2, price: 20, rarity: "Common" },
@@ -140,12 +140,12 @@ const storeItems = {
     { id: "GirlTop2", label: "Brown Blouse", asset: GirlTop2, price: 120, rarity: "Common" },
     { id: "UniTop1", label: "Pink Bunny Tee", asset: UniTop1, price: 120, rarity: "Common" }, 
     { id: "BoyTop1", label: "Tuxedo Shirt", asset: BoyTop1, price: 1800, rarity: "Rare" },
-    { id: "GirlTop1Animated", label: "Flower Bloom Top", asset: GirlTop1Frames[0], price: 1400, rarity: "Epic" },  
-    { id: "BoyTop1Animated", label: "Blueberry Glow Shirt", asset: BoyTop1Frames[0], price: 1400, rarity: "Epic" },
+    { id: "GirlTop1Animated", label: "Flower Bloom Top", asset: GirlTop1Frames[0], price: 2400, rarity: "Epic" },  
+    { id: "BoyTop1Animated", label: "Blueberry Glow Shirt", asset: BoyTop1Frames[0], price: 2400, rarity: "Epic" },
     { id: "GirlTop9", label: "Sunshine Reef Top", asset: GirlTop9, price: 300, rarity: "Uncommon" },
     { id: "BoyTop7", label: "Cozy Navy Shirt", asset: BoyTop7, price: 1800, rarity: "Rare" },
     { id: "BoyTop8", label: "Woodland Jacket", asset: BoyTop8, price: 600, rarity: "Uncommon" },
-    { id: "GirlTop10", label: "Strawberry Dot", asset: GirlTop10, price: 1400, rarity: "Epic" },
+    { id: "GirlTop10", label: "Strawberry Dot", asset: GirlTop10, price: 1800, rarity: "Epic" },
     { id: "UniTop2", label: "Mint Cozy", asset: UniTop2, price: 400, rarity: "Uncommon" },
     { id: "GirlTop11", label: "Lime Sorbet Top", asset: GirlTop11, price: 1200, rarity: "Uncommon" },
     { id: "UniTop3", label: "Velvet Blush Top", asset: UniTop3, price: 800, rarity: "Common" },
@@ -398,7 +398,7 @@ useEffect(() => {
   },
   hair: {
     label: "Hair",
-    asset: activeGender === "female" ? girlHair1 : boyHair1,
+    asset: activeGender === "female" ? girlHair1 : boyHair5,
   },
   tops: {
     label: "Tops",
@@ -529,26 +529,27 @@ const handleUnequip = (category) => {
   }));
 };
 
-  const handleTryOn = (category, itemId) => {
-    setSelectedItems((prev) => {
-      const next = { ...prev, [category]: itemId };
+ const handleTryOn = (category, itemId) => {
+  setSelectedItems((prev) => {
+    const next = { ...prev, [category]: itemId };
 
-      // If player picks a dress, remove bottoms
-      if (category === "outfits" && getOutfitAsset(itemId)) {
-        next.bottoms = "";
-      }
+    // If player picks an outfit, clear separate clothing layers that should not overlap
+    if (category === "outfits" && getOutfitAsset(itemId)) {
+      next.tops = "";
+      next.bottoms = "";
+    }
 
-      // If player picks bottoms, remove dress
-      if (category === "bottoms" && getBottomAsset(itemId)) {
-        next.outfits = "";
-      }
+    // If player picks a top or bottom, remove outfit
+    if ((category === "tops" || category === "bottoms") && itemId) {
+      next.outfits = "";
+    }
 
-      return next;
-    });
+    return next;
+  });
 
-    setMessage("");
-    setError("");
-  };
+  setMessage("");
+  setError("");
+};
 
   const handleBuyItem = async (item) => {
   setMessage("");
@@ -879,69 +880,71 @@ return (
 
           <div className="catalogScroll">
             <div className="catalogGrid">
-              {categoryItems.map((item) => {
-                const isSelected = selectedItems[activeCategory] === item.id;
-                const isOwned = ownedItems.has(item.id);
+{categoryItems.map((item) => {
+  const itemCategory =
+    activeCategory === "owned" ? item.storeCategory : activeCategory;
 
-                return (
-                  <div key={item.id} className={`itemCard ${isSelected ? "selected" : ""}`}>
-                    <div className="itemThumb">
-                      {item.asset ? (
-                        <img src={item.asset} alt={item.label} />
-                      ) : (
-                        <span>{categoryMeta[activeCategory].emoji}</span>
-                      )}
-                    </div>
+  const isSelected = selectedItems[itemCategory] === item.id;
+  const isOwned = ownedItems.has(item.id);
 
-                    <div className="itemInfo">
-                      <div className="itemTopRow">
-                        <h3>{item.label}</h3>
-                        <span className={`rarityBadge ${rarityClass[item.rarity]}`}>
-                          {item.rarity}
-                        </span>
-                      </div>
+  return (
+    <div key={item.id} className={`itemCard ${isSelected ? "selected" : ""}`}>
+      <div className="itemThumb">
+        {item.asset ? (
+          <img src={item.asset} alt={item.label} />
+        ) : null}
+      </div>
 
-                      <div className="itemMetaLine">
-                        <span className="genderBadge">
-                          {item.gender === "all" ? "Unisex" : item.gender}
-                        </span>
-                        <span className="priceTag">🪙 {item.price}</span>
-                      </div>
+      <div className="itemInfo">
+        <div className="itemTopRow">
+          <h3>{item.label}</h3>
+          <span className={`rarityBadge ${rarityClass[item.rarity]}`}>
+            {item.rarity}
+          </span>
+        </div>
 
-                      <div className="itemBottomRow">
-                        <span className={`ownershipBadge ${isOwned ? "owned" : "locked"}`}>
-                          {isOwned ? "Owned" : "Not owned"}
-                        </span>
+        <div className="itemMetaLine">
+          <span className="genderBadge">
+            {item.gender === "all" ? "Unisex" : item.gender}
+          </span>
+           {!isOwned && (
+    <span className="priceTag">🪙 {item.price}</span>
+  )}
+        </div>
 
-                        <div className="actionGroup">
-                          <button
-                            type="button"
-                            className="actionButton try"
-                            onClick={() =>
-                              isSelected
-                                ? handleUnequip(activeCategory)
-                                : handleTryOn(activeCategory, item.id)
-                            }
-                          >
-                            {isSelected ? "Unequip" : "Equip"}
-                          </button>
+        <div className="itemBottomRow">
+          <span className={`ownershipBadge ${isOwned ? "owned" : "locked"}`}>
+            {isOwned ? "Owned" : "Not owned"}
+          </span>
 
-                          {!isOwned && (
-                           <button
-  type="button"
-  className="actionButton buy"
-  onClick={() => setBuyTarget(item)}
->
-  Buy {item.price}
-</button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+          <div className="actionGroup">
+            <button
+              type="button"
+              className="actionButton try"
+              onClick={() =>
+                isSelected
+                  ? handleUnequip(itemCategory)
+                  : handleTryOn(itemCategory, item.id)
+              }
+            >
+              {isSelected ? "Unequip" : "Equip"}
+            </button>
 
+            {!isOwned && (
+              <button
+                type="button"
+                className="actionButton buy"
+                onClick={() => setBuyTarget(item)}
+              >
+                Buy {item.price}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+})}
               {categoryItems.length === 0 && (
                 <div className="emptyState">
                   No {activeGender} items found in this category yet.
@@ -992,12 +995,24 @@ return (
   {shouldShowBottoms && getBottomAsset(selectedItems.bottoms) && (
     <img src={getBottomAsset(selectedItems.bottoms)} alt="Selected bottom" className="previewLayer" style={{ pointerEvents: "none" }} />
   )}
-  {getTopAsset(selectedItems.tops, animationFrame) && (
-    <img src={getTopAsset(selectedItems.tops, animationFrame)} alt="Selected top" className="previewLayer" style={{ pointerEvents: "none" }} />
-  )}
-  {getOutfitAsset(selectedItems.outfits) && (
-    <img src={getOutfitAsset(selectedItems.outfits)} alt="Selected outfit" className="previewLayer" style={{ pointerEvents: "none" }} />
-  )}
+  {!getOutfitAsset(selectedItems.outfits) &&
+  getTopAsset(selectedItems.tops, animationFrame) && (
+    <img
+      src={getTopAsset(selectedItems.tops, animationFrame)}
+      alt="Selected top"
+      className="previewLayer"
+      style={{ pointerEvents: "none" }}
+    />
+)}
+
+{getOutfitAsset(selectedItems.outfits) && (
+  <img
+    src={getOutfitAsset(selectedItems.outfits)}
+    alt="Selected outfit"
+    className="previewLayer"
+    style={{ pointerEvents: "none" }}
+  />
+)}
   {getShoeAsset(selectedItems.shoes) && (
     <img src={getShoeAsset(selectedItems.shoes)} alt="Selected shoe" className="previewLayer" style={{ pointerEvents: "none" }} />
   )}

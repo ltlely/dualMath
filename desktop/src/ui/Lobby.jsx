@@ -12,6 +12,8 @@ import {
 // import { userManager } from "../userManagerSupabase.js";
 import Game from "./Game.jsx";
 import { getSoundSettings, saveSoundSettings, applyVolume } from "./soundSettings";
+import DailyCheck from "./DailyCheck.jsx";
+import PublicLobby from "./PublicLobby.jsx";
 
 const rankImages = {
   "Novice Apprentice": "/noviceApprenticeRank.png",
@@ -40,13 +42,14 @@ export default function Lobby({
   setTestRankOverride,
   testRankOverride,
   onOpenPickCharacter,
-   onOpenRank,
-   onOpenFriends,
-   friendChatBadgeCount = 0,
-    friends = [],
-     setIsOnlineFriendsScrolling,
+  onOpenRank,
+  onOpenFriends,
+  friendChatBadgeCount = 0,
+  friends = [],
+  setIsOnlineFriendsScrolling,
+  dailyCheck,
 }) {
-
+const [showPublicLobbyPanel, setShowPublicLobbyPanel] = useState(false);
   const [settingsTab, setSettingsTab] = useState("account");
 const [settingsEmail, setSettingsEmail] = useState(currentUser?.email || "");
 const [newUsername, setNewUsername] = useState(currentUser?.username || "");
@@ -72,7 +75,7 @@ const [savedSoundSettings, setSavedSoundSettings] = useState(() => getSoundSetti
 const [isSavingSound, setIsSavingSound] = useState(false);
 const [showFriendsDrawer, setShowFriendsDrawer] = useState(false);
    
-
+const [showDailyCheck, setShowDailyCheck] = useState(false);
 
 
 const updateSoundSetting = (key, value) => {
@@ -327,85 +330,130 @@ const visibleOnlineFriends = friends.filter((friend) => {
   return value === "online" || value === "in_room" || value === "in_match";
 });
 
+const handleDailyClaim = async (reward) => {
+  if (!currentUser || !reward) return;
+
+  let addedCoins = 0;
+
+  if (reward.type === "coins") {
+    addedCoins = reward.amount;
+  } else if (reward.type === "gift") {
+    addedCoins = 1000;
+  }
+
+  const updatedUser = {
+    ...currentUser,
+    coins: (currentUser.coins ?? 2000) + addedCoins,
+  };
+
+  const result = await userManager.saveUser(updatedUser);
+  const savedUser = result?.user || updatedUser;
+
+  if (onLoginSuccess) {
+    onLoginSuccess(savedUser);
+  }
+};
+
+const totalUsersOnline = friends.filter((friend) => {
+  const value = getComputedStatus(friend);
+  return value === "online" || value === "in_room" || value === "in_match";
+}).length;
 
  return (
   <div className="lobbyShell">
     <div className="lobbyTopbar">
-      <div className="topNavShell">
-        <div className="topNavCenter">
-          <button
-            type="button"
-            className={`topNavItem ${!showQueue ? "active" : ""}`}
-            onClick={() => setShowQueue(false)}
-          >
-            Lobby
-          </button>
+<div className="topNavShell">
+  <div className="topNavLeft">
+<button
+  type="button"
+  className="topNavItem topNavDailyReward"
+  onClick={() => setShowDailyCheck(true)}
+  aria-label="Daily Reward"
+  title="Daily Reward"
+>
+  <img src="/chest.png" alt="Daily Reward" className="topNavDailyRewardImg" />
+</button>
+  </div>
 
-          <button
-            type="button"
-            className="topNavItem"
-            onClick={onOpenStore}
-          >
-            Store
-          </button>
+  <div className="topNavCenter">
+    <button
+      type="button"
+      className={`topNavItem ${!showQueue ? "active" : ""}`}
+      onClick={() => setShowQueue(false)}
+    >
+      Lobby
+    </button>
 
-          <button
-            type="button"
-            className={`topNavItem topNavQueueItem ${showQueue ? "active" : ""}`}
-            onClick={() => {
-              setShowQueue(true);
-            }}
-          >
-            Play
-          </button>
+    <button
+      type="button"
+      className="topNavItem"
+      onClick={onOpenStore}
+    >
+      Store
+    </button>
 
-          <button
-            type="button"
-            className="topNavItem"
-            onClick={onOpenRank}
-          >
-            Rank
-          </button>
+    <button
+      type="button"
+      className={`topNavItem topNavQueueItem ${showQueue ? "active" : ""}`}
+      onClick={() => setShowQueue(true)}
+    >
+      Play
+    </button>
 
-          <button
-            type="button"
-            className="topNavItem"
-            onClick={onOpenFriends}
-          >
-            <span>Friends</span>
-            {friendChatBadgeCount > 0 && (
-              <span className="topNavBadge">{friendChatBadgeCount}</span>
-            )}
-          </button>
-        </div>
+    <button
+      type="button"
+      className="topNavItem"
+      onClick={onOpenRank}
+    >
+      Rank
+    </button>
 
-        <div className="topNavRight">
-          <div className="coinsPill">
-            <img src="/coin.png" alt="Coins" className="coinsImg" />
-            <span>{(currentUser?.coins ?? 0).toLocaleString()}</span>
-          </div>
+    <button
+      type="button"
+      className="topNavItem"
+      onClick={onOpenFriends}
+    >
+      <span>Friends</span>
+      {friendChatBadgeCount > 0 && (
+        <span className="topNavBadge">{friendChatBadgeCount}</span>
+      )}
+    </button>
+  </div>
 
-          <button
-            className="settingsProfileBtn"
-            onClick={() => setShowSettings(!showSettings)}
-            title="Account Settings"
-            type="button"
-          >
-            <div className="settingsProfileAvatar">
-              {currentUser?.avatarData ? (
-                <img src={currentUser.avatarData} alt={currentUser.username || "Avatar"} />
-              ) : (
-                <span>{currentUser?.username?.[0]?.toUpperCase() || "?"}</span>
-              )}
-            </div>
-
-            <span className="settingsProfileDivider" />
-
-            <img src={settingsIcon} alt="Settings" className="settingsIconImg" />
-          </button>
-        </div>
-      </div>
+  <div className="topNavRight">
+    <div className="coinsPill">
+      <img src="/coin.png" alt="Coins" className="coinsImg" />
+      <span>{(currentUser?.coins ?? 0).toLocaleString()}</span>
     </div>
+
+    <button
+      className="settingsProfileBtn"
+      onClick={() => setShowSettings(!showSettings)}
+      title="Account Settings"
+      type="button"
+    >
+      <div className="settingsProfileAvatar">
+        {currentUser?.avatarData ? (
+          <img src={currentUser.avatarData} alt={currentUser.username || "Avatar"} />
+        ) : (
+          <span>{currentUser?.username?.[0]?.toUpperCase() || "?"}</span>
+        )}
+      </div>
+
+      <span className="settingsProfileDivider" />
+      <img src={settingsIcon} alt="Settings" className="settingsIconImg" />
+    </button>
+  </div>
+</div>
+    </div>
+
+    {showDailyCheck && (
+  <DailyCheck
+    currentUser={currentUser}
+    onClaim={handleDailyClaim}
+    onClose={() => setShowDailyCheck(false)}
+  />
+)}
 
     {showSettings && (
       <div className="settingsModal">
@@ -872,73 +920,128 @@ const visibleOnlineFriends = friends.filter((friend) => {
 
     <div className={`friendsDrawer ${showFriendsDrawer ? "open" : ""}`}>
       <div className="friendsDrawerInner">
-        <div className="sidebarSectionTitle">Your Friends</div>
+<div className="friendsHeaderRow">
+  <div className="sidebarSectionTitle">
+    {showPublicLobbyPanel ? "Public Lobby" : "Your Friends"}
+  </div>
 
-        <div className="onlineFriendsCard">
-          <div className="onlineFriendsHeader">
-            <div>
-              <div className="miniLabel">Friends Online</div>
-              <div className="onlineFriendsTitle">{visibleOnlineFriends.length} online</div>
+  <PublicLobby
+    totalUsersOnline={totalUsersOnline}
+    isOpen={showPublicLobbyPanel}
+    onToggle={() => setShowPublicLobbyPanel((prev) => !prev)}
+  />
+</div>
+
+<div className="onlineFriendsCard">
+  <div className="onlineFriendsHeader">
+    <div>
+      <div className="miniLabel">
+        {showPublicLobbyPanel ? "Players Online" : "Friends Online"}
+      </div>
+      <div className="onlineFriendsTitle">
+        {showPublicLobbyPanel
+          ? `${totalUsersOnline} online`
+          : `${visibleOnlineFriends.length} online`}
+      </div>
+    </div>
+
+    {!showPublicLobbyPanel && (
+      <button
+        type="button"
+        className="onlineFriendsViewAll"
+        onClick={onOpenFriends}
+      >
+        View
+      </button>
+    )}
+  </div>
+
+  <div
+    className="onlineFriendsList"
+    onScroll={() => {
+      setIsOnlineFriendsScrolling?.(true);
+      clearTimeout(window.__onlineFriendsScrollTimer);
+      window.__onlineFriendsScrollTimer = setTimeout(() => {
+        setIsOnlineFriendsScrolling?.(false);
+      }, 150);
+    }}
+  >
+    {showPublicLobbyPanel ? (
+      visibleOnlineFriends.length > 0 ? (
+        visibleOnlineFriends.map((friend) => (
+          <button
+            key={friend.id}
+            type="button"
+            className="onlineFriendRow"
+          >
+            <div className="onlineFriendLeft">
+              <div className="onlineFriendAvatar">
+                {friend.avatarData ? (
+                  <img src={friend.avatarData} alt={friend.username} />
+                ) : (
+                  <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
+                )}
+              </div>
+
+              <div className="onlineFriendMeta">
+                <div className="onlineFriendNameRow">
+                  <span className={`connectionDot ${getComputedStatus(friend)}`} />
+                  <span className="onlineFriendName">{friend.username}</span>
+                  <img
+                    className="onlineFriendRankBadge"
+                    src={getRankImage(userManager.getUserRank(friend))}
+                    alt={userManager.getUserRank(friend)}
+                  />
+                </div>
+                <div className="onlineFriendSub">
+                  {friend.rankPoints ?? 0} RP
+                </div>
+              </div>
+            </div>
+          </button>
+        ))
+      ) : (
+        <div className="onlineFriendsEmpty">No players online right now.</div>
+      )
+    ) : visibleOnlineFriends.length > 0 ? (
+      visibleOnlineFriends.slice(0, 4).map((friend) => (
+        <button
+          key={friend.id}
+          type="button"
+          className="onlineFriendRow"
+          onClick={onOpenFriends}
+        >
+          <div className="onlineFriendLeft">
+            <div className="onlineFriendAvatar">
+              {friend.avatarData ? (
+                <img src={friend.avatarData} alt={friend.username} />
+              ) : (
+                <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
+              )}
             </div>
 
-            <button
-              type="button"
-              className="onlineFriendsViewAll"
-              onClick={onOpenFriends}
-            >
-              View
-            </button>
+            <div className="onlineFriendMeta">
+              <div className="onlineFriendNameRow">
+                <span className={`connectionDot ${getComputedStatus(friend)}`} />
+                <span className="onlineFriendName">{friend.username}</span>
+                <img
+                  className="onlineFriendRankBadge"
+                  src={getRankImage(userManager.getUserRank(friend))}
+                  alt={userManager.getUserRank(friend)}
+                />
+              </div>
+              <div className="onlineFriendSub">
+                {friend.rankPoints ?? 0} RP
+              </div>
+            </div>
           </div>
-
-          <div
-            className="onlineFriendsList"
-            onScroll={() => {
-              setIsOnlineFriendsScrolling?.(true);
-              clearTimeout(window.__onlineFriendsScrollTimer);
-              window.__onlineFriendsScrollTimer = setTimeout(() => {
-                setIsOnlineFriendsScrolling?.(false);
-              }, 150);
-            }}
-          >
-            {visibleOnlineFriends.length > 0 ? (
-              visibleOnlineFriends.slice(0, 4).map((friend) => (
-                <button
-                  key={friend.id}
-                  type="button"
-                  className="onlineFriendRow"
-                  onClick={onOpenFriends}
-                >
-                  <div className="onlineFriendLeft">
-                    <div className="onlineFriendAvatar">
-                      {friend.avatarData ? (
-                        <img src={friend.avatarData} alt={friend.username} />
-                      ) : (
-                        <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
-                      )}
-                    </div>
-
-                    <div className="onlineFriendMeta">
-                      <div className="onlineFriendNameRow">
-                        <span className={`connectionDot ${getComputedStatus(friend)}`} />
-                        <span className="onlineFriendName">{friend.username}</span>
-                        <img
-                          className="onlineFriendRankBadge"
-                          src={getRankImage(userManager.getUserRank(friend))}
-                          alt={userManager.getUserRank(friend)}
-                        />
-                      </div>
-                      <div className="onlineFriendSub">
-                        {friend.rankPoints ?? 0} RP
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <div className="onlineFriendsEmpty">No friends online right now.</div>
-            )}
-          </div>
-        </div>
+        </button>
+      ))
+    ) : (
+      <div className="onlineFriendsEmpty">No friends online right now.</div>
+    )}
+  </div>
+</div>
       </div>
     </div>
 
@@ -1196,13 +1299,12 @@ const visibleOnlineFriends = friends.filter((friend) => {
 /* ─── TOP NAV ─────────────────────────────────────────────────── */
 
 .topNavShell {
-  position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: center;
-  min-height: 76px;
   width: 100%;
-  padding: 14px 190px 14px 190px;
+  min-height: 76px;
+  padding: 14px 24px;
   border-radius: 28px;
   background: rgba(255, 248, 232, 0.32);
   border: 1px solid rgba(255, 255, 255, 0.26);
@@ -1212,27 +1314,28 @@ const visibleOnlineFriends = friends.filter((friend) => {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
+/* Remove position:absolute from topNavCenter */
+.topNavLeft {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+}
 
 .topNavCenter {
-    display: flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  width: 100%;
-  max-width: 100%;
-  margin-left: 0;
+  gap: 14px;
+  white-space: nowrap;
 }
 
 .topNavRight {
-  position: absolute;
-  right: 18px;
-  top: 50%;
-  transform: translateY(-50%);
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
-  z-index: 2;
+  min-width: 0;
 }
 
 .topNavItem {
@@ -1240,7 +1343,7 @@ const visibleOnlineFriends = friends.filter((friend) => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-width: 110px;
+  min-width: 96px;
   padding: 12px 18px;
   border-radius: 999px;
   border: 1px solid rgba(107, 79, 52, 0.10);
@@ -1250,15 +1353,35 @@ const visibleOnlineFriends = friends.filter((friend) => {
   font-weight: 800;
   cursor: pointer;
   transition: 0.18s ease;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.topNavItem:hover {
-  transform: translateY(-1px);
-  background: rgba(255, 253, 244, 0.72);
-  border-color: rgba(107, 79, 52, 0.22);
-  box-shadow: 0 8px 18px rgba(107, 79, 52, 0.10);
+
+.topNavQueueItem {
+  position: relative;
+  min-width: 132px;
+  padding: 12px 18px; /* same as topNavItem */
+  background: linear-gradient(180deg, #ffe9b8, #e7be73);
+  border: 1px solid rgba(107, 79, 52, 0.22);
+  box-shadow:
+    0 10px 22px rgba(176, 129, 53, 0.18),
+    0 0 18px rgba(224, 171, 63, 0.16);
+}
+
+.coinsPill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 243, 210, 0.78);
+  border: 1px solid rgba(171, 124, 40, 0.20);
+  color: #6b4520;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(176, 129, 53, 0.10);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .topNavItem.active {
@@ -1364,7 +1487,7 @@ const visibleOnlineFriends = friends.filter((friend) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 15px;
+  padding: 8px 12px;
   border-radius: 999px;
   background: rgba(255, 243, 210, 0.78);
   border: 1px solid rgba(171, 124, 40, 0.20);
@@ -1373,6 +1496,8 @@ const visibleOnlineFriends = friends.filter((friend) => {
   box-shadow: 0 8px 18px rgba(176, 129, 53, 0.10);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .coinsIcon {
@@ -2551,6 +2676,13 @@ const visibleOnlineFriends = friends.filter((friend) => {
   margin-bottom: 10px;
 }
 
+.dailyRewardInline {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 18px;
+}
+
 .soundRowTop {
   display: flex;
   align-items: center;
@@ -3257,6 +3389,96 @@ const visibleOnlineFriends = friends.filter((friend) => {
   animation: lobbySparkleGlow 2.4s ease-in-out infinite;
 }
 
+.topNavDailyReward {
+  min-width: 42px;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+
+  background: transparent;
+  border: none;
+  box-shadow: none;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+.topNavDailyRewardImg {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  display: block;
+  filter:
+    drop-shadow(0 0 6px rgba(255, 215, 120, 0.95))
+    drop-shadow(0 0 14px rgba(224, 171, 63, 0.75))
+    drop-shadow(0 0 26px rgba(224, 171, 63, 0.45));
+}
+
+.publicLobbyStatusLine {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.publicLobbyStatusText {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--brown-dark);
+  line-height: 1.2;
+}
+
+.publicLobbyInline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.publicLobbyInline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.publicLobbyText {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--brown-dark);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.publicLobbyActionBtn {
+  border: 1px solid rgba(107, 79, 52, 0.14);
+  background: rgba(255, 253, 244, 0.72);
+  color: var(--brown-dark);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  height: 24px;
+  min-width: 36px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.friendsHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.friendsHeaderRow .sidebarSectionTitle {
+  font-size: 12px;
+  white-space: nowrap;
+}
       `}</style>
     </div>
   );

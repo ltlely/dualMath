@@ -11,6 +11,7 @@ import { updatePoints, getRank } from "./rankingSystem.js";
 import Rank from "./ui/Rank.jsx";
 import FriendList from "./ui/FriendList.jsx";
 import { applyVolume, getSoundSettings } from "./ui/soundSettings";
+import DailyCheck from "./ui/DailyCheck.jsx";
 
 const isDev = window.location.hostname === "localhost";
 const SOCKET_URL =
@@ -219,6 +220,19 @@ socket.onAny((event, ...args) => {
   console.log("🛎️ RAW:", event, args);
 });
 
+const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768);
+
+useEffect(() => {
+  const handleResize = () => {
+    setIsMobileView(window.innerWidth <= 1024);
+  };
+
+  handleResize();
+  window.addEventListener("resize", handleResize);
+
+  return () => window.removeEventListener("resize", handleResize);
+}, []);
+
 const isInGameMusicState =
   view === "game" ||
   screen === "game" ||
@@ -380,6 +394,30 @@ useEffect(() => {
     clickAudio.currentTime = 0;
   };
 }, [currentUser, isInGameMusicState]);
+
+const handleDailyClaim = async (reward) => {
+  if (!currentUser || !reward) return;
+
+  let addedCoins = 0;
+
+  if (reward.type === "coins") {
+    addedCoins = reward.amount;
+  } else if (reward.type === "gift") {
+    addedCoins = 1000;
+  }
+
+  const updatedUser = {
+    ...currentUser,
+    coins: (currentUser.coins ?? 2000) + addedCoins,
+  };
+
+  const result = await userManager.saveUser(updatedUser);
+  const savedUser = result?.user || updatedUser;
+
+  if (onLoginSuccess) {
+    onLoginSuccess(savedUser);
+  }
+};
 
 const getComputedStatus = useCallback((friend) => {
   const rawStatus = (friend?.status || "").toLowerCase();
@@ -1006,6 +1044,65 @@ const handleLoginSuccess = (user) => {
   return () => clearInterval(interval);
 }, [currentUser?.id]);
 
+if (isMobileView) {
+  return (
+    <div className="mobileBlocker">
+      <div className="mobileBlockerCard">
+        <div className="mobileBlockerIcon">💻</div>
+        <h1>Desktop Only</h1>
+        <p>
+          This website is currently available on desktop only.
+          Please open it on a laptop or computer.
+        </p>
+      </div>
+
+      <style>{`
+        .mobileBlocker {
+          min-height: 100vh;
+          width: 100%;
+          display: grid;
+          place-items: center;
+          padding: 24px;
+          text-align: center;
+          background:
+            radial-gradient(circle at top, rgba(255, 223, 138, 0.18), transparent 32%),
+            linear-gradient(180deg, #f8f0dd 0%, #d3bd95 100%);
+        }
+
+        .mobileBlockerCard {
+          width: min(100%, 420px);
+          padding: 32px 24px;
+          border-radius: 28px;
+          background: linear-gradient(180deg, rgba(255, 248, 235, 0.98), rgba(245, 225, 186, 0.96));
+          border: 1px solid rgba(155, 119, 88, 0.24);
+          box-shadow:
+            0 24px 60px rgba(91, 63, 42, 0.22),
+            inset 0 1px 0 rgba(255, 255, 255, 0.65);
+          color: #5b3f2a;
+        }
+
+        .mobileBlockerIcon {
+          font-size: 42px;
+          margin-bottom: 12px;
+        }
+
+        .mobileBlockerCard h1 {
+          margin: 0 0 10px;
+          font-size: 28px;
+          color: #7a532c;
+        }
+
+        .mobileBlockerCard p {
+          margin: 0;
+          font-size: 15px;
+          line-height: 1.6;
+          color: #8a684b;
+        }
+      `}</style>
+    </div>
+  );
+}
+
   if (showPickCharacter && pendingNewUser) {
   return (
    <PickCharacter
@@ -1255,6 +1352,14 @@ onOpenStore={async () => {
   userManager.updateStatus(currentUser.id, "online");
 }
           }}
+          dailyCheck={
+          currentUser ? (
+            <DailyCheck
+              currentUser={currentUser}
+              onClaim={handleDailyClaim}
+            />
+          ) : null
+        }
           friendChatBadgeCount={unreadChatCount}
           onOpenFriends={() => {
             setScreen("lobby");
