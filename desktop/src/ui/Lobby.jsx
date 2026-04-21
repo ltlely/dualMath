@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { Card } from "./components.jsx";
+import { Card, Button } from "./components.jsx";
 import Auth from "./Auth.jsx";
 import { userManager } from "../userManagerSupabase.js";
 import {
@@ -57,7 +57,7 @@ const [settingsMessage, setSettingsMessage] = useState("");
 const [settingsError, setSettingsError] = useState("");
 const [isSendingReset, setIsSendingReset] = useState(false);
 const [isSavingUsername, setIsSavingUsername] = useState(false);
-
+const friendsDrawerRef = useRef(null);
   const [roomName, setRoomName] = useState("");
   const [code, setCode] = useState("");
   const [showSettings, setShowSettings] = useState(false);
@@ -164,6 +164,24 @@ useEffect(() => {
   };
 }, [currentUser?.id]);
 
+useEffect(() => {
+  if (!showFriendsDrawer) return;
+
+  const handleClickOutside = (event) => {
+    const clickedInsideDrawer = friendsDrawerRef.current?.contains(event.target);
+    const clickedToggle = event.target.closest(".friendsDrawerToggle");
+
+    if (!clickedInsideDrawer && !clickedToggle) {
+      setShowFriendsDrawer(false);
+    }
+  };
+
+  document.addEventListener("mousedown", handleClickOutside);
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside);
+  };
+}, [showFriendsDrawer]);
 
 const getComputedStatus = useCallback((friend) => {
   const rawStatus = (friend?.status || "").toLowerCase();
@@ -363,6 +381,7 @@ const totalUsersOnline = friends.filter((friend) => {
   <div className="lobbyShell">
     <div className="lobbyTopbar">
 <div className="topNavShell">
+  
   <div className="topNavLeft">
 <button
   type="button"
@@ -374,7 +393,13 @@ const totalUsersOnline = friends.filter((friend) => {
   <img src="/chest.png" alt="Daily Reward" className="topNavDailyRewardImg" />
 </button>
   </div>
-
+{/* <Button
+  onClick={() =>
+    onOpenPickCharacter?.({ id: "test-user", username: "TestUser" })
+  }
+>
+  Open Pick Character
+</Button> */}
   <div className="topNavCenter">
     <button
       type="button"
@@ -906,7 +931,7 @@ const totalUsersOnline = friends.filter((friend) => {
       )}
     </div>
 
-    <button
+<button
   type="button"
   className={`friendsDrawerToggle ${showFriendsDrawer ? "open" : ""}`}
   onClick={() => setShowFriendsDrawer((prev) => !prev)}
@@ -918,7 +943,10 @@ const totalUsersOnline = friends.filter((friend) => {
   </span>
 </button>
 
-    <div className={`friendsDrawer ${showFriendsDrawer ? "open" : ""}`}>
+<div
+  ref={friendsDrawerRef}
+  className={`friendsDrawer ${showFriendsDrawer ? "open" : ""}`}
+>
       <div className="friendsDrawerInner">
 <div className="friendsHeaderRow">
   <div className="sidebarSectionTitle">

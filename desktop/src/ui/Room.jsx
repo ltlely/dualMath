@@ -184,9 +184,24 @@ export default function Room({
       </div>
 
       <div className="teamsRow">
-        <Card
-          title={<div style={{ width: "100%", textAlign: "center" }}>⚔️ Team A</div>}
-        >
+<Card
+  title={
+    <div style={{ width: "100%", textAlign: "center" }}>
+      <img
+        src="/sword.png"
+        alt="Team A"
+        style={{
+          width: "54px",
+          height: "54px",
+          objectFit: "contain",
+          verticalAlign: "middle",
+          marginRight: "8px",
+        }}
+      />
+      Team A
+    </div>
+  }
+>
           <div className="teamGrid">
             <Slot
               title="A1"
@@ -209,9 +224,24 @@ export default function Room({
           </div>
         </Card>
 
-        <Card
-          title={<div style={{ width: "100%", textAlign: "center" }}>🛡️ Team B</div>}
-        >
+       <Card
+  title={
+    <div style={{ width: "100%", textAlign: "center" }}>
+      <img
+        src="/shield.png"
+        alt="Team B"
+        style={{
+          width: "54px",
+          height: "54px",
+          objectFit: "contain",
+          verticalAlign: "middle",
+          marginRight: "8px",
+        }}
+      />
+      Team B
+    </div>
+  }
+>
           <div className="teamGrid">
             <Slot
               title="B1"

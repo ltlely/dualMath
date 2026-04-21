@@ -165,6 +165,11 @@ const updatedUser = {
 
   return (
     <div className="pickShell">
+        <img src="/clouds.png" alt="" className="authCloud authCloud1" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud2" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud3" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud4" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud5" />
       <div className="pickCardWrap">
         <Card title="Pick Your Character">
           <div className="pickStack">
@@ -274,23 +279,141 @@ const updatedUser = {
   box-shadow: 0 0 0 3px rgba(155, 119, 88, 0.15);
 }
 
-        .pickShell {
-          min-height: 100vh;
-          padding: 24px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
+.pickShell {
+  min-height: 100dvh;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, rgba(255, 235, 190, 0.62), transparent 34%),
+    linear-gradient(180deg, #ecdcb8 10%, #cfb07a 55%, #b98f58 100%);
+}
 
-        .pickCardWrap {
-          width: min(760px, 94vw);
-          display: flex;
-          justify-content: center;
-        }
+.pickShell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255,255,255,0.30), transparent 10%),
+    radial-gradient(circle at 78% 24%, rgba(255,245,220,0.24), transparent 12%),
+    radial-gradient(circle at 68% 74%, rgba(255,255,255,0.20), transparent 11%),
+    radial-gradient(circle at 28% 78%, rgba(255,245,220,0.18), transparent 13%);
+  filter: blur(18px);
+}
 
-        .pickCardWrap > * {
-          width: 100%;
-        }
+.pickShell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.42) 0 1px, transparent 1.8px),
+    radial-gradient(circle, rgba(255,244,210,0.24) 0 1px, transparent 1.9px),
+    radial-gradient(circle, rgba(255,255,255,0.18) 0 1.2px, transparent 2px);
+  background-size: 120px 120px, 170px 170px, 220px 220px;
+  background-position: 20px 14px, 80px 50px, 140px 26px;
+  opacity: 0.7;
+}
+
+@keyframes authCloudFloat {
+  0% {
+    transform: translate3d(0, 0, 0) scaleX(var(--cloud-flip, 1));
+  }
+  25% {
+    transform: translate3d(8px, -10px, 0) scaleX(var(--cloud-flip, 1));
+  }
+  50% {
+    transform: translate3d(0, -18px, 0) scaleX(var(--cloud-flip, 1));
+  }
+  75% {
+    transform: translate3d(-8px, -10px, 0) scaleX(var(--cloud-flip, 1));
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scaleX(var(--cloud-flip, 1));
+  }
+}
+
+.authCloud {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+  opacity: 0.9;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 20px rgba(191, 141, 86, 0.18));
+  animation: authCloudFloat 7s ease-in-out infinite;
+  will-change: transform;
+}
+
+.authCloud1 {
+  width: 520px;
+  top: -108px;
+  left: -80px;
+  --cloud-flip: 1;
+  animation-duration: 7.5s;
+  animation-delay: 0s;
+}
+
+.authCloud2 {
+  width: 480px;
+  top: 120px;
+  right: 180px;
+  --cloud-flip: -1;
+  animation-duration: 8.2s;
+  animation-delay: 0.8s;
+}
+
+.authCloud3 {
+  width: 640px;
+  bottom: 26px;
+  left: 10px;
+  --cloud-flip: -1;
+  animation-duration: 9s;
+  animation-delay: 1.4s;
+}
+
+.authCloud4 {
+  width: 570px;
+  bottom: -200px;
+  right: -108px;
+  --cloud-flip: 1;
+  animation-duration: 8.8s;
+  animation-delay: 0.4s;
+}
+
+.authCloud5 {
+  width: 440px;
+  top: -200px;
+  left: 100%;
+  --cloud-flip: -1;
+  animation-duration: 7.8s;
+  animation-delay: 1.1s;
+  margin-left: -220px;
+}
+
+
+.pickCardWrap {
+  width: min(760px, 94vw);
+  display: flex;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.pickCardWrap > * {
+  width: 100%;
+  background: linear-gradient(180deg, rgba(255, 249, 236, 0.92), rgba(238, 212, 155, 0.9)) !important;
+  border: 2px solid #c9ab86 !important;
+  border-radius: 20px !important;
+  box-shadow:
+    0 20px 40px rgba(95, 70, 48, 0.14),
+    0 0 28px rgba(224, 171, 63, 0.18),
+    inset 0 1px 0 rgba(255,255,255,0.35) !important;
+}
 
         .pickStack {
           display: flex;

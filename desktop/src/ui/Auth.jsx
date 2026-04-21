@@ -454,7 +454,13 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   
   if (isRecoveryMode && mode !== "login") {
     return (
-      <div className="authModal">
+      <div className="authScreen lobbySparkles">
+         <img src="/clouds.png" alt="" className="authCloud authCloud1" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud2" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud3" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud4" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud5" />
+  <div className="authModal">
         <Card title="🔐 Reset Password">
           <div className="stack">
             <p className="muted">Enter your new password below.</p>
@@ -505,6 +511,196 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
         </Card>
         
         <style>{`
+
+        @keyframes authCloudFloat {
+  0% {
+    transform: translate3d(0, 0, 0) scaleX(var(--cloud-flip, 1));
+  }
+  25% {
+    transform: translate3d(8px, -10px, 0) scaleX(var(--cloud-flip, 1));
+  }
+  50% {
+    transform: translate3d(0, -18px, 0) scaleX(var(--cloud-flip, 1));
+  }
+  75% {
+    transform: translate3d(-8px, -10px, 0) scaleX(var(--cloud-flip, 1));
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scaleX(var(--cloud-flip, 1));
+  }
+}
+
+.authBrand {
+  position: absolute;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  text-align: center;
+  pointer-events: none;
+}
+
+.authBrandTitle {
+  font-size: clamp(38px, 6vw, 72px);
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff7e3;
+  text-shadow:
+    0 2px 0 #c99437,
+    0 4px 0 #b07a25,
+    0 10px 24px rgba(95, 70, 48, 0.28),
+    0 0 20px rgba(255, 226, 150, 0.42);
+}
+
+.authBrandSubtitle {
+  margin-top: 20px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(107, 79, 52, 0.88);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.35);
+}
+
+.authModal {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+  margin-top: 00px;
+}
+
+.authCloud {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+  opacity: 0.9;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 20px rgba(191, 141, 86, 0.18));
+  animation: authCloudFloat 7s ease-in-out infinite;
+  will-change: transform;
+}
+
+.authCloud1 {
+  width: 520px;
+  top: -108px;
+  left: -80px;
+  --cloud-flip: 1;
+  animation-duration: 7.5s;
+  animation-delay: 0s;
+}
+
+.authCloud2 {
+  width: 480px;
+  top: 120px;
+  right: 180px;
+  --cloud-flip: -1;
+  animation-duration: 8.2s;
+  animation-delay: 0.8s;
+}
+
+.authCloud3 {
+  width: 640px;
+  bottom: 26px;
+  left: 10px;
+  --cloud-flip: -1;
+  animation-duration: 9s;
+  animation-delay: 1.4s;
+}
+
+.authCloud4 {
+  width: 570px;
+  bottom: -200px;
+  right: -108px;
+  --cloud-flip: 1;
+  animation-duration: 8.8s;
+  animation-delay: 0.4s;
+}
+
+.authCloud5 {
+  width: 440px;
+  top: -200px;
+  left: 100%;
+  --cloud-flip: -1;
+  animation-duration: 7.8s;
+  animation-delay: 1.1s;
+  margin-left: -220px;
+}
+
+.authModal {
+  position: relative;
+  z-index: 1;
+}
+        .authScreen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, rgba(255, 235, 190, 0.62), transparent 34%),
+    linear-gradient(180deg, #ecdcb8 10%, #cfb07a 55%, #b98f58 100%);
+}
+
+
+
+.authScreen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255,255,255,0.20), transparent 8%),
+    radial-gradient(circle at 78% 24%, rgba(255,245,220,0.16), transparent 10%),
+    radial-gradient(circle at 68% 74%, rgba(255,255,255,0.14), transparent 9%),
+    radial-gradient(circle at 28% 78%, rgba(255,245,220,0.12), transparent 11%);
+  filter: blur(10px);
+}
+
+.authModal {
+max-width: 520px;
+  position: relative;
+  z-index: 1;
+}
+
+.authModal > * {
+  width: min(560px, 92vw) !important;
+  min-width: 360px;
+  max-width: 560px;
+  background: linear-gradient(180deg, rgba(255, 249, 236, 0.96), rgba(238, 212, 155, 0.92)) !important;
+  border: 1px solid rgba(224, 171, 63, 0.32) !important;
+  box-shadow:
+    0 20px 40px rgba(95, 70, 48, 0.14),
+    0 0 18px rgba(255, 226, 150, 0.45),
+    0 0 36px rgba(224, 171, 63, 0.32),
+    0 0 60px rgba(224, 171, 63, 0.18),
+    inset 0 1px 0 rgba(255,255,255,0.45) !important;
+}
+
+@keyframes authCardGlow {
+  0%, 100% {
+    box-shadow:
+      0 20px 40px rgba(95, 70, 48, 0.16),
+      0 0 22px rgba(255, 231, 168, 0.55),
+      0 0 46px rgba(237, 187, 87, 0.4),
+      0 0 78px rgba(224, 171, 63, 0.24),
+      inset 0 1px 0 rgba(255,255,255,0.5);
+  }
+  50% {
+    box-shadow:
+      0 20px 40px rgba(95, 70, 48, 0.16),
+      0 0 28px rgba(255, 231, 168, 0.72),
+      0 0 56px rgba(237, 187, 87, 0.52),
+      0 0 96px rgba(224, 171, 63, 0.34),
+      inset 0 1px 0 rgba(255,255,255,0.5);
+  }
+}
+
+.authModal > * {
+  animation: authCardGlow 2.8s ease-in-out infinite;
+}
           .success {
             padding: 12px;
             background: rgba(45,212,191,.08);
@@ -514,7 +710,22 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
             font-size: 14px;
             text-align: center;
           }
+
+          .authScreen.lobbySparkles::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.42) 0 1px, transparent 1.8px),
+    radial-gradient(circle, rgba(255,244,210,0.24) 0 1px, transparent 1.9px),
+    radial-gradient(circle, rgba(255,255,255,0.18) 0 1.2px, transparent 2px);
+  background-size: 120px 120px, 170px 170px, 220px 220px;
+  background-position: 20px 14px, 80px 50px, 140px 26px;
+  opacity: 0.7;
+}
         `}</style>
+      </div>
       </div>
     );
   }
@@ -523,6 +734,12 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   if (mode === "verify") {
     const displayEmail = pendingVerifyEmail || currentUser?.email || email;
     return (
+      <div className="authScreen lobbySparkles">
+         <img src="/clouds.png" alt="" className="authCloud authCloud1" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud2" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud3" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud4" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud5" />
       <div className="authModal">
         <Card title="📧 Verify Your Email">
           <div className="stack">
@@ -581,6 +798,121 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
         </Card>
         
         <style>{`
+.authCloud {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+  opacity: 0.9;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 20px rgba(191, 141, 86, 0.18));
+}
+
+.authCloud1 {
+  width: 220px;
+  top: 38px;
+  left: -20px;
+}
+
+.authCloud2 {
+  width: 180px;
+  top: 120px;
+  right: -10px;
+  transform: scaleX(-1);
+}
+
+.authCloud3 {
+  width: 240px;
+  bottom: 26px;
+  left: 10px;
+  transform: scaleX(-1);
+}
+
+.authCloud4 {
+  width: 170px;
+  bottom: 90px;
+  right: 18px;
+}
+
+.authCloud5 {
+  width: 140px;
+  top: 260px;
+  left: 50%;
+  transform: translateX(-50%) scaleX(-1);
+}
+
+.authModal {
+  position: relative;
+  z-index: 1;
+}
+        .authScreen.lobbySparkles::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.42) 0 1px, transparent 1.8px),
+    radial-gradient(circle, rgba(255,244,210,0.24) 0 1px, transparent 1.9px),
+    radial-gradient(circle, rgba(255,255,255,0.18) 0 1.2px, transparent 2px);
+  background-size: 120px 120px, 170px 170px, 220px 220px;
+  background-position: 20px 14px, 80px 50px, 140px 26px;
+  opacity: 0.7;
+}
+
+        .authScreen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, rgba(255, 235, 190, 0.62), transparent 34%),
+    linear-gradient(180deg, #ecdcb8 10%, #cfb07a 55%, #b98f58 100%);
+}
+
+.authScreen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255,255,255,0.20), transparent 8%),
+    radial-gradient(circle at 78% 24%, rgba(255,245,220,0.16), transparent 10%),
+    radial-gradient(circle at 68% 74%, rgba(255,255,255,0.14), transparent 9%),
+    radial-gradient(circle at 28% 78%, rgba(255,245,220,0.12), transparent 11%);
+  filter: blur(10px);
+}
+
+.authScreen.lobbySparkles::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.42) 0 1px, transparent 1.8px),
+    radial-gradient(circle, rgba(255,244,210,0.24) 0 1px, transparent 1.9px),
+    radial-gradient(circle, rgba(255,255,255,0.18) 0 1.2px, transparent 2px);
+  background-size: 120px 120px, 170px 170px, 220px 220px;
+  background-position: 20px 14px, 80px 50px, 140px 26px;
+  opacity: 0.7;
+}
+
+.authModal {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+}
+
+.authModal > * {
+ width: min(560px, 92vw) !important;
+    min-width: 360px;
+
+  max-width: 560px;
+  background: linear-gradient(180deg, rgba(255, 249, 236, 0.92), rgba(238, 212, 155, 0.9)) !important;
+  box-shadow:
+    0 20px 40px rgba(95, 70, 48, 0.14),
+    0 0 28
           .verifyIcon {
             font-size: 64px;
             text-align: center;
@@ -626,12 +958,19 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
           }
         `}</style>
       </div>
+      </div>
     );
   }
 
   // Forgot Password Screen
   if (mode === "forgot") {
     return (
+      <div className="authScreen lobbySparkles">
+         <img src="/clouds.png" alt="" className="authCloud authCloud1" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud2" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud3" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud4" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud5" />
       <div className="authModal">
         <Card title="🔑 Forgot Password">
           <div className="stack">
@@ -670,9 +1009,262 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
               </button>
             </div>
           </div>
+          
         </Card>
         
         <style>{`
+
+        .authModal .forgotEmailInput,
+.authModal .forgotEmailInput input,
+.authModal input.forgotEmailInput {
+  border: 2px solid #c9ab86 !important;
+  border-radius: 12px !important;
+  background: #fffaf2 !important;
+  color: #6b4f34 !important;
+  height: 46px;
+  padding: 0 14px;
+  box-shadow: inset 0 1px 2px rgba(107, 79, 52, 0.06) !important;
+}
+
+.authModal .forgotEmailInput:focus,
+.authModal .forgotEmailInput input:focus,
+.authModal input.forgotEmailInput:focus {
+  outline: none;
+  border-color: #b88e63 !important;
+  box-shadow: 0 0 0 3px rgba(201, 171, 134, 0.22) !important;
+}
+@keyframes authCloudFloat {
+  0% {
+    transform: translate3d(0, 0, 0) scaleX(var(--cloud-flip, 1));
+  }
+  25% {
+    transform: translate3d(8px, -10px, 0) scaleX(var(--cloud-flip, 1));
+  }
+  50% {
+    transform: translate3d(0, -18px, 0) scaleX(var(--cloud-flip, 1));
+  }
+  75% {
+    transform: translate3d(-8px, -10px, 0) scaleX(var(--cloud-flip, 1));
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scaleX(var(--cloud-flip, 1));
+  }
+}
+
+.authBrand {
+  position: absolute;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  text-align: center;
+  pointer-events: none;
+}
+
+.authBrandTitle {
+  font-size: clamp(38px, 6vw, 72px);
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff7e3;
+  text-shadow:
+    0 2px 0 #c99437,
+    0 4px 0 #b07a25,
+    0 10px 24px rgba(95, 70, 48, 0.28),
+    0 0 20px rgba(255, 226, 150, 0.42);
+}
+
+.authBrandSubtitle {
+  margin-top: 20px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(107, 79, 52, 0.88);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.35);
+}
+
+.authModal {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+  margin-top: 00px;
+}
+
+.authCloud {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+  opacity: 0.9;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 20px rgba(191, 141, 86, 0.18));
+  animation: authCloudFloat 7s ease-in-out infinite;
+  will-change: transform;
+}
+
+.authCloud1 {
+  width: 520px;
+  top: -108px;
+  left: -80px;
+  --cloud-flip: 1;
+  animation-duration: 7.5s;
+  animation-delay: 0s;
+}
+
+.authCloud2 {
+  width: 480px;
+  top: 120px;
+  right: 180px;
+  --cloud-flip: -1;
+  animation-duration: 8.2s;
+  animation-delay: 0.8s;
+}
+
+.authCloud3 {
+  width: 640px;
+  bottom: 26px;
+  left: 10px;
+  --cloud-flip: -1;
+  animation-duration: 9s;
+  animation-delay: 1.4s;
+}
+
+.authCloud4 {
+  width: 570px;
+  bottom: -200px;
+  right: -108px;
+  --cloud-flip: 1;
+  animation-duration: 8.8s;
+  animation-delay: 0.4s;
+}
+
+.authCloud5 {
+  width: 440px;
+  top: -200px;
+  left: 100%;
+  --cloud-flip: -1;
+  animation-duration: 7.8s;
+  animation-delay: 1.1s;
+  margin-left: -220px;
+}
+
+.authModal {
+  position: relative;
+  z-index: 1;
+}
+        .authScreen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, rgba(255, 235, 190, 0.62), transparent 34%),
+    linear-gradient(180deg, #ecdcb8 10%, #cfb07a 55%, #b98f58 100%);
+}
+
+
+
+.authScreen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255,255,255,0.20), transparent 8%),
+    radial-gradient(circle at 78% 24%, rgba(255,245,220,0.16), transparent 10%),
+    radial-gradient(circle at 68% 74%, rgba(255,255,255,0.14), transparent 9%),
+    radial-gradient(circle at 28% 78%, rgba(255,245,220,0.12), transparent 11%);
+  filter: blur(10px);
+}
+
+.authModal {
+max-width: 520px;
+  position: relative;
+  z-index: 1;
+}
+
+.authModal > * {
+  width: min(560px, 92vw) !important;
+  min-width: 360px;
+  max-width: 560px;
+  background: linear-gradient(180deg, rgba(255, 249, 236, 0.96), rgba(238, 212, 155, 0.92)) !important;
+  border: 1px solid rgba(224, 171, 63, 0.32) !important;
+  box-shadow:
+    0 20px 40px rgba(95, 70, 48, 0.14),
+    0 0 18px rgba(255, 226, 150, 0.45),
+    0 0 36px rgba(224, 171, 63, 0.32),
+    0 0 60px rgba(224, 171, 63, 0.18),
+    inset 0 1px 0 rgba(255,255,255,0.45) !important;
+}
+
+@keyframes authCardGlow {
+  0%, 100% {
+    box-shadow:
+      0 20px 40px rgba(95, 70, 48, 0.16),
+      0 0 22px rgba(255, 231, 168, 0.55),
+      0 0 46px rgba(237, 187, 87, 0.4),
+      0 0 78px rgba(224, 171, 63, 0.24),
+      inset 0 1px 0 rgba(255,255,255,0.5);
+  }
+  50% {
+    box-shadow:
+      0 20px 40px rgba(95, 70, 48, 0.16),
+      0 0 28px rgba(255, 231, 168, 0.72),
+      0 0 56px rgba(237, 187, 87, 0.52),
+      0 0 96px rgba(224, 171, 63, 0.34),
+      inset 0 1px 0 rgba(255,255,255,0.5);
+  }
+}
+
+.authModal > * {
+  animation: authCardGlow 2.8s ease-in-out infinite;
+}
+
+.authScreen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255,255,255,0.20), transparent 8%),
+    radial-gradient(circle at 78% 24%, rgba(255,245,220,0.16), transparent 10%),
+    radial-gradient(circle at 68% 74%, rgba(255,255,255,0.14), transparent 9%),
+    radial-gradient(circle at 28% 78%, rgba(255,245,220,0.12), transparent 11%);
+  filter: blur(10px);
+}
+
+.authScreen.lobbySparkles::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.42) 0 1px, transparent 1.8px),
+    radial-gradient(circle, rgba(255,244,210,0.24) 0 1px, transparent 1.9px),
+    radial-gradient(circle, rgba(255,255,255,0.18) 0 1.2px, transparent 2px);
+  background-size: 120px 120px, 170px 170px, 220px 220px;
+  background-position: 20px 14px, 80px 50px, 140px 26px;
+  opacity: 0.7;
+}
+
+.authModal {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+}
+
+.authModal > * {
+ width: min(560px, 92vw) !important;
+    min-width: 360px;
+
+  max-width: 560px;
+  background: linear-gradient(180deg, rgba(255, 249, 236, 0.92), rgba(238, 212, 155, 0.9)) !important;
+  box-shadow:
+    0 20px 40px rgba(95, 70, 48, 0.14),
+    0 0 28
         .authModal .forgotEmailInput,
         .authModal .forgotEmailInput input,
         .authModal input.forgotEmailInput {
@@ -721,6 +1313,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
         }
         `}</style>
       </div>
+      </div>
     );
   }
 
@@ -739,6 +1332,18 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
     }
 
     return (
+      <div className="authScreen lobbySparkles">
+          <img src="/clouds.png" alt="" className="authCloud authCloud1" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud2" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud3" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud4" />
+  <img src="/clouds.png" alt="" className="authCloud authCloud5" />
+
+   <div className="authBrand">
+    <div className="authBrandTitle">Digi Rush</div>
+    <div className="authBrandSubtitle">Battle, learn, and level up</div>
+  </div>
+
       <div className="authModal">
         {mode === "login" ? (
           <Card title="Login">
@@ -864,6 +1469,196 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
         )}
         
         <style>{`
+@keyframes authCloudFloat {
+  0% {
+    transform: translate3d(0, 0, 0) scaleX(var(--cloud-flip, 1));
+  }
+  25% {
+    transform: translate3d(8px, -10px, 0) scaleX(var(--cloud-flip, 1));
+  }
+  50% {
+    transform: translate3d(0, -18px, 0) scaleX(var(--cloud-flip, 1));
+  }
+  75% {
+    transform: translate3d(-8px, -10px, 0) scaleX(var(--cloud-flip, 1));
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scaleX(var(--cloud-flip, 1));
+  }
+}
+
+.authBrand {
+  position: absolute;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  text-align: center;
+  pointer-events: none;
+}
+
+.authBrandTitle {
+  font-size: clamp(38px, 6vw, 72px);
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff7e3;
+  text-shadow:
+    0 2px 0 #c99437,
+    0 4px 0 #b07a25,
+    0 10px 24px rgba(95, 70, 48, 0.28),
+    0 0 20px rgba(255, 226, 150, 0.42);
+}
+
+.authBrandSubtitle {
+  margin-top: 20px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(107, 79, 52, 0.88);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.35);
+}
+
+.authModal {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+  margin-top: 00px;
+}
+
+.authCloud {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+  opacity: 0.9;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 20px rgba(191, 141, 86, 0.18));
+  animation: authCloudFloat 7s ease-in-out infinite;
+  will-change: transform;
+}
+
+.authCloud1 {
+  width: 520px;
+  top: -108px;
+  left: -80px;
+  --cloud-flip: 1;
+  animation-duration: 7.5s;
+  animation-delay: 0s;
+}
+
+.authCloud2 {
+  width: 480px;
+  top: 120px;
+  right: 180px;
+  --cloud-flip: -1;
+  animation-duration: 8.2s;
+  animation-delay: 0.8s;
+}
+
+.authCloud3 {
+  width: 640px;
+  bottom: 26px;
+  left: 10px;
+  --cloud-flip: -1;
+  animation-duration: 9s;
+  animation-delay: 1.4s;
+}
+
+.authCloud4 {
+  width: 570px;
+  bottom: -200px;
+  right: -108px;
+  --cloud-flip: 1;
+  animation-duration: 8.8s;
+  animation-delay: 0.4s;
+}
+
+.authCloud5 {
+  width: 440px;
+  top: -200px;
+  left: 100%;
+  --cloud-flip: -1;
+  animation-duration: 7.8s;
+  animation-delay: 1.1s;
+  margin-left: -220px;
+}
+
+.authModal {
+  position: relative;
+  z-index: 1;
+}
+        .authScreen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top, rgba(255, 235, 190, 0.62), transparent 34%),
+    linear-gradient(180deg, #ecdcb8 10%, #cfb07a 55%, #b98f58 100%);
+}
+
+
+
+.authScreen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255,255,255,0.20), transparent 8%),
+    radial-gradient(circle at 78% 24%, rgba(255,245,220,0.16), transparent 10%),
+    radial-gradient(circle at 68% 74%, rgba(255,255,255,0.14), transparent 9%),
+    radial-gradient(circle at 28% 78%, rgba(255,245,220,0.12), transparent 11%);
+  filter: blur(10px);
+}
+
+.authModal {
+max-width: 520px;
+  position: relative;
+  z-index: 1;
+}
+
+.authModal > * {
+  width: min(560px, 92vw) !important;
+  min-width: 360px;
+  max-width: 560px;
+  background: linear-gradient(180deg, rgba(255, 249, 236, 0.96), rgba(238, 212, 155, 0.92)) !important;
+  border: 1px solid rgba(224, 171, 63, 0.32) !important;
+  box-shadow:
+    0 20px 40px rgba(95, 70, 48, 0.14),
+    0 0 18px rgba(255, 226, 150, 0.45),
+    0 0 36px rgba(224, 171, 63, 0.32),
+    0 0 60px rgba(224, 171, 63, 0.18),
+    inset 0 1px 0 rgba(255,255,255,0.45) !important;
+}
+
+@keyframes authCardGlow {
+  0%, 100% {
+    box-shadow:
+      0 20px 40px rgba(95, 70, 48, 0.16),
+      0 0 22px rgba(255, 231, 168, 0.55),
+      0 0 46px rgba(237, 187, 87, 0.4),
+      0 0 78px rgba(224, 171, 63, 0.24),
+      inset 0 1px 0 rgba(255,255,255,0.5);
+  }
+  50% {
+    box-shadow:
+      0 20px 40px rgba(95, 70, 48, 0.16),
+      0 0 28px rgba(255, 231, 168, 0.72),
+      0 0 56px rgba(237, 187, 87, 0.52),
+      0 0 96px rgba(224, 171, 63, 0.34),
+      inset 0 1px 0 rgba(255,255,255,0.5);
+  }
+}
+
+.authModal > * {
+  animation: authCardGlow 2.8s ease-in-out infinite;
+}
+
 .authModal button {
   border: none !important;
   box-shadow: none !important;
@@ -939,7 +1734,23 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   border-color: #8d6b4f !important;
   box-shadow: 0 0 0 3px rgba(201, 171, 134, 0.22);
 }
+
+.authScreen.lobbySparkles::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.42) 0 1px, transparent 1.8px),
+    radial-gradient(circle, rgba(255,244,210,0.24) 0 1px, transparent 1.9px),
+    radial-gradient(circle, rgba(255,255,255,0.18) 0 1.2px, transparent 2px);
+  background-size: 120px 120px, 170px 170px, 220px 220px;
+  background-position: 20px 14px, 80px 50px, 140px 26px;
+  opacity: 0.9;
+  z-index: 0;
+}
         `}</style>
+      </div>
       </div>
     );
   }
@@ -1074,6 +1885,8 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
           border: 2px solid #c9ab86;
           border-radius: 18px;
         }
+
+        
       `}</style>
     </div>
   );

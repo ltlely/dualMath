@@ -17,7 +17,7 @@ export default function PublicLobby({
         className="publicLobbyActionBtn"
         onClick={onToggle}
       >
-        {isOpen ? "✕" : "Show"}
+        {isOpen ? "✕" : "→"}
       </button>
     </div>
   );
