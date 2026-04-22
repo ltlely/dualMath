@@ -1032,20 +1032,25 @@ if (room.hostId === socket.id) {
 });
 
 
-  socket.on("chat:send", ({ roomCode, text }) => {
-    const code = String(roomCode || "").trim().toUpperCase();
-    const room = rooms.get(code);
-    if (!room) return;
+socket.on("chat:send", ({ roomCode, text }) => {
+  const code = String(roomCode || "").trim().toUpperCase();
+  const room = rooms.get(code);
+  if (!room) return;
 
-    const p = room.players.get(socket.id);
-    if (!p) return;
+  const p = room.players.get(socket.id);
+  if (!p) return;
 
-    io.to(code).emit("chat:new", {
-      from: p.name,
-      text: String(text).slice(0, 300),
-      at: Date.now(),
-    });
+  const trimmed = String(text || "").trim().slice(0, 300);
+  if (!trimmed) return;
+
+  io.to(code).emit("chat:new", {
+    id: `${Date.now()}-${socket.id}`,
+    senderId: socket.id,
+    sender: p.name,
+    text: trimmed,
+    createdAt: new Date().toISOString(),
   });
+});
 
   function endGame(roomCode, payload) {
   const room = rooms.get(roomCode);
