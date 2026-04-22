@@ -93,7 +93,27 @@ async saveUser(user) {
   return { success: true, user: data };
 },
 
+declineFriendRequest: async (requestId) => {
+  try {
+    const { error } = await supabase
+      .from("friend_requests")
+      .delete()
+      .eq("id", requestId);
 
+    if (error) {
+      console.error("declineFriendRequest error:", error);
+      return {
+        success: false,
+        message: error.message || "Could not decline request.",
+      };
+    }
+
+    return { success: true, message: "Request declined." };
+  } catch (error) {
+    console.error("declineFriendRequest catch error:", error);
+    return { success: false, message: "Could not decline request." };
+  }
+},
   // Check if email exists
   emailExists(email) {
     const users = this.getAllUsers();

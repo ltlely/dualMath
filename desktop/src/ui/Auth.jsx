@@ -457,7 +457,6 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
       <div className="authScreen lobbySparkles">
          <img src="/clouds.png" alt="" className="authCloud authCloud1" />
   <img src="/clouds.png" alt="" className="authCloud authCloud2" />
-  <img src="/clouds.png" alt="" className="authCloud authCloud3" />
   <img src="/clouds.png" alt="" className="authCloud authCloud4" />
   <img src="/clouds.png" alt="" className="authCloud authCloud5" />
   <div className="authModal">
@@ -602,14 +601,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   animation-delay: 0.8s;
 }
 
-.authCloud3 {
-  width: 640px;
-  bottom: 26px;
-  left: 10px;
-  
-  animation-duration: 9s;
-  animation-delay: 1.4s;
-}
+
 
 .authCloud4 {
   width: 570px;
@@ -753,7 +745,6 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
       <div className="authScreen lobbySparkles">
          <img src="/clouds.png" alt="" className="authCloud authCloud1" />
   <img src="/clouds2.png" alt="" className="authCloud authCloud2" />
-  <img src="/clouds2.png" alt="" className="authCloud authCloud3" />
   <img src="/clouds.png" alt="" className="authCloud authCloud4" />
   <img src="/clouds2.png" alt="" className="authCloud authCloud5" />
       <div className="authModal">
@@ -838,10 +829,10 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
 }
 
 .authCloud3 {
-  width: 240px;
+  position: fixed;
+  width: clamp(180px, 18vw, 240px);
   bottom: 26px;
   left: 10px;
-  
 }
 
 .authCloud4 {
@@ -996,8 +987,6 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
       <div className="authScreen lobbySparkles">
          <img src="/clouds.png" alt="" className="authCloud authCloud1" />
   <img src="/clouds.png" alt="" className="authCloud authCloud2" />
-  <img src="/clouds.png" alt="" className="authCloud authCloud3" />
-  <img src="/clouds.png" alt="" className="authCloud authCloud4" />
   <img src="/clouds.png" alt="" className="authCloud authCloud5" />
       <div className="authModal">
         <Card title="🔑 Forgot Password">
@@ -1167,14 +1156,7 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
   animation-delay: 0.8s;
 }
 
-.authCloud3 {
-  width: 640px;
-  bottom: 26px;
-  left: 10px;
- 
-  animation-duration: 9s;
-  animation-delay: 1.4s;
-}
+
 
 .authCloud4 {
   width: 570px;
@@ -1399,8 +1381,6 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
       <div className="authScreen lobbySparkles">
           <img src="/clouds.png" alt="" className="authCloud authCloud1" />
   <img src="/clouds.png" alt="" className="authCloud authCloud2" />
-  <img src="/clouds.png" alt="" className="authCloud authCloud3" />
-  <img src="/clouds.png" alt="" className="authCloud authCloud4" />
   <img src="/clouds.png" alt="" className="authCloud authCloud5" />
 
   <div className="shootingStar" />

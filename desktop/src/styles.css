@@ -5,7 +5,10 @@ body,
   height: 100%;
   margin: 0;
   overflow: hidden;
-  background: linear-gradient(180deg, #f8f0dd 0%, #d3bd95 100%);
+    background:
+    radial-gradient(circle at top, rgba(120, 92, 38, 0.18), transparent 30%),
+    radial-gradient(circle at top center, rgba(255, 214, 120, 0.06), transparent 40%),
+    linear-gradient(180deg, #332d25 0%, #241f19 52%, #15120f 100%);
 }
 *{ box-sizing:border-box; }
 body{

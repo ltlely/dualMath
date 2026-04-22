@@ -12,6 +12,7 @@ import Rank from "./ui/Rank.jsx";
 import FriendList from "./ui/FriendList.jsx";
 import { applyVolume, getSoundSettings } from "./ui/soundSettings";
 import DailyCheck from "./ui/DailyCheck.jsx";
+import Profile from "./ui/Profile.jsx";
 
 const isDev = window.location.hostname === "localhost";
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL;
@@ -217,6 +218,78 @@ const [teamRoundResult, setTeamRoundResult] = useState(null);
 const mainMusicRef = useRef(null);
 const gameMusicRef = useRef(null);
 const [previewTeamRoundResult, setPreviewTeamRoundResult] = useState(null);
+const [profileUser, setProfileUser] = useState(null);
+const [profileOptions, setProfileOptions] = useState({});
+const audioUnlockedRef = useRef(false);
+const pendingMusicRetryRef = useRef(false);
+
+const isInGameMusicState =
+  view === "game" ||
+  screen === "game" ||
+  room?.state?.phase === "playing" ||
+  !!roundInfo;
+
+function solvePreviewQuestion(q) {
+  if (!q) return null;
+  if (q.op === "+") return q.a + q.b;
+  if (q.op === "-") return q.a - q.b;
+  if (q.op === "×") return q.a * q.b;
+  return null;
+}
+
+const syncMusicPlayback = useCallback(() => {
+  const mainMusic = mainMusicRef.current;
+  const gameMusic = gameMusicRef.current;
+
+  if (!mainMusic || !gameMusic) return;
+  if (!currentUser) return;
+
+  mainMusic.muted = false;
+  gameMusic.muted = false;
+
+  if (isInGameMusicState) {
+    if (!mainMusic.paused) {
+      mainMusic.pause();
+      mainMusic.currentTime = 0;
+    }
+
+    if (gameMusic.paused) {
+      gameMusic.load();
+      gameMusic.play()
+        .then(() => {
+          pendingMusicRetryRef.current = false;
+          console.log("✅ Game music playing");
+        })
+        .catch((err) => {
+          console.log("❌ Game music blocked:", err);
+          pendingMusicRetryRef.current = true;
+        });
+    }
+  } else {
+    if (!gameMusic.paused) {
+      gameMusic.pause();
+      gameMusic.currentTime = 0;
+    }
+
+    if (mainMusic.paused) {
+      mainMusic.load();
+      mainMusic.play()
+        .then(() => {
+          pendingMusicRetryRef.current = false;
+          console.log("✅ Main music playing");
+        })
+        .catch((err) => {
+          console.log("❌ Main music blocked:", err);
+          pendingMusicRetryRef.current = true;
+        });
+    }
+  }
+}, [currentUser, isInGameMusicState]);
+
+const handleOpenProfile = (user, options = {}) => {
+  setProfileUser(user);
+  setProfileOptions(options);
+};
 
 socket.onAny((event, ...args) => {
   console.log("🛎️ RAW:", event, args);
@@ -235,19 +308,7 @@ useEffect(() => {
   return () => window.removeEventListener("resize", handleResize);
 }, []);
 
-const isInGameMusicState =
-  view === "game" ||
-  screen === "game" ||
-  room?.state?.phase === "playing" ||
-  !!roundInfo;
 
-function solvePreviewQuestion(q) {
-  if (!q) return null;
-  if (q.op === "+") return q.a + q.b;
-  if (q.op === "-") return q.a - q.b;
-  if (q.op === "×") return q.a * q.b;
-  return null;
-}
 
 useEffect(() => {
   const handleAny = (event, ...args) => {
@@ -266,11 +327,12 @@ useEffect(() => {
   applyVolume(mainMusic, "mainMusic", settings);
   mainMusicRef.current = mainMusic;
 
-  const gameMusic = new Audio("/music/game_loop.wav");
-  gameMusic.loop = true;
-  gameMusic.preload = "auto";
-  applyVolume(gameMusic, "gameMusic", settings);
-  gameMusicRef.current = gameMusic;
+const gameMusic = new Audio("/music/game_loop.wav");
+gameMusic.loop = true;
+gameMusic.preload = "auto";
+gameMusic.muted = false;
+gameMusic.volume = 1;
+gameMusicRef.current = gameMusic;
 
   return () => {
     mainMusic.pause();
@@ -291,33 +353,59 @@ useEffect(() => {
     gameMusic.pause();
     mainMusic.currentTime = 0;
     gameMusic.currentTime = 0;
+    pendingMusicRetryRef.current = false;
     return;
   }
 
-  if (isInGameMusicState) {
-    if (!mainMusic.paused) {
-      mainMusic.pause();
-      mainMusic.currentTime = 0;
-    }
+  syncMusicPlayback();
+}, [currentUser, isInGameMusicState, syncMusicPlayback]);
 
-    if (gameMusic.paused) {
-      gameMusic.play().catch((err) => {
-        console.log("Game music blocked:", err);
-      });
-    }
-  } else {
-    if (!gameMusic.paused) {
-      gameMusic.pause();
-      gameMusic.currentTime = 0;
-    }
+useEffect(() => {
+  if (!profileUser?.id) return;
 
-    if (mainMusic.paused) {
-      mainMusic.play().catch((err) => {
-        console.log("Main music blocked:", err);
-      });
+  if (currentUser?.id === profileUser.id) {
+    if (currentUser !== profileUser) {
+      setProfileUser(currentUser);
     }
+    return;
   }
-}, [currentUser, isInGameMusicState]);
+
+  const refreshedFriend = onlineFriends.find((friend) => friend.id === profileUser.id);
+
+  if (refreshedFriend) {
+    setProfileUser((prev) => {
+      if (!prev) return refreshedFriend;
+
+      const prevKey = JSON.stringify({
+        id: prev.id,
+        username: prev.username,
+        avatarData: prev.avatarData,
+        rankPoints: prev.rankPoints,
+        wins: prev.wins,
+        losses: prev.losses,
+        totalGames: prev.totalGames,
+        profileStatus: prev.profileStatus,
+        status: prev.status,
+        last_seen: prev.last_seen,
+      });
+
+      const nextKey = JSON.stringify({
+        id: refreshedFriend.id,
+        username: refreshedFriend.username,
+        avatarData: refreshedFriend.avatarData,
+        rankPoints: refreshedFriend.rankPoints,
+        wins: refreshedFriend.wins,
+        losses: refreshedFriend.losses,
+        totalGames: refreshedFriend.totalGames,
+        profileStatus: refreshedFriend.profileStatus,
+        status: refreshedFriend.status,
+        last_seen: refreshedFriend.last_seen,
+      });
+
+      return prevKey === nextKey ? prev : refreshedFriend;
+    });
+  }
+}, [profileUser?.id, currentUser, onlineFriends]);
 
 useEffect(() => {
   console.log("App passing teamRoundResult to Game:", teamRoundResult);
@@ -342,25 +430,21 @@ useEffect(() => {
 }, []);
 
 
+
 useEffect(() => {
   const settings = getSoundSettings();
 
   const clickAudio = new Audio("/music/click.wav");
   clickAudio.preload = "auto";
+  clickAudio.muted = false;
   applyVolume(clickAudio, "click", settings);
   clickSoundRef.current = clickAudio;
 
-  const handleGlobalClick = (e) => {
-    const target = e.target;
-    const clickable = target.closest(
-      "button, [role='button'], .settingsTab, .roomNativeButton, .roomNativeButtonGhost"
-    );
-
-    if (!clickable) return;
-
+  const handleGlobalInteraction = () => {
     const latest = getSoundSettings();
 
     if (clickSoundRef.current) {
+      clickSoundRef.current.muted = false;
       applyVolume(clickSoundRef.current, "click", latest);
       clickSoundRef.current.pause();
       clickSoundRef.current.currentTime = 0;
@@ -369,33 +453,20 @@ useEffect(() => {
       });
     }
 
-    if (!currentUser) return;
-
-    if (isInGameMusicState) {
-      mainMusicRef.current?.pause();
-      if (mainMusicRef.current) mainMusicRef.current.currentTime = 0;
-
-      if (gameMusicRef.current?.paused) {
-        gameMusicRef.current.play().catch(() => {});
-      }
-    } else {
-      gameMusicRef.current?.pause();
-      if (gameMusicRef.current) gameMusicRef.current.currentTime = 0;
-
-      if (mainMusicRef.current?.paused) {
-        mainMusicRef.current.play().catch(() => {});
-      }
-    }
+    audioUnlockedRef.current = true;
+    syncMusicPlayback();
   };
 
-  document.addEventListener("pointerdown", handleGlobalClick);
+  document.addEventListener("pointerdown", handleGlobalInteraction);
+  document.addEventListener("keydown", handleGlobalInteraction);
 
   return () => {
-    document.removeEventListener("pointerdown", handleGlobalClick);
+    document.removeEventListener("pointerdown", handleGlobalInteraction);
+    document.removeEventListener("keydown", handleGlobalInteraction);
     clickAudio.pause();
     clickAudio.currentTime = 0;
   };
-}, [currentUser, isInGameMusicState]);
+}, [syncMusicPlayback]);
 
 const handleDailyClaim = async (reward) => {
   if (!currentUser || !reward) return;
@@ -584,28 +655,34 @@ useEffect(() => {
   }, []);
 
   useEffect(() => {
-    const loadUser = async () => {
-      const cachedUser = userManager.getCurrentUserSync();
-      if (cachedUser) {
-        console.log("🔄 Restored cached session for user:", cachedUser.username);
-        setCurrentUser(cachedUser);
-      }
+  const loadUser = async () => {
+    const cachedUser = userManager.getCurrentUserSync();
+    if (cachedUser) {
+      console.log("🔄 Restored cached session for user:", cachedUser.username);
+      setCurrentUser(cachedUser);
+      setView("lobby");
+      setScreen("lobby");
+    }
 
-      const freshUser = await userManager.getCurrentUser();
-      if (freshUser) {
-        console.log("🔄 Loaded fresh user data from Supabase:", freshUser.username);
-        setCurrentUser(freshUser);
-      } else if (cachedUser) {
-        console.log("⚠️ Session invalidated - clearing local state");
-        setCurrentUser(null);
-        setSessionError(
-          "You've been logged out because another device signed in with this account."
-        );
-      }
-    };
+    const freshUser = await userManager.getCurrentUser();
+    if (freshUser) {
+      console.log("🔄 Loaded fresh user data from Supabase:", freshUser.username);
+      setCurrentUser(freshUser);
+      setView("lobby");
+      setScreen("lobby");
+    } else if (cachedUser) {
+      console.log("⚠️ Session invalidated - clearing local state");
+      setCurrentUser(null);
+      setSessionError(
+        "You've been logged out because another device signed in with this account."
+      );
+      setView("lobby");
+      setScreen("lobby");
+    }
+  };
 
-    loadUser();
-  }, []);
+  loadUser();
+}, []);
 
 //   const previewPickCharacterUser = {
 //   id: "preview-user",
@@ -615,25 +692,28 @@ useEffect(() => {
 //   ownedItems: [],
 // };
 
-  useEffect(() => {
-    const {
-      data: { subscription },
-    } = userManager.onAuthStateChange((user) => {
-      console.log("🔔 Auth state changed:", user?.username || "logged out");
-      setCurrentUser(user);
+useEffect(() => {
+  const {
+    data: { subscription },
+  } = userManager.onAuthStateChange((user) => {
+    console.log("🔔 Auth state changed:", user?.username || "logged out");
+    setCurrentUser(user);
 
-      if (!user) {
-        setView("lobby");
-        setRoomCode(null);
-        setSelfId(null);
-        setRoom(null);
-      }
-    });
+    if (!user) {
+      setView("lobby");
+      setScreen("lobby");
+      setRoomCode(null);
+      setSelfId(null);
+      setRoom(null);
+    }
+  });
 
-    return () => {
-      subscription?.unsubscribe();
-    };
-  }, []);
+  return () => {
+    subscription?.unsubscribe();
+  };
+}, []);
+
+
 
   useEffect(() => {
     if (!currentUser) return;
@@ -1015,6 +1095,13 @@ const handleLoginSuccess = (user) => {
     setShowPickCharacter(false);
     setSessionError(null);
     setView("lobby");
+    setScreen("lobby");
+    setRoomCode(null);
+    setSelfId(null);
+    setRoom(null);
+    setRoundInfo(null);
+    setLastRound(null);
+    setChat([]);
     return;
   }
 
@@ -1025,17 +1112,24 @@ const handleLoginSuccess = (user) => {
   if (!user.avatarData && !user.starterCharacter && !user.ownedItems?.length) {
     setPendingNewUser(user);
     setShowPickCharacter(true);
+    return;
   }
 
   setCurrentUser(user);
   setPendingNewUser(null);
   setShowPickCharacter(false);
   setSessionError(null);
-
-  if (view !== "store") {
-    setView("lobby");
-  }
+  setView("lobby");
+  setScreen("lobby");
+  setRoomCode(null);
+  setSelfId(null);
+  setRoom(null);
+  setRoundInfo(null);
+  setLastRound(null);
+  setChat([]);
 };
+
+
   useEffect(() => {
   if (!currentUser?.id) return;
 
@@ -1291,24 +1385,86 @@ if (isMobileView) {
 
   if (view === "friends") {
   return (
+    <>
     <FriendList
       currentUser={currentUser}
       onBack={() => setView("lobby")}
       onUnreadCountChange={setUnreadChatCount}
       refreshUnreadCount={loadUnreadChatCount}
       onOnlineFriendsChange={setOnlineFriends}
+       onOpenProfile={handleOpenProfile}
     />
+
+ {profileUser && (
+  <Profile
+    profileUser={profileUser}
+    currentUser={currentUser}
+    onClose={() => {
+      setProfileUser(null);
+      setProfileOptions({});
+    }}
+    onProfileSaved={(updatedUser) => {
+      setProfileUser(updatedUser);
+
+      if (String(currentUser?.id) === String(updatedUser?.id)) {
+        setCurrentUser(updatedUser);
+      }
+
+      setOnlineFriends((prev) =>
+        prev.map((friend) =>
+          String(friend.id) === String(updatedUser.id)
+            ? { ...friend, ...updatedUser }
+            : friend
+        )
+      );
+
+      profileOptions?.onProfileSaved?.(updatedUser);
+    }}
+  />
+)}
+</>
+    
   );
 }
 
 
-
     if (view === "rank") {
       return (
+        <>
         <Rank
           currentUser={currentUser}
           onBack={() => setView("lobby")}
+          onOpenProfile={handleOpenProfile}
         />
+
+      {profileUser && (
+  <Profile
+    profileUser={profileUser}
+    currentUser={currentUser}
+    onClose={() => {
+      setProfileUser(null);
+      setProfileOptions({});
+    }}
+    onProfileSaved={(updatedUser) => {
+      setProfileUser(updatedUser);
+
+      if (String(currentUser?.id) === String(updatedUser?.id)) {
+        setCurrentUser(updatedUser);
+      }
+
+      setOnlineFriends((prev) =>
+        prev.map((friend) =>
+          String(friend.id) === String(updatedUser.id)
+            ? { ...friend, ...updatedUser }
+            : friend
+        )
+      );
+
+      profileOptions?.onProfileSaved?.(updatedUser);
+    }}
+  />
+)}
+    </>
       );
     }
 
@@ -1372,8 +1528,36 @@ onOpenStore={async () => {
           }}
            friends={onlineFriends}
            setIsOnlineFriendsScrolling={setIsOnlineFriendsScrolling}
+onOpenProfile={handleOpenProfile}
         />
         
+{profileUser && (
+  <Profile
+    profileUser={profileUser}
+    currentUser={currentUser}
+    onClose={() => {
+      setProfileUser(null);
+      setProfileOptions({});
+    }}
+    onProfileSaved={(updatedUser) => {
+      setProfileUser(updatedUser);
+
+      if (String(currentUser?.id) === String(updatedUser?.id)) {
+        setCurrentUser(updatedUser);
+      }
+
+      setOnlineFriends((prev) =>
+        prev.map((friend) =>
+          String(friend.id) === String(updatedUser.id)
+            ? { ...friend, ...updatedUser }
+            : friend
+        )
+      );
+
+      profileOptions?.onProfileSaved?.(updatedUser);
+    }}
+  />
+)}
 
         {view === "store" && (
           <Store
@@ -1401,6 +1585,8 @@ onOpenStore={async () => {
           onLeaveRoom={actions.leaveRoom}
           error={error}
           currentUser={currentUser}
+          chat={chat}
+          onChatSend={actions.chatSend}
         />
       </>
     );

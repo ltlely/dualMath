@@ -16,7 +16,8 @@ import DailyCheck from "./DailyCheck.jsx";
 import PublicLobby from "./PublicLobby.jsx";
 
 const rankImages = {
-  "Novice Apprentice": "/noviceApprenticeRank.png",
+  "Novice": "/noviceApprenticeRank.png",
+  "Apprentice": "/noviceApprenticeRank.png",
   Skilled: "/skilledRank.png",
   Professional: "/professionalRank.png",
   Expert: "/expertRank.png",
@@ -48,6 +49,7 @@ export default function Lobby({
   friends = [],
   setIsOnlineFriendsScrolling,
   dailyCheck,
+  onOpenProfile,
 }) {
 const [showPublicLobbyPanel, setShowPublicLobbyPanel] = useState(false);
   const [settingsTab, setSettingsTab] = useState("account");
@@ -74,8 +76,48 @@ const [soundSettings, setSoundSettings] = useState(() => getSoundSettings());
 const [savedSoundSettings, setSavedSoundSettings] = useState(() => getSoundSettings());
 const [isSavingSound, setIsSavingSound] = useState(false);
 const [showFriendsDrawer, setShowFriendsDrawer] = useState(false);
+const [publicPlayers, setPublicPlayers] = useState([]);
    
 const [showDailyCheck, setShowDailyCheck] = useState(false);
+function getTodayKey() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function getProgressKey(userId) {
+  return `dualmath_daily_reward_progress_${userId || "guest"}`;
+}
+
+
+useEffect(() => {
+  if (!currentUser?.id) return;
+
+  try {
+    const todayKey = getTodayKey();
+    const progressKey = getProgressKey(currentUser.id);
+    const raw = localStorage.getItem(progressKey);
+
+    if (!raw) {
+      setShowDailyCheck(true);
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+    const alreadyClaimed = parsed.lastClaimDate === todayKey;
+
+    setShowDailyCheck(!alreadyClaimed);
+  } catch {
+    setShowDailyCheck(true);
+  }
+}, [currentUser?.id]);
+
+useEffect(() => {
+  setSettingsEmail(currentUser?.email || "");
+  setNewUsername(currentUser?.username || "");
+}, [currentUser?.id, currentUser?.email, currentUser?.username, currentUser?.profileStatus]);
 
 
 const updateSoundSetting = (key, value) => {
@@ -143,6 +185,16 @@ useEffect(() => {
 }, [currentUser, currentUser?.wins, currentUser?.losses, currentUser?.rankPoints]);
 
 
+
+useEffect(() => {
+  if (currentUser) {
+    setShowQueue(false);
+    setIsJoiningRandom(false);
+    setRoomName("");
+    setCode("");
+  }
+}, [currentUser?.id]);
+
 useEffect(() => {
   if (!currentUser?.id) return;
 
@@ -173,6 +225,7 @@ useEffect(() => {
 
     if (!clickedInsideDrawer && !clickedToggle) {
       setShowFriendsDrawer(false);
+      setShowPublicLobbyPanel(false);
     }
   };
 
@@ -198,6 +251,14 @@ const getComputedStatus = useCallback((friend) => {
   return "online";
 }, []);
 
+const isBlockedEitherWay = useCallback((user) => {
+  if (!user?.id) return true;
+
+  const blockedByMe = user?.isBlockedByMe === true;
+  const blockedMe = user?.isBlockedByCurrentUser === true;
+
+  return blockedByMe || blockedMe;
+}, []);
 
 
   const winRp = getWinPoints(stats.rankPoints);
@@ -257,6 +318,41 @@ const daysUntilUsernameChange = nextUsernameChangeDate
     setSettingsError("Could not send reset email.");
   } finally {
     setIsSendingReset(false);
+  }
+};
+
+const handleSaveProfile = async () => {
+  setSettingsMessage("");
+  setSettingsError("");
+
+  const trimmedStatus = profileStatus.trim().slice(0, 80);
+
+  try {
+    setIsSavingProfile(true);
+
+    const updatedUser = {
+      ...currentUser,
+      profileStatus: trimmedStatus,
+    };
+
+    const result = await userManager.saveUser(updatedUser);
+
+    if (!result?.success) {
+      setSettingsError(result?.message || "Could not update profile.");
+      return;
+    }
+
+    const freshUser = await userManager.getCurrentUser();
+    if (freshUser && onLoginSuccess) {
+      onLoginSuccess(freshUser);
+    }
+
+    setSettingsMessage("Profile updated successfully.");
+  } catch (err) {
+    console.error("Profile update error:", err);
+    setSettingsError("Could not update profile.");
+  } finally {
+    setIsSavingProfile(false);
   }
 };
 
@@ -331,6 +427,49 @@ useEffect(() => {
   }
 }, [showQueue]);
 
+useEffect(() => {
+  let isMounted = true;
+
+ const loadPublicPlayers = async () => {
+  if (!currentUser?.id) return;
+
+  try {
+    const allPlayers = await userManager.getAllPlayers(currentUser.id);
+
+    console.log("allPlayers block flags:", allPlayers?.map(p => ({
+      username: p.username,
+      isBlockedByMe: p.isBlockedByMe,
+      isBlockedByCurrentUser: p.isBlockedByCurrentUser,
+    })));
+
+    const onlinePlayers = (allPlayers || []).filter((player) => {
+      if (!player?.id) return false;
+      if (String(player.id) === String(currentUser.id)) return false;
+      if (player?.isBlockedByMe === true) return false;
+      if (player?.isBlockedByCurrentUser === true) return false;
+
+      const value = getComputedStatus(player);
+      return value === "online" || value === "in_room" || value === "in_match";
+    });
+
+    if (isMounted) {
+      setPublicPlayers(onlinePlayers);
+    }
+  } catch (err) {
+    console.error("Could not load public players:", err);
+    if (isMounted) setPublicPlayers([]);
+  }
+};
+
+  loadPublicPlayers();
+  const interval = setInterval(loadPublicPlayers, 3000);
+
+  return () => {
+    isMounted = false;
+    clearInterval(interval);
+  };
+}, [getComputedStatus, isBlockedEitherWay, currentUser?.id]);
+
   // If no current user, show auth
   if (!currentUser) {
     return (
@@ -344,6 +483,8 @@ useEffect(() => {
 
 
 const visibleOnlineFriends = friends.filter((friend) => {
+  if (isBlockedEitherWay(friend)) return false;
+
   const value = getComputedStatus(friend);
   return value === "online" || value === "in_room" || value === "in_match";
 });
@@ -372,10 +513,10 @@ const handleDailyClaim = async (reward) => {
   }
 };
 
-const totalUsersOnline = friends.filter((friend) => {
-  const value = getComputedStatus(friend);
-  return value === "online" || value === "in_room" || value === "in_match";
-}).length;
+const totalUsersOnline = publicPlayers.length;
+
+
+
 
  return (
   <div className="lobbyShell ">
@@ -472,7 +613,7 @@ const totalUsersOnline = friends.filter((friend) => {
 </div>
     </div>
 
-    {showDailyCheck && (
+{showDailyCheck && (
   <DailyCheck
     currentUser={currentUser}
     onClaim={handleDailyClaim}
@@ -537,6 +678,19 @@ const totalUsersOnline = friends.filter((friend) => {
               </button>
             </div>
 
+<button
+  type="button"
+  className="settingsTab"
+  onClick={() => {
+    setShowSettings(false);
+    setSettingsMessage("");
+    setSettingsError("");
+    onOpenProfile?.(currentUser);
+  }}
+>
+  Profile
+</button>
+
             <button
               type="button"
               className={`settingsTab ${settingsTab === "sound" ? "active" : ""}`}
@@ -548,6 +702,7 @@ const totalUsersOnline = friends.filter((friend) => {
             >
               Sound
             </button>
+
 
             {settingsTab === "sound" && (
               <div className="settingsSection">
@@ -934,7 +1089,15 @@ const totalUsersOnline = friends.filter((friend) => {
 <button
   type="button"
   className={`friendsDrawerToggle ${showFriendsDrawer ? "open" : ""}`}
-  onClick={() => setShowFriendsDrawer((prev) => !prev)}
+  onClick={() => {
+    setShowFriendsDrawer((prev) => {
+      const next = !prev;
+      if (!next) {
+        setShowPublicLobbyPanel(false);
+      }
+      return next;
+    });
+  }}
   aria-label={showFriendsDrawer ? "Hide friends online" : "Show friends online"}
   title={showFriendsDrawer ? "Hide friends online" : "Show friends online"}
 >
@@ -954,10 +1117,10 @@ const totalUsersOnline = friends.filter((friend) => {
   </div>
 
   <PublicLobby
-    totalUsersOnline={totalUsersOnline}
-    isOpen={showPublicLobbyPanel}
-    onToggle={() => setShowPublicLobbyPanel((prev) => !prev)}
-  />
+  totalUsersOnline={publicPlayers.length}
+  isOpen={showPublicLobbyPanel}
+  onToggle={() => setShowPublicLobbyPanel((prev) => !prev)}
+/>
 </div>
 
 <div className="onlineFriendsCard">
@@ -968,8 +1131,8 @@ const totalUsersOnline = friends.filter((friend) => {
       </div>
       <div className="onlineFriendsTitle">
         {showPublicLobbyPanel
-          ? `${totalUsersOnline} online`
-          : `${visibleOnlineFriends.length} online`}
+  ? `${publicPlayers.length} online`
+  : `${visibleOnlineFriends.length} online`}
       </div>
     </div>
 
@@ -995,13 +1158,19 @@ const totalUsersOnline = friends.filter((friend) => {
     }}
   >
     {showPublicLobbyPanel ? (
-      visibleOnlineFriends.length > 0 ? (
-        visibleOnlineFriends.map((friend) => (
+      publicPlayers.length > 0 ? (
+  publicPlayers.map((friend) => (
           <button
-            key={friend.id}
-            type="button"
-            className="onlineFriendRow"
-          >
+  key={friend.id}
+  type="button"
+  className="onlineFriendRow"
+  onClick={() => {
+    const isBlockedByMe = friend?.isBlockedByMe === true;
+    const blockedMe = friend?.isBlockedByCurrentUser === true;
+    if (isBlockedByMe || blockedMe) return;
+    onOpenProfile?.(friend);
+  }}
+>
             <div className="onlineFriendLeft">
               <div className="onlineFriendAvatar">
                 {friend.avatarData ? (
@@ -1033,12 +1202,17 @@ const totalUsersOnline = friends.filter((friend) => {
       )
     ) : visibleOnlineFriends.length > 0 ? (
       visibleOnlineFriends.slice(0, 4).map((friend) => (
-        <button
-          key={friend.id}
-          type="button"
-          className="onlineFriendRow"
-          onClick={onOpenFriends}
-        >
+<button
+  key={friend.id}
+  type="button"
+  className="onlineFriendRow"
+  onClick={() => {
+    const isBlockedByMe = friend?.isBlockedByMe === true;
+    const blockedMe = friend?.isBlockedByCurrentUser === true;
+    if (isBlockedByMe || blockedMe) return;
+    onOpenProfile?.(friend);
+  }}
+>
           <div className="onlineFriendLeft">
             <div className="onlineFriendAvatar">
               {friend.avatarData ? (
@@ -2015,7 +2189,7 @@ const totalUsersOnline = friends.filter((friend) => {
 .statSubtext {
   margin-top: 8px;
   font-size: 13px;
-  color: #8f7455;
+  color: #4b3217;
 }
 
 /* ─── RANK PROGRESS SECTION ───────────────────────────────────── */
@@ -2107,14 +2281,14 @@ const totalUsersOnline = friends.filter((friend) => {
   gap: 10px;
 
   background:
-    radial-gradient(circle at center, rgba(255, 255, 255, 0.5), transparent 62%),
-    linear-gradient(180deg, rgba(255, 252, 247, 0.98), rgba(184, 135, 38, 0.95));
-  border: 1px solid rgba(207, 186, 148, 0.34);
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.78), transparent 92%),
+    linear-gradient(180deg, rgba(255, 252, 247, 1), rgba(184, 135, 38, 0.99));
+  border: 1px solid rgba(207, 186, 148, 0.55);
   box-shadow:
-  0 0 20px rgba(255, 255, 255, 0.55),
-  0 0 0px rgba(255, 244, 210, 0.35),
-  0 18px 40px rgba(104, 78, 47, 0.14),
-  inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    0 0 20px rgba(255, 255, 255, 0.7),
+    0 0 8px rgba(255, 244, 210, 0.5),
+    0 18px 40px rgba(104, 78, 47, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
   z-index: 5;
 }
 
@@ -2279,7 +2453,7 @@ const totalUsersOnline = friends.filter((friend) => {
 
 .rpNeeded {
   font-size: 12px;
-  color: var(--muted);
+  color: #4b3217;
 }
 
 .rpIndicator {
@@ -2315,7 +2489,7 @@ const totalUsersOnline = friends.filter((friend) => {
 
 .rpText {
   font-size: 12px;
-  color: var(--muted);
+  color: #4b3217;
 }
 
 /* ─── ROOM GRID & CARDS ───────────────────────────────────────── */
@@ -3301,7 +3475,7 @@ const totalUsersOnline = friends.filter((friend) => {
 .currentProgressBadge {
   display: inline-flex;
   align-items: center;
-  padding: 5px 15px 8px 8px;
+  padding: 8px 15px 8px 8px;
   border-radius: 999px;
   background: rgba(255, 253, 244, 0.7);
   border: 1px solid rgba(107, 79, 52, 0.14);
@@ -3373,9 +3547,9 @@ const totalUsersOnline = friends.filter((friend) => {
 }
 
 .arrowIcon {
-  color: var(--muted);
+  color: #4b3217;
   flex: 0 0 auto;
-  transform: translateY(-2.5px);
+  transform: translateY(-0.7px);
 }
 
 .rankProgressSection {
@@ -3830,6 +4004,185 @@ const totalUsersOnline = friends.filter((friend) => {
   background: rgba(120, 54, 54, 0.18) !important;
   border: 1px solid rgba(180, 90, 90, 0.24) !important;
   color: #f0c3b8 !important;
+}
+
+.settingsTextarea {
+  min-height: 110px !important;
+  resize: none !important;
+  line-height: 1.45;
+  padding-top: 12px !important;
+}
+
+.profileSettingsPreviewCard {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(214, 172, 95, 0.18);
+  border-radius: 22px;
+  padding: 16px;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(255, 248, 232, 0.90), rgba(229, 194, 138, 0.72));
+  box-shadow: 0 12px 24px rgba(107, 79, 52, 0.10);
+}
+
+.profileSettingsPreviewCard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 26px rgba(107, 79, 52, 0.14);
+}
+
+.profileSettingsPreviewTop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.profileSettingsPreviewAvatar {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.45);
+  flex-shrink: 0;
+}
+
+.profileSettingsPreviewAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.profileSettingsPreviewMeta {
+  min-width: 0;
+}
+
+.profileSettingsPreviewName {
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--brown-dark);
+}
+
+.profileSettingsPreviewHint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.profileSettingsPreviewStatus {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.44);
+  color: var(--brown-dark);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.profileStatusEditorModal {
+  position: fixed;
+  inset: 0;
+  z-index: 2600;
+  display: grid;
+  place-items: center;
+}
+
+.profileStatusEditorOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 13, 10, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.profileStatusEditorCard {
+  position: relative;
+  z-index: 1;
+  width: min(92vw, 520px);
+  border-radius: 28px;
+  padding: 22px;
+  background: linear-gradient(180deg, rgba(255, 248, 232, 0.98), rgba(229, 194, 138, 0.94));
+  border: 1px solid rgba(214, 172, 95, 0.18);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.20);
+}
+
+.profileStatusEditorHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.profileStatusEditorHeader h3 {
+  margin: 6px 0 0;
+  color: var(--brown-dark);
+}
+
+.profileStatusEditorPreview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.profileStatusEditorAvatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.55);
+  flex-shrink: 0;
+}
+
+.profileStatusEditorAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.profileStatusEditorName {
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--brown-dark);
+}
+
+.profileStatusEditorTextarea {
+  width: 100%;
+  min-height: 120px;
+  resize: none;
+  border-radius: 18px;
+  border: 1px solid rgba(155, 119, 88, 0.18);
+  background: rgba(255,255,255,0.74);
+  color: var(--brown-dark);
+  padding: 14px 16px;
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.profileStatusEditorFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.profileStatusEditorCount {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.profileStatusEditorAutoSave {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
 }
       `}</style>
     </div>

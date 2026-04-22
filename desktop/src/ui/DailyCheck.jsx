@@ -23,25 +23,30 @@ function getProgressKey(userId) {
 }
 
 export default function DailyCheck({ currentUser, onClaim, onClose }) {
-  const todayKey = useMemo(() => getTodayKey(), []);
-  const progressKey = useMemo(
-    () => getProgressKey(currentUser?.id),
-    [currentUser?.id]
-  );
+const progressKey = useMemo(
+  () => getProgressKey(currentUser?.id),
+  [currentUser?.id]
+);
 
   const [isOpen, setIsOpen] = useState(true);
   const [openedChest, setOpenedChest] = useState(false);
   const [claimedToday, setClaimedToday] = useState(false);
   const [currentDay, setCurrentDay] = useState(1);
   const [claimedDays, setClaimedDays] = useState([]);
-  const [rewardMessage, setRewardMessage] = useState("");
+  const [rewardMessage, setRewardMessage] = useState(null);
   const isChestFuture = currentDay < 7 && !claimedToday;
+const [timeUntilReset, setTimeUntilReset] = useState("");
 
-  useEffect(() => {
-    if (!currentUser) return;
+
+useEffect(() => {
+  if (!currentUser) return;
+
+  const loadProgress = () => {
+    const todayKey = getTodayKey();
 
     try {
       const raw = localStorage.getItem(progressKey);
+
       if (!raw) {
         const initial = {
           currentDay: 1,
@@ -56,24 +61,95 @@ export default function DailyCheck({ currentUser, onClaim, onClose }) {
       }
 
       const parsed = JSON.parse(raw);
+      const savedCurrentDay = parsed.currentDay || 1;
+      const savedClaimedDays = parsed.claimedDays || [];
       const alreadyClaimed = parsed.lastClaimDate === todayKey;
 
-      setCurrentDay(parsed.currentDay || 1);
-      setClaimedDays(parsed.claimedDays || []);
+      setCurrentDay(savedCurrentDay);
+      setClaimedDays(savedClaimedDays);
       setClaimedToday(alreadyClaimed);
     } catch {
       setCurrentDay(1);
       setClaimedDays([]);
       setClaimedToday(false);
     }
-  }, [progressKey, todayKey, currentUser]);
+  };
+
+  loadProgress();
+}, [progressKey, currentUser]);
 
   const persistProgress = (next) => {
     localStorage.setItem(progressKey, JSON.stringify(next));
   };
 
+  function getNextMidnight() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(24, 0, 0, 0);
+  return next;
+}
+
+
+useEffect(() => {
+  if (!currentUser) return;
+
+  const refreshAtMidnight = () => {
+    const todayKey = getTodayKey();
+
+    try {
+      const raw = localStorage.getItem(progressKey);
+
+      if (!raw) {
+        setCurrentDay(1);
+        setClaimedDays([]);
+        setClaimedToday(false);
+        return;
+      }
+
+      const parsed = JSON.parse(raw);
+      const savedCurrentDay = parsed.currentDay || 1;
+      const savedClaimedDays = parsed.claimedDays || [];
+      const alreadyClaimed = parsed.lastClaimDate === todayKey;
+
+      setCurrentDay(savedCurrentDay);
+      setClaimedDays(savedClaimedDays);
+      setClaimedToday(alreadyClaimed);
+    } catch {
+      setCurrentDay(1);
+      setClaimedDays([]);
+      setClaimedToday(false);
+    }
+  };
+
+  setTimeUntilReset(formatTimeUntilMidnight());
+
+  const interval = setInterval(() => {
+    setTimeUntilReset(formatTimeUntilMidnight());
+    refreshAtMidnight();
+  }, 1000);
+
+  return () => clearInterval(interval);
+}, [currentUser, progressKey]);
+
+function formatTimeUntilMidnight() {
+  const now = new Date();
+  const nextMidnight = getNextMidnight();
+  const diff = nextMidnight.getTime() - now.getTime();
+
+  const totalSeconds = Math.max(0, Math.floor(diff / 1000));
+  const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+  const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+
+
 const claimReward = (reward) => {
   if (!currentUser || claimedToday) return;
+
+  const todayKey = getTodayKey();
 
   if (onClaim) {
     onClaim(reward);
@@ -93,9 +169,23 @@ const claimReward = (reward) => {
   setClaimedToday(true);
 
   if (reward.type === "gift") {
-    setRewardMessage(`You got ${reward.icon} Special Gift!`);
+    setRewardMessage(
+      <span className="dailyRewardMessageInline">
+        You got <span className="dailyRewardMessageText">Special Gift!</span>
+      </span>
+    );
   } else {
-    setRewardMessage(`You got ${reward.icon} x${reward.amount}!`);
+    setRewardMessage(
+      <span className="dailyRewardMessageInline">
+        You got{" "}
+        <img
+          src={reward.icon}
+          alt="Coin"
+          className="dailyRewardMessageIcon"
+        />
+        <span>{reward.amount} coins!</span>
+      </span>
+    );
   }
 };
 
@@ -128,7 +218,6 @@ const handleOpenChest = () => {
 
   if (!isOpen) return null;
 
-  const previewReward = DAILY_REWARDS[currentDay - 1];
 
   return (
     <div className="dailyRewardOverlay">
@@ -169,11 +258,11 @@ const handleOpenChest = () => {
     >
       <div className="dailyRewardDayPill">Day {reward.day}</div>
 
-      <div className="dailyRewardIconWrap">
-        <img src={reward.icon} alt={reward.type} className="rewardIcon" />
-      </div>
+<div className="dailyRewardIconWrap">
+  <img src={reward.icon} alt={reward.type} className="rewardIcon" />
+  <div className="dailyRewardAmount">x{reward.amount}</div>
+</div>
 
-      <div className="dailyRewardAmount">x{reward.amount}</div>
 
       {isClaimed && <div className="dailyRewardCheck">✔</div>}
     </button>
@@ -214,14 +303,53 @@ const handleOpenChest = () => {
         
         </div>
 
-        <div className="dailyRewardFooter">
-  {rewardMessage || (claimedToday ? "Claimed today — come back tomorrow" : "Claim today’s reward")}
+<div className="dailyRewardFooter">
+  <div>
+    {rewardMessage || (claimedToday ? "Claimed today" : "Claim today’s reward")}
+  </div>
+
+  {claimedToday && (
+    <div className="dailyRewardResetTimer">
+      Next reward in {timeUntilReset}
+    </div>
+  )}
 </div>
       </div>
 
       <style>{`
 
-      
+      .dailyRewardFooter {
+  margin-top: 16px;
+  text-align: center;
+  color: #f0ddb8;
+  font-weight: 800;
+  font-size: 17px;
+  min-height: 24px;
+}
+
+.dailyRewardResetTimer {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #d9c39a;
+}
+
+
+.dailyRewardMessageInline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.dailyRewardMessageIcon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  display: inline-block;
+  vertical-align: middle;
+}
+
         .dailyRewardOverlay {
   position: fixed;
   inset: 0;
@@ -380,19 +508,18 @@ const handleOpenChest = () => {
 
         
 .dailyRewardIconWrap {
+  position: relative;
   width: 72px;
   height: 72px;
   margin-top: 12px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.18), rgba(255, 214, 120, 0.08));
-  box-shadow: inset 0 2px 0 rgba(255,255,255,0.08);
 }
 
-        .rewardIcon {
-  width: 28px;
-  height: 28px;
+.rewardIcon {
+  width: 78px;
+  height: 78px;
   object-fit: contain;
   display: block;
 }
@@ -403,11 +530,19 @@ const handleOpenChest = () => {
         }
 
         .dailyRewardAmount {
-          margin-top: 10px;
-          font-size: 28px;
-          font-weight: 900;
-          color: #6b4520;
-        }
+  position: absolute;
+  right: -25px;
+  top: 88%;
+  transform: translateY(-50%);
+  margin-top: 0;
+  font-size: 20px;
+  font-weight: 900;
+  color: #fff1cf;
+  text-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.45),
+    0 0 8px rgba(224, 171, 63, 0.35);
+  pointer-events: none;
+}
 
 .dailyRewardCheck {
   position: absolute;

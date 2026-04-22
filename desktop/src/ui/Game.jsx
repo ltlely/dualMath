@@ -358,7 +358,7 @@ useEffect(() => {
 };
 const coinReward = getCoinReward();
 
-const currentRank = currentUser ? userManager.getUserRank(currentUser) : "Novice Apprentice";
+const currentRank = currentUser ? userManager.getUserRank(currentUser) : "Novice";
 
   return (
     <div className="page">
@@ -714,42 +714,30 @@ const currentRank = currentUser ? userManager.getUserRank(currentUser) : "Novice
 
       <style>{`
 :root{
-  --base: rgba(250, 238, 200, 0.97);
---cream:#fff3cf;
---cream-2:#ffefc4;
---cream-3:#f8de9d;
---tan:#e7be76;
---tan-2:#d7a052;
---brown:#9d692d;
---brown-dark:#6c4318;
---brown-soft:#bf8544;
---brown-light:#e4b67d;
---gold:#e3aa32;
---gold-2:#f0bd4b;
---gold-3:#ffd36d;
---ink:#5a3512;
---muted:#a2703d;
---card-border:#d6a04d;
---success-bg: rgba(181, 131, 43, 0.16);
---success-border: rgba(181, 131, 43, 0.42);
---error-bg: rgba(186, 88, 68, 0.15);
---error-border: rgba(186, 88, 68, 0.38);
---glow-gold: 0 0 40px rgba(227, 170, 50, 0.24);
---glow-brown: 0 0 24px rgba(157, 105, 45, 0.22);
-
---teamA:#a4cc63;
---teamA-dark:#739644;
---teamB:#c09af0;
---teamB-dark:#946fd0;
---bad:#d97f6d;
+  --ink:#f5e7c6;
+  --muted:#d9c39a;
+  --muted-2:#bca885;
+  --panel: linear-gradient(180deg, rgba(50, 42, 30, 0.97), rgba(34, 28, 20, 0.97));
+  --panel-soft: linear-gradient(180deg, rgba(63, 52, 35, 0.96), rgba(43, 35, 22, 0.94));
+  --card-border: rgba(214, 172, 95, 0.18);
+  --button: linear-gradient(180deg, rgba(98, 73, 33, 0.96), rgba(74, 55, 25, 0.96));
+  --button-active: linear-gradient(180deg, rgba(112, 83, 36, 0.95), rgba(82, 61, 27, 0.95));
+  --row: linear-gradient(180deg, rgba(140, 118, 82, 0.42), rgba(140, 118, 82, 0.42));
+  --teamA:#a4cc63;
+  --teamA-dark:#739644;
+  --teamB:#c09af0;
+  --teamB-dark:#946fd0;
+  --bad:#d97f6d;
+}
 
 *{ box-sizing:border-box; }
 
 body{
   margin:0;
   background:
-    radial-gradient(circle at top, rgba(255, 248, 230, 0.75), transparent 35%),
-     linear-gradient(180deg, #f8f0dd 0%, #d3bd95 100%);
+    radial-gradient(circle at top, rgba(120, 92, 38, 0.20), transparent 32%),
+    radial-gradient(circle at top center, rgba(255, 214, 120, 0.08), transparent 42%),
+    linear-gradient(180deg, #3a342b 0%, #26211c 52%, #171411 100%);
   color:var(--ink);
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
 }
@@ -768,10 +756,13 @@ body{
   gap:18px;
   margin-bottom:20px;
   padding:18px;
-  background: linear-gradient(180deg, var(--cream), var(--tan));
-  border: 1px solid rgba(93, 88, 63, 0.08);
+  background: var(--panel);
+  border: 1px solid var(--card-border);
   border-radius:28px;
-  box-shadow: 0 16px 32px rgba(95, 70, 48, 0.08);
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.22),
+    0 0 18px rgba(224, 171, 63, 0.08),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05);
   flex-wrap:wrap;
 }
 
@@ -781,7 +772,7 @@ body{
   gap:12px;
   font-size:28px;
   font-weight:900;
-  color:var(--ink);
+  color:#fff1cf;
 }
 
 .raceIcon{ font-size:30px; }
@@ -808,9 +799,8 @@ body{
   padding: 16px 18px;
   border-radius: 22px;
   border: 1px solid rgba(143, 114, 193, 0.32);
-  background: linear-gradient(180deg, #f4ecfb, #e6d7f8);
+  background: linear-gradient(180deg, rgba(77, 58, 110, 0.96), rgba(57, 42, 82, 0.96));
   box-shadow: 0 14px 28px rgba(143, 114, 193, 0.16);
-  animation: switchFadeIn 0.25s ease;
   text-align: center;
 }
 
@@ -820,8 +810,8 @@ body{
   border-radius: 999px;
   font-size: 12px;
   font-weight: 900;
-  color: #6d4fb0;
-  background: rgba(255,255,255,0.72);
+  color: #efe9ff;
+  background: rgba(255,255,255,0.10);
   border: 1px solid rgba(143, 114, 193, 0.22);
   margin-bottom: 8px;
 }
@@ -829,50 +819,39 @@ body{
 .switchNoticeText{
   font-size: 22px;
   font-weight: 900;
-  color: #6c4318;
+  color: #fff1cf;
 }
 
 .switchNoticeSubtext{
   margin-top: 4px;
   font-size: 13px;
-  color: #8a6b45;
-}
-
-@keyframes switchFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  color: var(--muted);
 }
 
 .teamBadge{
   padding:6px 10px;
   border-radius:999px;
   font-weight:800;
-  background: rgba(255, 253, 244, 0.78);
-  border: 1px solid rgba(107, 79, 52, 0.18);
+  background: rgba(28, 24, 18, 0.88);
+  border: 1px solid rgba(214, 172, 95, 0.18);
   color: var(--ink);
 }
 
 .teamBadge.you{
-  background: linear-gradient(180deg, #f3e2b7, #ead4a2);
-  border-color: rgba(107, 79, 52, 0.24);
-  color: #6b4a33;
+  background: var(--button-active);
+  border-color: rgba(237, 187, 87, 0.24);
+  color: #fff2d2;
 }
 
 .raceCount{
   font-weight:900;
-  color:var(--brown-dark);
+  color:#fff1cf;
 }
 
 .raceBar{
   height:14px;
-  background: rgba(255,255,255,0.55);
-  border: 1px solid rgba(107, 79, 52, 0.18);
+  background: rgba(24, 20, 14, 0.80);
+  border: 1px solid rgba(214, 172, 95, 0.18);
   border-radius:999px;
   overflow:hidden;
 }
@@ -905,38 +884,38 @@ body{
 }
 
 .card{
-  border: 1px solid rgba(93, 88, 63, 0.08);
-  background: linear-gradient(180deg, var(--cream), var(--tan));
+  border: 1px solid var(--card-border);
+  background: var(--panel);
   border-radius:28px;
-  box-shadow: 0 16px 32px rgba(95, 70, 48, 0.08);
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.22),
+    0 0 18px rgba(224, 171, 63, 0.08),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05);
+  color:var(--ink);
 }
 
 .yourTeamCard{
-  box-shadow: 0 16px 32px rgba(180, 149, 220, 0.12);
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.22),
+    0 0 18px rgba(180, 149, 220, 0.12),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05);
 }
 
 .opponentCard{
   opacity: 0.96;
 }
 
-.coinsEarned{
-  margin-top: 10px;
-  font-size: 22px;
-  font-weight: 900;
-  color: #b8892d;
-}
-  
 .cardTop{
   display:flex;
   align-items:center;
   justify-content:space-between;
   padding:16px 18px 12px;
-  border-bottom:1px solid rgba(107, 79, 52, 0.16);
+  border-bottom:1px solid rgba(214, 172, 95, 0.12);
 }
 
 .cardTitle{
   font-weight:900;
-  color:var(--ink);
+  color:#fff1cf;
   font-size:24px;
 }
 
@@ -956,7 +935,7 @@ body{
   font-size:34px;
   font-weight:900;
   letter-spacing:.2px;
-  color:var(--brown-dark);
+  color:#fff1cf;
 }
 
 .opponentQuestion{
@@ -986,20 +965,20 @@ body{
 
 .input{
   width:100%;
-  background:#fffdf5;
+  background: rgba(28, 24, 18, 0.88);
   color:var(--ink);
-  border:1px solid rgba(107, 79, 52, 0.2);
+  border:1px solid rgba(214, 172, 95, 0.18);
   border-radius:14px;
   padding:12px 14px;
   font-size:20px;
   font-weight:700;
   text-align:center;
   outline:none;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
 .input:focus{
-  border-color: rgba(107, 79, 52, 0.45);
+  border-color: rgba(237, 187, 87, 0.28);
   box-shadow: 0 0 0 3px rgba(207, 162, 95, 0.14);
 }
 
@@ -1011,6 +990,10 @@ body{
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  margin-top: 10px;
+  font-size: 22px;
+  font-weight: 900;
+  color: #f0bd4c;
 }
 
 .coinsEarnedImg {
@@ -1031,8 +1014,8 @@ body{
   font-size:13px;
   text-align:center;
   padding:8px 12px;
-  background: rgba(255,255,255,0.35);
-  border: 1px solid rgba(107, 79, 52, 0.12);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(214, 172, 95, 0.12);
   border-radius:14px;
   margin-bottom:12px;
   color:var(--muted);
@@ -1045,24 +1028,26 @@ body{
 }
 
 .slot{
-  border: 1px solid rgba(93, 88, 63, 0.08);
+  border: 1px solid rgba(214, 172, 95, 0.16);
   border-radius:18px;
-  background: linear-gradient(180deg, var(--cream-2), var(--base));
+  background: var(--row);
   padding:12px;
   min-height:100px;
   display:flex;
   flex-direction:column;
-  box-shadow: 0 10px 18px rgba(107, 79, 52, 0.06);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 236, 190, 0.10);
 }
 
 .slot.yourSlot{
   border-color: rgba(180, 149, 220, 0.45);
-  background: linear-gradient(180deg, #f4ecfb, #e7d8f8);
+  background: linear-gradient(180deg, rgba(92, 72, 128, 0.96), rgba(67, 53, 93, 0.96));
 }
 
 .slot.autoFilledSlot{
   border-color: rgba(147, 185, 107, 0.35);
-  background: linear-gradient(180deg, #eef6e4, #dce9c8);
+  background: linear-gradient(180deg, rgba(73, 96, 50, 0.96), rgba(58, 77, 39, 0.96));
 }
 
 .slotTop{
@@ -1076,14 +1061,14 @@ body{
   font-weight:900;
   letter-spacing:.3px;
   font-size:13px;
-  color:var(--brown-dark);
+  color:#fff1cf;
 }
 
 .slotDigit{
   font-size:36px;
   font-weight:900;
   text-align:center;
-  color:var(--brown-dark);
+  color:#fff1cf;
   flex:1;
   display:flex;
   align-items:center;
@@ -1107,21 +1092,21 @@ body{
   font-size:11px;
   padding:4px 8px;
   border-radius:999px;
-  border: 1px solid rgba(107, 79, 52, 0.18);
+  border: 1px solid rgba(214, 172, 95, 0.18);
   color: var(--muted);
-  background: rgba(255, 253, 244, 0.78);
+  background: rgba(28, 24, 18, 0.88);
 }
 
 .pill.code{
-  background: linear-gradient(180deg, #efe3ff, #dcc7f5);
+  background: linear-gradient(180deg, rgba(92, 72, 128, 0.96), rgba(67, 53, 93, 0.96));
   border-color: rgba(143, 114, 193, 0.28);
-  color: var(--teamB-dark);
+  color: #efe9ff;
 }
 
 .pill.good{
-  background: linear-gradient(180deg, #edf6df, #d6e8b6);
+  background: linear-gradient(180deg, rgba(73, 96, 50, 0.96), rgba(58, 77, 39, 0.96));
   border-color: rgba(111, 143, 79, 0.28);
-  color: var(--teamA-dark);
+  color: #edf6df;
 }
 
 .btn{
@@ -1138,9 +1123,11 @@ body{
 }
 
 .btn.primary{
-  background: linear-gradient(180deg, #f0cf64, #d6ae38);
-  color:#5a4224;
-  box-shadow: 0 10px 18px rgba(190, 150, 54, 0.22);
+  background: var(--button-active);
+  color:#fff2d2;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 236, 190, 0.08);
 }
 
 .userQuick{
@@ -1149,8 +1136,8 @@ body{
   align-items:center;
   padding:10px 12px;
   border-radius:18px;
-  border: 1px solid rgba(93, 88, 63, 0.08);
-  background: rgba(255, 253, 244, 0.75);
+  border: 1px solid rgba(214, 172, 95, 0.16);
+  background: var(--panel-soft);
 }
 
 .quickAvatar{
@@ -1159,11 +1146,11 @@ body{
   border-radius:12px;
   display:grid;
   place-items:center;
-  background:#fffdf4;
-  border: 1px solid rgba(93, 88, 63, 0.08);
+  background: rgba(28, 24, 18, 0.88);
+  border: 1px solid rgba(214, 172, 95, 0.16);
   font-weight:800;
   overflow:hidden;
-  color:var(--brown-dark);
+  color:#fff1cf;
 }
 
 .quickAvatar img{
@@ -1191,12 +1178,12 @@ body{
 
 .code{
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas;
-  background: linear-gradient(180deg, #f3e2b7, #ead4a2);
-  border:1px solid rgba(107, 79, 52, 0.24);
+  background: linear-gradient(180deg, rgba(60, 49, 33, 0.96), rgba(42, 34, 22, 0.94));
+  border:1px solid rgba(214, 172, 95, 0.18);
   padding:4px 8px;
   border-radius:10px;
   font-size:14px;
-  color:#6b4a33;
+  color:#fff1cf;
 }
 
 .muted{
@@ -1206,37 +1193,30 @@ body{
 .gameOverBanner{
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(76, 56, 38, 0.45);
+  background: rgba(11, 11, 18, 0.78);
   backdrop-filter: blur(6px);
   z-index: 1000;
   display: grid;
   place-items: center;
-  animation: fadeIn 0.3s ease;
 }
-
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .gameOverContent{
   text-align:center;
   padding:40px;
   border-radius:28px;
-  border: 1px solid rgba(93, 88, 63, 0.08);
-  background: linear-gradient(180deg, var(--cream), var(--tan));
-  box-shadow: 0 20px 60px rgba(95, 70, 48, 0.18);
+  border: 1px solid var(--card-border);
+  background: var(--panel);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05);
   max-width:520px;
-  animation: slideUp 0.4s ease;
-}
-
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(30px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 .gameOverTitle{
   font-size:48px;
   font-weight:900;
   margin:0 0 12px 0;
-  color:var(--brown-dark);
+  color:#fff1cf;
 }
 
 .gameOverSubtitle{
@@ -1255,8 +1235,8 @@ body{
 .statBox{
   padding:20px;
   border-radius:18px;
-  border: 1px solid rgba(93, 88, 63, 0.08);
-  background: rgba(255, 253, 244, 0.75);
+  border: 1px solid rgba(214, 172, 95, 0.16);
+  background: var(--panel-soft);
   min-width:140px;
 }
 
@@ -1269,12 +1249,12 @@ body{
 .statValue{
   font-size:32px;
   font-weight:900;
-  color:var(--brown-dark);
+  color:#fff1cf;
 }
 
 .statTime{
   font-size:14px;
-  color:var(--teamA-dark);
+  color:var(--teamA);
   margin-top:4px;
   font-weight:700;
 }
@@ -1286,7 +1266,7 @@ body{
 }
 
 .pointsGained{
-  color:var(--teamA-dark);
+  color:var(--teamA);
 }
 
 .pointsLost{
@@ -1296,7 +1276,7 @@ body{
 .forfeitOverlay{
   position: fixed;
   inset: 0;
-  background: rgba(76, 56, 38, 0.45);
+  background: rgba(11, 11, 18, 0.78);
   backdrop-filter: blur(4px);
   z-index: 1200;
   display: grid;
@@ -1307,16 +1287,18 @@ body{
   width: min(92vw, 420px);
   padding: 24px;
   border-radius: 24px;
-  border: 1px solid rgba(93, 88, 63, 0.08);
-  background: linear-gradient(180deg, var(--cream), var(--tan));
-  box-shadow: 0 20px 60px rgba(95, 70, 48, 0.18);
+  border: 1px solid var(--card-border);
+  background: var(--panel);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05);
 }
 
 .forfeitTitle{
   font-size: 24px;
   font-weight: 900;
   margin-bottom: 10px;
-  color: var(--brown-dark);
+  color: #fff1cf;
 }
 
 .forfeitText{
@@ -1339,16 +1321,17 @@ body{
 }
 
 .forfeitBtn.cancel{
-  background: linear-gradient(180deg, #fffaf0, #efe5cf);
-  border-color: rgba(166, 134, 93, 0.22);
-  color: #5a4028;
+  background: var(--button);
+  border-color: rgba(214, 172, 95, 0.22);
+  color: #fff1cf;
 }
 
 .forfeitBtn.confirm{
-  background: linear-gradient(180deg, #e29b8a, #c97a6b);
+  background: linear-gradient(180deg, #a85b4b, #874235);
   color: #fff8f2;
 }
 `}</style>
+ 
     </div>
   );
 }

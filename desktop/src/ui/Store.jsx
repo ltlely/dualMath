@@ -109,6 +109,7 @@ const storeItems = {
   hair: [
     { id: "BoyHair1", label: "Soft Brown Cut", asset: boyHair1, price: 20, rarity: "Common" },
     { id: "BoyHair2", label: "Layered Sweep", asset: boyHair2, price: 35, rarity: "Common" },
+    { id: "GirlHair19", label: "Moonlit Aqua Hair", asset: girlHair19, price: 3000, rarity: "Epic" },
     { id: "BoyHair3", label: "Silver Breeze", asset: boyHair3, price: 1550, rarity: "Rare" },
     { id: "BoyHair4", label: "Moss cut", asset: boyHair4, price: 75, rarity: "Common" },
     { id: "BoyHair5", label: "Stormy Waves", asset: boyHair5, price: 2200, rarity: "Epic" },
@@ -132,7 +133,6 @@ const storeItems = {
     { id: "GirlHair16", label: "Strawberry Waves", asset: girlHair16, price: 800, rarity: "Uncommon" },
     { id: "GirlHair17", label: "Shadow Cut", asset: girlHair17, price: 600, rarity: "Common" },
     { id: "GirlHair18", label: "Cherry Puff Bangs ", asset: girlHair18, price: 450, rarity: "Common" },
-    { id: "GirlHair19", label: "Moonlit Aqua Hair", asset: girlHair19, price: 3000, rarity: "Epic" },
     { id: "GirlHair20", label: "Crimson Puff Hair", asset: girlHair20, price: 2300, rarity: "Rare" },
   ],
   tops: [
@@ -149,6 +149,7 @@ const storeItems = {
     { id: "UniTop2", label: "Mint Cozy", asset: UniTop2, price: 400, rarity: "Uncommon" },
     { id: "GirlTop11", label: "Lime Sorbet Top", asset: GirlTop11, price: 1200, rarity: "Uncommon" },
     { id: "UniTop3", label: "Velvet Blush Top", asset: UniTop3, price: 800, rarity: "Common" },
+    { id: "BoyTop6", label: "Carrot Shirt", asset: BoyTop6, price: 120, rarity: "Common"}
   ],
   bottoms: [
     { id: "GirlSkirt1", label: "White Skirt", asset: GirlSkirt1, price: 180, rarity: "Common" },
@@ -205,7 +206,10 @@ const inferGenderFromItem = (item) => {
 const normalizedStoreItems = Object.fromEntries(
   Object.entries(storeItems).map(([category, items]) => [
     category,
-    items.map((item) => ({ ...item, gender: inferGenderFromItem(item) })),
+    items.map((item) => ({
+      ...item,
+      gender: item.gender || inferGenderFromItem(item),
+    })),
   ])
 );
 
@@ -220,6 +224,7 @@ const getHairAsset = (name) => {
   if (name === "GirlHair3") return girlHair3;
   if (name === "GirlHair4") return girlHair4;
   if (name === "GirlHair5") return girlHair5;
+  if (name === "GirlHair19") return girlHair19;
   if (name === "GirlHair6") return girlHair6;
   if (name === "GirlHair7") return girlHair7;
   if (name === "GirlHair8") return girlHair8;
@@ -235,7 +240,6 @@ const getHairAsset = (name) => {
   if (name === "GirlHair16") return girlHair16;
   if (name === "GirlHair17") return girlHair17;
   if (name === "GirlHair18") return girlHair18;
-  if (name === "GirlHair19") return girlHair19;
   if (name === "GirlHair20") return girlHair20;
   return boyHair1;
 };
@@ -924,9 +928,12 @@ return (
           <span className="genderBadge">
             {item.gender === "all" ? "Unisex" : item.gender}
           </span>
-           {!isOwned && (
-    <span className="priceTag">🪙 {item.price}</span>
-  )}
+{!isOwned && (
+  <span className="priceTag">
+    <img src="/coin.png" alt="Coins" className="priceTagCoinImg" />
+    {item.price}
+  </span>
+)}
         </div>
 
         <div className="itemBottomRow">
@@ -1105,10 +1112,14 @@ return (
     <div className="confirmCard">
       <div className="miniLabel">Confirm Purchase</div>
       <h3>Buy Item?</h3>
-      <p className="confirmText">
-        Are you sure you want to buy <strong>{buyTarget.label}</strong> for{" "}
-        <strong>{buyTarget.price}</strong> coins?
-      </p>
+<p className="confirmText">
+  Are you sure you want to buy <strong>{buyTarget.label}</strong> for{" "}
+  <strong className="confirmPriceInline">
+    <img src="/coin.png" alt="Coins" className="priceTagCoinImg" />
+    {buyTarget.price}
+  </strong>
+  ?
+</p>
 
       <div className="confirmActions">
         <button
@@ -1161,6 +1172,12 @@ return (
   --glow-brown: 0 0 24px rgba(157, 107, 47, 0.22);
   --olive: #9a7444;
   --olive-soft: rgba(154, 116, 68, 0.18);
+}
+
+.confirmPriceInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .confirmModal {
@@ -1415,6 +1432,22 @@ return (
 .coinsImg {
   width: 28px;
   height: 28px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+}
+
+.priceTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(194, 146, 71, 0.18);
+  color: #7f5a29;
+}
+
+.priceTagCoinImg {
+  width: 16px;
+  height: 16px;
   object-fit: contain;
   display: block;
   flex-shrink: 0;

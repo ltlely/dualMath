@@ -264,34 +264,48 @@ if (oldResolvedRows.length > 0) {
 
 getFriendRequests: async (userId) => {
   try {
-    const { data, error } = await supabase
-      .from("friend_requests")
-      .select(`
-        id,
-        sender_id,
-        receiver_id,
-        status,
-        created_at,
-       sender:profiles!friend_requests_sender_id_fkey (
-  id,
-  username,
-  avatar_data,
-  wins,
-  losses,
-  total_games,
-  rank_points,
-  status,
-  last_seen
-)
-      `)
-      .eq("receiver_id", userId)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false });
+    const [{ data, error }, { data: blockedByRows, error: blockedByError }] = await Promise.all([
+      supabase
+        .from("friend_requests")
+        .select(`
+          id,
+          sender_id,
+          receiver_id,
+          status,
+          created_at,
+          sender:profiles!friend_requests_sender_id_fkey (
+            id,
+            username,
+            avatar_data,
+            wins,
+            losses,
+            total_games,
+            rank_points,
+            status,
+            last_seen
+          )
+        `)
+        .eq("receiver_id", userId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false }),
+
+      supabase
+        .from("blocked_users")
+        .select("user_id")
+        .eq("blocked_user_id", userId),
+    ]);
 
     if (error) {
       console.error("getFriendRequests error:", error);
       return [];
     }
+
+    if (blockedByError) {
+      console.error("getFriendRequests blockedBy error:", blockedByError);
+      return [];
+    }
+
+    const blockedBySet = new Set((blockedByRows || []).map((row) => row.user_id));
 
     const { data: existingFriends, error: friendsError } = await supabase
       .from("friends")
@@ -303,10 +317,7 @@ getFriendRequests: async (userId) => {
       return [];
     }
 
-    const friendIds = new Set();
-    (existingFriends || []).forEach((row) => {
-      friendIds.add(row.friend_id);
-    });
+    const friendIds = new Set((existingFriends || []).map((row) => row.friend_id));
 
     return (data || [])
       .filter((row) => !friendIds.has(row.sender_id))
@@ -328,7 +339,8 @@ getFriendRequests: async (userId) => {
           rankPoints: sender?.rank_points || 0,
           winRate,
           status: sender?.status || "offline",
-last_seen: sender?.last_seen || null,
+          last_seen: sender?.last_seen || null,
+          isBlockedByCurrentUser: blockedBySet.has(row.sender_id),
         };
       });
   } catch (error) {
@@ -376,30 +388,73 @@ refreshPresence: async (userId) => {
 
 getFriends: async (userId) => {
   try {
-    const { data, error } = await supabase
+    const friendsPromise = supabase
       .from("friends")
       .select(`
         id,
         friend_id,
-friend:profiles!friends_friend_id_fkey (
-  id,
-  username,
-  avatar_data,
-  wins,
-  losses,
-  total_games,
-  rank_points,
-  status,
-  last_seen
-)
+        friend:profiles!friends_friend_id_fkey (
+          id,
+          username,
+          avatar_data,
+          wins,
+          losses,
+          total_games,
+          rank_points,
+          profile_status,
+          status,
+          last_seen
+        )
       `)
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
+
+    const blockedByMePromise = userId
+      ? supabase
+          .from("blocked_users")
+          .select("blocked_user_id")
+          .eq("user_id", userId)
+      : Promise.resolve({ data: [], error: null });
+
+    const blockedMePromise = userId
+      ? supabase
+          .from("blocked_users")
+          .select("user_id")
+          .eq("blocked_user_id", userId)
+      : Promise.resolve({ data: [], error: null });
+
+    const [
+      { data, error },
+      { data: blockedByMeRows, error: blockedByMeError },
+      { data: blockedMeRows, error: blockedMeError },
+    ] = await Promise.all([
+      friendsPromise,
+      blockedByMePromise,
+      blockedMePromise,
+    ]);
 
     if (error) {
       console.error("getFriends error:", error);
       return { success: false, data: [], message: error.message || "Could not load friends." };
     }
+
+    if (blockedByMeError) {
+      console.error("getFriends blockedByMeError:", blockedByMeError);
+      return { success: false, data: [], message: "Could not load friends." };
+    }
+
+    if (blockedMeError) {
+      console.error("getFriends blockedMeError:", blockedMeError);
+      return { success: false, data: [], message: "Could not load friends." };
+    }
+
+    const blockedByMeSet = new Set(
+      (blockedByMeRows || []).map((row) => row.blocked_user_id)
+    );
+
+    const blockedMeSet = new Set(
+      (blockedMeRows || []).map((row) => row.user_id)
+    );
 
     const mapped = (data || []).map((row) => {
       const friend = Array.isArray(row.friend) ? row.friend[0] : row.friend;
@@ -408,18 +463,21 @@ friend:profiles!friends_friend_id_fkey (
       const totalGames = friend?.total_games || 0;
       const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
 
-return {
-  id: friend?.id,
-  username: friend?.username || "Unknown",
-  avatarData: friend?.avatar_data || null,
-  wins,
-  losses,
-  totalGames,
-  rankPoints: friend?.rank_points || 0,
-  winRate,
-  status: friend?.status || "offline",
-  last_seen: friend?.last_seen || null,
-};
+      return {
+        id: friend?.id,
+        username: friend?.username || "Unknown",
+        avatarData: friend?.avatar_data || null,
+        wins,
+        losses,
+        totalGames,
+        rankPoints: friend?.rank_points || 0,
+        winRate,
+        profileStatus: friend?.profile_status || "",
+        status: friend?.status || "offline",
+        last_seen: friend?.last_seen || null,
+        isBlockedByMe: blockedByMeSet.has(friend?.id),
+        isBlockedByCurrentUser: blockedMeSet.has(friend?.id),
+      };
     });
 
     return { success: true, data: mapped };
@@ -455,36 +513,82 @@ removeFriend: async (currentUserId, friendId) => {
   }
 },
 
-  getLeaderboard: async () => {
+getLeaderboard: async (currentUserId) => {
   try {
-    const { data, error } = await supabase
+    const profilesPromise = supabase
       .from("profiles")
-      .select(`
-        id,
-        username,
-        avatar_data,
-        wins,
-        losses,
-        total_games,
-        rank_points
-      `);
+     .select(`
+  id,
+  username,
+  avatar_data,
+  wins,
+  losses,
+  total_games,
+  rank_points,
+  profile_status
+`)
+
+    const blockedByMePromise = currentUserId
+      ? supabase
+          .from("blocked_users")
+          .select("blocked_user_id")
+          .eq("user_id", currentUserId)
+      : Promise.resolve({ data: [], error: null });
+
+    const blockedMePromise = currentUserId
+      ? supabase
+          .from("blocked_users")
+          .select("user_id")
+          .eq("blocked_user_id", currentUserId)
+      : Promise.resolve({ data: [], error: null });
+
+    const [
+      { data, error },
+      { data: blockedByMeRows, error: blockedByMeError },
+      { data: blockedMeRows, error: blockedMeError },
+    ] = await Promise.all([
+      profilesPromise,
+      blockedByMePromise,
+      blockedMePromise,
+    ]);
 
     if (error) {
       console.error("getLeaderboard error:", error);
       return [];
     }
 
-    return (data || []).map((player) => ({
-      id: player.id,
-      username: player.username || "Unknown",
-      avatarData: player.avatar_data || null,
-      wins: player.wins || 0,
-      losses: player.losses || 0,
-      totalGames: player.total_games || 0,
-      rankPoints: player.rank_points || 0,
-    }));
+    if (blockedByMeError) {
+      console.error("getLeaderboard blockedByMeError:", blockedByMeError);
+      return [];
+    }
+
+    if (blockedMeError) {
+      console.error("getLeaderboard blockedMeError:", blockedMeError);
+      return [];
+    }
+
+    const blockedByMeSet = new Set(
+      (blockedByMeRows || []).map((row) => String(row.blocked_user_id))
+    );
+
+    const blockedMeSet = new Set(
+      (blockedMeRows || []).map((row) => String(row.user_id))
+    );
+
+return (data || []).map((player) => ({
+  id: player.id,
+  username: player.username || "Unknown",
+  avatarData: player.avatar_data || null,
+  wins: player.wins || 0,
+  losses: player.losses || 0,
+  totalGames: player.total_games || 0,
+  rankPoints: player.rank_points || 0,
+  profileStatus: player.profile_status || "",
+  isBlockedByMe: blockedByMeSet.has(String(player.id)),
+  isBlockedByCurrentUser: blockedMeSet.has(String(player.id)),
+}));
   } catch (error) {
-    console.error("getLeaderboard error:", error);
+    console.error("getLeaderboard catch error:", error);
     return [];
   }
 },
@@ -559,6 +663,7 @@ removeFriend: async (currentUserId, friendId) => {
   losses: profile?.losses || 0,
   totalGames: profile?.total_games || 0,
   createdAt: profile?.created_at || session.user.created_at,
+  profileStatus: profile?.profile_status || "",
 };
 
       // Cache locally for quick access
@@ -767,6 +872,7 @@ for (let i = 0; i < 5; i++) {
       skin_tone: "light",
       active_session_token: sessionToken,
       last_active: new Date().toISOString(),
+     profile_status: "",
     })
     .eq("id", data.user.id)
     .select();
@@ -801,6 +907,7 @@ if (!updateSuccess) {
       losses: 0,
       totalGames: 0,
       skinTone: "light",
+      profileStatus: "",
     };
 
     localStorage.setItem("dualmath_current_user", JSON.stringify(user));
@@ -815,6 +922,48 @@ if (!updateSuccess) {
   } catch (error) {
     console.error("Signup error:", error);
     return { success: false, message: "Signup failed. Please try again." };
+  }
+},
+
+getUserById: async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select(`
+        id,
+        username,
+        avatar_data,
+        wins,
+        losses,
+        total_games,
+        rank_points,
+        profile_status,
+        status,
+        last_seen
+      `)
+      .eq("id", userId)
+      .single();
+
+    if (error) {
+      console.error("getUserById error:", error);
+      return null;
+    }
+
+    return {
+      id: data.id,
+      username: data.username || "Unknown",
+      avatarData: data.avatar_data || null,
+      wins: data.wins || 0,
+      losses: data.losses || 0,
+      totalGames: data.total_games || 0,
+      rankPoints: data.rank_points || 0,
+      profileStatus: data.profile_status || "",
+      status: data.status || "offline",
+      last_seen: data.last_seen || null,
+    };
+  } catch (error) {
+    console.error("getUserById catch error:", error);
+    return null;
   }
 },
   // Login user
@@ -970,6 +1119,7 @@ if (!updateSuccess) {
         wins: fullProfile?.wins || 0,
         losses: fullProfile?.losses || 0,
         totalGames: fullProfile?.total_games || 0,
+        profileStatus: fullProfile?.profile_status || "",
       };
  
       localStorage.setItem("dualmath_current_user", JSON.stringify(user));
@@ -1129,6 +1279,7 @@ skin_tone: user.skinTone || "light",
       equipped_shoes: user.equippedShoes || null,
       equipped_accessory: user.equippedAccessory || "",
       owned_items: user.ownedItems || [],
+      profile_status: user.profileStatus || "",
 
       last_active: new Date().toISOString(),
     };
@@ -1160,6 +1311,7 @@ skin_tone: user.skinTone || "light",
   equippedShoes: payload.equipped_shoes,
   equippedAccessory: payload.equipped_accessory,
   ownedItems: payload.owned_items,
+  profileStatus: payload.profile_status,
 };
 
 localStorage.setItem("dualmath_current_user", JSON.stringify(mergedUser));
@@ -1391,9 +1543,9 @@ validateSession: async () => {
   }
 },
 
-getAllPlayers: async () => {
+getAllPlayers: async (currentUserId) => {
   try {
-    const { data, error } = await supabase
+    const playersPromise = supabase
       .from("profiles")
       .select(`
         id,
@@ -1402,16 +1554,64 @@ getAllPlayers: async () => {
         wins,
         losses,
         total_games,
-        rank_points
+        rank_points,
+        profile_status,
+        status,
+        last_seen
       `)
       .order("username", { ascending: true });
 
-    if (error) {
-      console.error("getAllPlayers error:", error);
+    const blockedByMePromise = currentUserId
+      ? supabase
+          .from("blocked_users")
+          .select("blocked_user_id")
+          .eq("user_id", currentUserId)
+      : Promise.resolve({ data: [], error: null });
+
+    const blockedMePromise = currentUserId
+      ? supabase
+          .from("blocked_users")
+          .select("user_id")
+          .eq("blocked_user_id", currentUserId)
+      : Promise.resolve({ data: [], error: null });
+
+    const [
+      { data: players, error: playersError },
+      { data: blockedByMeRows, error: blockedByMeError },
+      { data: blockedMeRows, error: blockedMeError },
+    ] = await Promise.all([
+      playersPromise,
+      blockedByMePromise,
+      blockedMePromise,
+    ]);
+
+    console.log("getAllPlayers currentUserId:", currentUserId);
+console.log("blockedByMeRows:", blockedByMeRows);
+console.log("blockedMeRows:", blockedMeRows);
+
+    if (playersError) {
+      console.error("getAllPlayers playersError:", playersError);
       return [];
     }
 
-    return (data || []).map((player) => {
+    if (blockedByMeError) {
+      console.error("getAllPlayers blockedByMeError:", blockedByMeError);
+      return [];
+    }
+
+    if (blockedMeError) {
+      console.error("getAllPlayers blockedMeError:", blockedMeError);
+      return [];
+    }
+
+    const blockedByMeSet = new Set(
+  (blockedByMeRows || []).map((row) => String(row.blocked_user_id))
+);
+    const blockedMeSet = new Set(
+  (blockedMeRows || []).map((row) => String(row.user_id))
+);
+
+    return (players || []).map((player) => {
       const wins = player.wins || 0;
       const losses = player.losses || 0;
       const totalGames = player.total_games || 0;
@@ -1426,14 +1626,30 @@ getAllPlayers: async () => {
         losses,
         totalGames,
         rankPoints: player.rank_points || 0,
+        profileStatus: player.profile_status || "",
+        status: player.status || "offline",
+        last_seen: player.last_seen || null,
         winRate,
+isBlockedByMe: blockedByMeSet.has(String(player.id)),
+isBlockedByCurrentUser: blockedMeSet.has(String(player.id)),
       };
     });
   } catch (error) {
     console.error("getAllPlayers error:", error);
     return [];
   }
+
+  console.log("blockedByMeRows:", blockedByMeRows);
+console.log("blockedMeRows:", blockedMeRows);
+console.log("blockedMeSet:", [...blockedMeSet]);
+console.log("players with block flags:", players?.map(p => ({
+  id: p.id,
+  username: p.username,
+  isBlockedByMe: blockedByMeSet.has(String(p.id)),
+  isBlockedByCurrentUser: blockedMeSet.has(String(p.id)),
+})));
 },
+
 updateStatus: async (userId, status) => {
   try {
     const { error } = await supabase
@@ -1533,6 +1749,43 @@ markAllChatsAsRead: async (currentUserId) => {
   } catch (error) {
     console.error("markAllChatsAsRead catch error:", error);
     return false;
+  }
+},
+
+blockUserByUsername: async (currentUserId, username) => {
+  try {
+    const normalizedUsername = username.trim().toLowerCase();
+
+    if (!normalizedUsername) {
+      return { success: false, message: "Username is required." };
+    }
+
+    const { data: targetUser, error: targetError } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .eq("username", normalizedUsername)
+      .maybeSingle();
+
+    if (targetError) {
+      console.error("blockUserByUsername lookup error:", targetError);
+      return {
+        success: false,
+        message: targetError.message || "Could not find user.",
+      };
+    }
+
+    if (!targetUser?.id) {
+      return { success: false, message: "User not found." };
+    }
+
+    if (String(targetUser.id) === String(currentUserId)) {
+      return { success: false, message: "You cannot block yourself." };
+    }
+
+    return await userManager.blockUser(currentUserId, targetUser.id);
+  } catch (error) {
+    console.error("blockUserByUsername catch error:", error);
+    return { success: false, message: "Could not block user." };
   }
 },
 
@@ -1710,6 +1963,28 @@ blockUser: async (userId, blockedUserId) => {
   }
 },
 
+declineFriendRequest: async (requestId) => {
+  try {
+    const { error } = await supabase
+      .from("friend_requests")
+      .delete()
+      .eq("id", requestId);
+
+    if (error) {
+      console.error("declineFriendRequest error:", error);
+      return {
+        success: false,
+        message: error.message || "Could not decline request.",
+      };
+    }
+
+    return { success: true, message: "Request declined." };
+  } catch (error) {
+    console.error("declineFriendRequest catch error:", error);
+    return { success: false, message: "Could not decline request." };
+  }
+},
+
 acceptFriendRequest: async (requestId, currentUserId, senderId) => {
   try {
     const { data: existingFriendRows, error: existingFriendError } = await supabase
@@ -1783,5 +2058,8 @@ const getOrCreateDeviceId = () => {
   }
   return deviceId;
 };
+
+
+
 
 export { supabase };

@@ -1,9 +1,11 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Card, Button, Select, Pill } from "./components.jsx";
 import { userManager } from "../userManagerSupabase.js";
+import Chat from "./Chat.jsx";
 
 const rankImages = {
-  "Novice Apprentice": "/noviceApprenticeRank.png",
+  "Novice": "/noviceApprenticeRank.png",
+  "Apprentice": "/noviceApprenticeRank.png",
   Skilled: "/skilledRank.png",
   Professional: "/professionalRank.png",
   Expert: "/expertRank.png",
@@ -14,7 +16,7 @@ function getRankImage(rank) {
   return rankImages[rank] || "/noviceApprenticeRank.png";
 }
 
-function Slot({ title, player, isYou, onSit, currentUserAvatarData, username, currentUser }) {
+function Slot({ title, player, isYou, onSit, currentUserAvatarData, username, currentUser,  }) {
   const displayUser = isYou ? currentUser : player;
   const displayAvatar = isYou ? currentUserAvatarData : player?.avatarData;
   const displayName = isYou ? username : player?.name;
@@ -73,10 +75,7 @@ function Slot({ title, player, isYou, onSit, currentUserAvatarData, username, cu
         </div>
       ) : (
         <div className="slotEmpty">
-          <div className="emptyCopy">
-            <div className="muted">Empty slot</div>
-            <div className="emptySubtext">Join this team position</div>
-          </div>
+       
           <Button variant="secondary" onClick={onSit}>Join Slot</Button>
         </div>
       )}
@@ -93,7 +92,9 @@ export default function Room({
   onSit,
   error,
   onLeaveRoom,
-  currentUser
+  currentUser,
+  chat = [],
+  onChatSend,
 }) {
   const isHost = room?.hostId === selfId;
   const self = useMemo(() => room?.players?.find(p => p.id === selfId), [room, selfId]);
@@ -265,14 +266,64 @@ export default function Room({
         </Card>
       </div>
 
-      <div className="grid2">
-       
-    
-      </div>
-
+<div className= "chatBox">
+      <Chat
+  room={room}
+  selfId={selfId}
+  chat={chat}
+  onSend={onChatSend}
+/>
+</div>
       {error && <div className="toast bad">{error}</div>}
 
       <style>{`
+
+:root {
+  --ink: #f5e7c6;
+  --muted: #d9c39a;
+  --muted-2: #bca885;
+  --panel: linear-gradient(180deg, rgba(50, 42, 30, 0.97), rgba(34, 28, 20, 0.97));
+  --panel-soft: linear-gradient(180deg, rgba(63, 52, 35, 0.96), rgba(43, 35, 22, 0.94));
+  --card-border: rgba(214, 172, 95, 0.18);
+  --button: linear-gradient(180deg, rgba(98, 73, 33, 0.96), rgba(74, 55, 25, 0.96));
+  --button-active: linear-gradient(180deg, rgba(112, 83, 36, 0.95), rgba(82, 61, 27, 0.95));
+  --row: linear-gradient(180deg, rgba(140, 118, 82, 0.42), rgba(140, 118, 82, 0.42));
+}
+
+.chatBox {
+  width: 100%;
+  min-width: 0;
+  min-height: 300px;
+  height: 270px;
+  margin: 10px 0 0;
+  padding: 10px;
+  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  background: var(--panel);
+  border: 1px solid var(--card-border);
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.22),
+    0 0 18px rgba(224, 171, 63, 0.08),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05);
+  border-radius: 22px;
+}
+
+
+
+.chatBox > * {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+
         .page {
           width: 100%;
           max-width: 1280px;
@@ -312,15 +363,14 @@ export default function Room({
     0 0 28px rgba(145, 76, 240, 0.24);
 }
 
-        .page::before {
+.page::before {
   content: "";
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(circle at 50% 14%, rgba(255, 236, 184, 0.22), transparent 20%),
-    radial-gradient(circle at 18% 8%, rgba(255, 245, 220, 0.55), transparent 30%),
-    radial-gradient(circle at 82% 0%, rgba(229, 197, 132, 0.18), transparent 24%),
-    linear-gradient(180deg, #f8f0dd 0%, #d3bd95 100%);
+    radial-gradient(circle at top, rgba(120, 92, 38, 0.20), transparent 32%),
+    radial-gradient(circle at top center, rgba(255, 214, 120, 0.08), transparent 42%),
+    linear-gradient(180deg, #3a342b 0%, #26211c 52%, #171411 100%);
   z-index: -2;
 }
 
@@ -412,13 +462,20 @@ export default function Room({
           flex-wrap: wrap;
         }
 
-        .page .teamsRow {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 22px;
-          margin-top: 8px;
-        }
+.page .teamsRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  margin-top: 8px;
+}
 
+.teamGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 140px;
+  gap: 14px;
+  align-items: stretch;
+}
         .page .grid2 {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -426,42 +483,44 @@ export default function Room({
           margin-top: 20px;
         }
 
-        .page .card {
-          border: 1px solid rgba(166, 134, 93, 0.2);
-          background: linear-gradient(180deg, rgba(247, 238, 214, 0.96), rgba(223, 198, 156, 0.94));
-          border-radius: 30px;
-          box-shadow:
-            0 18px 34px rgba(123, 91, 58, 0.10),
-            inset 0 1px 0 rgba(255,255,255,0.52);
-          overflow: hidden;
-        }
+.page .card {
+  border: 1px solid var(--card-border);
+  background: var(--panel);
+  border-radius: 30px;
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.22),
+    0 0 18px rgba(224, 171, 63, 0.08),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05);
+  overflow: hidden;
+  color: var(--ink);
+}
 
         .page .grid2 .card {
           background: linear-gradient(180deg, rgba(240, 226, 192, 0.95), rgba(221, 198, 159, 0.92));
         }
 
-        .page .cardTop {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 16px 18px 12px;
-          border-bottom: 1px solid rgba(166, 134, 93, 0.16);
-          color: #4c3826;
-          background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0));
-        }
+.page .cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid rgba(214, 172, 95, 0.12);
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(255, 236, 190, 0.05), rgba(255,255,255,0));
+}
 
-        .page .cardTitle {
-          font-weight: 900;
-          color: #5b4028;
-          font-size: 28px;
-          letter-spacing: -0.03em;
-          width: 100%;
-        }
+.page .cardTitle {
+  font-weight: 900;
+  color: #fff1cf;
+  font-size: 28px;
+  letter-spacing: -0.03em;
+  width: 100%;
+}
 
-        .page .cardBody {
-          padding: 16px;
-          color: #4c3826;
-        }
+.page .cardBody {
+  padding: 16px;
+  color: var(--ink);
+}
 
         .teamGrid {
           display: grid;
@@ -469,93 +528,105 @@ export default function Room({
           gap: 14px;
         }
 
-        .page .slot {
-          border: 1px solid rgba(166, 134, 93, 0.18);
-          border-radius: 24px;
-          background: linear-gradient(180deg, #f7f0d8, #ede1bf);
-          padding: 14px;
-          min-height: 118px;
-          box-shadow:
-            0 10px 18px rgba(107, 79, 52, 0.07),
-            inset 0 1px 0 rgba(255,255,255,0.5);
-          transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-        }
+.page .slot {
+  border: 1px solid rgba(214, 172, 95, 0.16);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(140, 118, 82, 0.42), rgba(140, 118, 82, 0.42));
+  padding: 14px;
+  height: 140px;
+  min-height: 140px;
+  max-height: 140px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 236, 190, 0.10);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  color: var(--ink);
+}
 
-        .page .slot:hover {
-          transform: translateY(-2px);
-          box-shadow:
-            0 16px 26px rgba(107, 79, 52, 0.11),
-            0 0 0 1px rgba(229, 197, 132, 0.18);
-          border-color: rgba(191, 149, 100, 0.34);
-        }
+.page .slot:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.18),
+    0 0 16px rgba(224, 171, 63, 0.08);
+  border-color: rgba(237, 187, 87, 0.24);
+}
 
-        .page .slotTop {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 12px;
-          gap: 8px;
-        }
+      .page .slotTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 8px;
+}
 
-        .page .slotTitle {
-          font-weight: 900;
-          font-size: 24px;
-          letter-spacing: -0.03em;
-          color: #9c7350;
-        }
+.page .slotTitle {
+  font-weight: 900;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+  color: #fff1cf;
+}
 
-        .page .slotPlayer {
-          display: flex;
-          gap: 12px;
-          align-items: center;
-        }
+.page .slotPlayer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
+}
 
-        .page .slotMeta {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
+.page .slotMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 
-        .page .slotName {
-          font-weight: 800;
-          font-size: 15px;
-          color: #5a4028;
-          line-height: 1.1;
-        }
+.page .slotName {
+  font-weight: 800;
+  font-size: 15px;
+  color: #fff1cf;
+  line-height: 1.1;
+}
 
-        .page .slotEmpty {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-        }
+.page .slotEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  flex: 1;
+  min-height: 0;
+}
 
-        .emptyCopy {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
+.emptyCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 
-        .emptySubtext {
-          color: #b29a7f;
-          font-size: 12px;
-        }
+.emptySubtext {
+  color: var(--muted);
+  font-size: 12px;
+}
 
-        .page .slot .avatar {
-          width: 54px;
-          height: 54px;
-          border-radius: 16px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: transparent;
-          border: none;
-          color: #7a5938;
-          font-weight: 900;
-          font-size: 18px;
-          overflow: hidden;
-          flex-shrink: 0;
-        }
+.page .slot .avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #fff1cf;
+  font-weight: 900;
+  font-size: 18px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
 
 .page .slot .avatar img {
   width: 100%;
@@ -565,24 +636,26 @@ export default function Room({
   background: transparent;
 }
 
-        .page .rankBadge {
-          display: inline-flex;
-          align-items: center;
-          width: fit-content;
-          padding: 4px 10px;
-          border-radius: 999px;
-          background: linear-gradient(180deg, #f3dfb1, #e8c983);
-          border: 1px solid rgba(183, 143, 90, 0.28);
-          color: #6d512f;
-          font-size: 12px;
-          font-weight: 800;
-          box-shadow: 0 4px 10px rgba(183, 143, 90, 0.12);
-        }
+.page .rankBadge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(60, 49, 33, 0.96), rgba(42, 34, 22, 0.94));
+  border: 1px solid rgba(214, 172, 95, 0.18);
+  color: #fff1cf;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04);
+}
 
-        .page .muted {
-          color: #9a8268;
-          font-size: 13px;
-        }
+.page .muted {
+  color: var(--muted);
+  font-size: 13px;
+}
 
         .page .label {
           font-size: 12px;
@@ -698,7 +771,7 @@ export default function Room({
 
 .matchSetupBadge.diff-easy {
   background: rgba(146, 211, 110, 0.18);
-  color: #55763a;
+  color: #81b458;
   border: 1px solid rgba(146, 211, 110, 0.32);
 }
 
@@ -732,50 +805,96 @@ export default function Room({
           transform: translateY(-1px);
         }
 
-        .page .btn.primary {
-          background: linear-gradient(180deg, #f0cf64, #d6ae38);
-          color: #5a4224;
-          box-shadow:
-            0 10px 18px rgba(190, 150, 54, 0.22),
-            inset 0 1px 0 rgba(255,255,255,0.4);
-        }
+.page .btn.primary {
+  background: var(--button-active);
+  color: #fff2d2;
+  border-color: rgba(237, 187, 87, 0.28);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 236, 190, 0.08);
+}
 
-        .page .btn.secondary {
-          background: linear-gradient(180deg, #fffaf0, #efe5cf);
-          border-color: rgba(166, 134, 93, 0.22);
-          color: #5a4028;
-          box-shadow:
-            0 8px 14px rgba(107, 79, 52, 0.08),
-            inset 0 1px 0 rgba(255,255,255,0.52);
-        }
+.page .btn.secondary {
+  background: var(--button);
+  color: #fff1cf;
+  border-color: rgba(214, 172, 95, 0.22);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04);
+}
 
-        .page .pill {
-          font-size: 12px;
-          padding: 7px 12px;
-          border-radius: 999px;
-          border: 1px solid rgba(107, 79, 52, 0.18);
-          color: #8f7b63;
-          background: rgba(255, 253, 244, 0.78);
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
-        }
+.page,
+.page .cardTop,
+.page .cardBody,
+.page .roomTitle,
+.page .slotName,
+.page .cardTitle {
+  color: var(--ink);
+}
 
-        .page .pill.code {
-          border-color: rgba(107, 79, 52, 0.24);
-          color: #6b4a33;
-          background: linear-gradient(180deg, #f3e2b7, #ead4a2);
-        }
+.roomLabel,
+.page .muted,
+.emptySubtext {
+  color: var(--muted);
+}
 
-        .page .pill.good {
-          border-color: rgba(185, 150, 69, 0.28);
-          color: #6f572e;
-          background: linear-gradient(180deg, #f4da87, #e3bf56);
-        }
+.roomWord,
+.page .roomName,
+.page .slotTitle {
+  color: #fff1cf;
+}
 
-        .page .pill.neutral {
-          border-color: rgba(180, 164, 142, 0.28);
-          color: #9b8a76;
-          background: linear-gradient(180deg, #fffaf2, #eee3d2);
-        }
+.page {
+  color: var(--ink);
+}
+
+.roomLabel,
+.page .muted,
+.emptySubtext {
+  color: var(--muted);
+}
+
+.page .roomTitle,
+.page .cardTop,
+.page .cardBody,
+.page .slotName,
+.page .cardTitle {
+  color: var(--ink);
+}
+
+.roomWord {
+  color: var(--brown-dark);
+}
+
+.page .roomName,
+.page .slotTitle {
+  color: var(--brown);
+}
+
+.page .pill {
+  border: 1px solid rgba(214, 172, 95, 0.18);
+  color: var(--muted);
+  background: rgba(28, 24, 18, 0.88);
+}
+
+.page .pill.code {
+  background: linear-gradient(180deg, rgba(60, 49, 33, 0.96), rgba(42, 34, 22, 0.94));
+  color: #fff1cf;
+  border-color: rgba(214, 172, 95, 0.18);
+}
+
+.page .pill.good {
+  background: linear-gradient(180deg, rgba(112, 83, 36, 0.95), rgba(82, 61, 27, 0.95));
+  color: #fff2d2;
+  border-color: rgba(237, 187, 87, 0.24);
+}
+
+.page .pill.neutral {
+  background: linear-gradient(180deg, rgba(60, 49, 33, 0.96), rgba(42, 34, 22, 0.94));
+  color: var(--muted);
+  border-color: rgba(214, 172, 95, 0.18);
+}
+
 
         .ruleItem {
           color: #8f7b63;
@@ -829,9 +948,6 @@ export default function Room({
   background: linear-gradient(180deg, #efe7d6, #d9ccb4);
   color: #6f604f;
 }
-.page {
-  color: #5a3512;
-}
 
 
 
@@ -839,9 +955,6 @@ export default function Room({
   background: radial-gradient(circle, rgba(243, 196, 94, 0.18), transparent 70%);
 }
 
-.roomLabel {
-  color: #ab7d42;
-}
 
 .page .roomTitle,
 .page .cardTop,
@@ -857,13 +970,6 @@ export default function Room({
   color: #a06a2d;
 }
 
-.page .card {
-  border: 1px solid rgba(191, 145, 63, 0.22);
-  background: linear-gradient(180deg, rgba(255, 244, 214, 0.96), rgba(232, 196, 127, 0.94));
-  box-shadow:
-    0 18px 34px rgba(136, 94, 38, 0.10),
-    inset 0 1px 0 rgba(255,255,255,0.52);
-}
 
 .page .grid2 .card {
   background: linear-gradient(180deg, rgba(250, 233, 186, 0.95), rgba(229, 191, 118, 0.92));
@@ -877,13 +983,6 @@ export default function Room({
   color: #6c4318;
 }
 
-.page .slot {
-  border: 1px solid rgba(191, 145, 63, 0.18);
-  background: linear-gradient(180deg, #fff2cf, #f1dfae);
-  box-shadow:
-    0 10px 18px rgba(136, 94, 38, 0.07),
-    inset 0 1px 0 rgba(255,255,255,0.5);
-}
 
 .page .slot:hover {
   box-shadow:
@@ -897,7 +996,8 @@ export default function Room({
 }
 
 .page .slotName {
-  color: #603b18;
+  color: #ffe39e;
+  margin: 8px;
 }
 
 .page .slot .avatar {
@@ -933,22 +1033,7 @@ export default function Room({
   box-shadow: 0 0 0 3px rgba(227, 170, 50, 0.14);
 }
 
-.page .btn.primary {
-  background: linear-gradient(180deg, #ffd66f, #e1a928);
-  color: #5a3a11;
-  box-shadow:
-    0 10px 18px rgba(196, 139, 61, 0.22),
-    inset 0 1px 0 rgba(255,255,255,0.4);
-}
 
-.page .btn.secondary {
-  background: linear-gradient(180deg, #fff8e8, #f2dfb8);
-  border-color: rgba(191, 145, 63, 0.22);
-  color: #603b18;
-  box-shadow:
-    0 8px 14px rgba(136, 94, 38, 0.08),
-    inset 0 1px 0 rgba(255,255,255,0.52);
-}
 
 .page .pill {
   border: 1px solid rgba(154, 104, 45, 0.18);

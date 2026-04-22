@@ -4,7 +4,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 
 const rankImages = {
-  "Novice Apprentice": "/noviceApprenticeRank.png",
+  "Novice": "/noviceApprenticeRank.png",
+  "Apprentice": "/noviceApprenticeRank.png",
   Skilled: "/skilledRank.png",
   Professional: "/professionalRank.png",
   Expert: "/expertRank.png",
@@ -25,10 +26,11 @@ function getDisplayRank(user) {
   if (points >= 1500) return "Expert";
   if (points >= 1000) return "Professional";
   if (points >= 500) return "Skilled";
-  return "Novice Apprentice";
+  if(points >= 300) return "Apprentice";
+  return "Novice";
 }
 
-export default function FriendList({ currentUser, onBack, onUnreadCountChange,refreshUnreadCount,  onOnlineFriendsChange}) {
+export default function FriendList({ currentUser, onBack, onUnreadCountChange,refreshUnreadCount,  onOnlineFriendsChange, onOpenProfile}) {
   const [friends, setFriends] = useState([]);
   const [blockTarget, setBlockTarget] = useState(null);
 const [unblockTarget, setUnblockTarget] = useState(null);
@@ -56,6 +58,87 @@ const hasLoadedOnceRef = useRef(false);
   const chatMessagesRef = useRef(null);
 const chatBottomRef = useRef(null);
 const [isBlocking, setIsBlocking] = useState(false);
+const [declineTarget, setDeclineTarget] = useState(null);
+const [blockSearchUsername, setBlockSearchUsername] = useState("");
+const [isBlockingByUsername, setIsBlockingByUsername] = useState(false);
+
+const handleBlockByUsername = async () => {
+  const typedUsername = blockSearchUsername.trim();
+  if (!typedUsername) return;
+
+  setMessage("");
+  setError("");
+  setIsBlockingByUsername(true);
+
+  try {
+    const resolvedUser = await getResolvedUser();
+
+    if (!resolvedUser?.id) {
+      setError("You need to be logged in to block a user.");
+      return;
+    }
+
+    const normalizedSearch = typedUsername.toLowerCase();
+    const myUsername = (resolvedUser.username || "").toLowerCase();
+
+    if (normalizedSearch === myUsername) {
+      setError("You cannot block yourself.");
+      return;
+    }
+
+    const alreadyBlocked = blockedUsers.some(
+      (user) => (user.username || "").toLowerCase() === normalizedSearch
+    );
+
+    if (alreadyBlocked) {
+      setError("That user is already blocked.");
+      return;
+    }
+
+    const friendMatch = friends.find(
+      (friend) => (friend.username || "").toLowerCase() === normalizedSearch
+    );
+
+    if (friendMatch) {
+      const result = await userManager.blockUser(resolvedUser.id, friendMatch.id);
+
+      if (!result?.success) {
+        setError(result?.message || "Could not block user.");
+        return;
+      }
+
+      if (chatTarget?.id === friendMatch.id) {
+        setChatTarget(null);
+        setChatMessages([]);
+        setChatInput("");
+      }
+
+      setMessage(`${friendMatch.username} was blocked.`);
+      setBlockSearchUsername("");
+      await loadData(false);
+      return;
+    }
+
+    const result = await userManager.blockUserByUsername(
+      resolvedUser.id,
+      typedUsername
+    );
+
+    if (!result?.success) {
+      setError(result?.message || "Could not block user.");
+      return;
+    }
+
+    setMessage(result.message || `${typedUsername} was blocked.`);
+    setBlockSearchUsername("");
+    await loadData(false);
+  } catch (err) {
+    console.error("handleBlockByUsername error:", err);
+    setError(err?.message || "Could not block user.");
+  } finally {
+    setIsBlockingByUsername(false);
+  }
+};
 
 function getComputedStatus(friend) {
   const rawStatus = (friend?.status || "").toLowerCase();
@@ -204,6 +287,35 @@ useEffect(() => {
   const interval = setInterval(() => loadData(false), 3000);
   return () => clearInterval(interval);
 }, [loadData]);
+
+const canOpenProfile = (user) => {
+  if (!user?.id) return false;
+
+  const isBlockedByMe =
+    blockedUsers.some((blocked) => blocked.id === user.id) ||
+    user?.isBlockedByMe === true;
+
+  const blockedMe = user?.isBlockedByCurrentUser === true;
+
+  return !isBlockedByMe && !blockedMe;
+};
+
+const handleOpenProfileSafe = (e, user) => {
+  e?.stopPropagation?.();
+
+  if (!canOpenProfile(user)) {
+    setError("You cannot view this profile because one of you has blocked the other.");
+
+    clearTimeout(window.profileBlockMessageTimeout);
+    window.profileBlockMessageTimeout = setTimeout(() => {
+      setError("");
+    }, 4000);
+
+    return;
+  }
+
+  onOpenProfile?.(user);
+};
 
   useEffect(() => {
     const loadChatMessages = async (showLoading = false) => {
@@ -379,20 +491,27 @@ const handleSendRequest = async () => {
   await loadData(false);
 };
 
-  const handleDecline = async (requestId) => {
-    setMessage("");
-    setError("");
+const handleDecline = (request) => {
+  setDeclineTarget(request);
+};
 
-    const result = await userManager.declineFriendRequest(requestId);
+const confirmDeclineRequest = async () => {
+  if (!declineTarget) return;
 
-    if (!result?.success) {
-      setError(result?.message || "Could not decline request.");
-      return;
-    }
+  setMessage("");
+  setError("");
 
-    setMessage(result.message || "Request declined.");
-    loadData(false);
-  };
+  const result = await userManager.declineFriendRequest(declineTarget.id);
+
+  if (!result?.success) {
+    setError(result?.message || "Could not decline request.");
+    return;
+  }
+
+  setMessage(result.message || "Request declined.");
+  setRequests((prev) => prev.filter((r) => r.id !== declineTarget.id));
+  setDeclineTarget(null);
+};
 
   const handleRemove = (friendId, friendUsername) => {
     setRemoveTarget({ id: friendId, username: friendUsername });
@@ -756,6 +875,27 @@ const ONLINE_WINDOW_MS = 30000; // 30 sec
       </div>
     </div>
 
+    <div className="addFriendRow">
+      <input
+        className="searchInput"
+        type="text"
+        placeholder="Enter username to block..."
+        value={blockSearchUsername}
+        onChange={(e) => setBlockSearchUsername(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleBlockByUsername();
+        }}
+      />
+      <button
+        className="blockButton"
+        type="button"
+        onClick={handleBlockByUsername}
+        disabled={isBlockingByUsername}
+      >
+        {isBlockingByUsername ? "Blocking..." : "Block User"}
+      </button>
+    </div>
+
     <div className="friendsList requestScroll">
       {isLoading ? (
         <div className="emptyState">Loading blocked users...</div>
@@ -763,13 +903,22 @@ const ONLINE_WINDOW_MS = 30000; // 30 sec
         blockedUsers.map((blocked) => (
           <div className="friendRow" key={blocked.id}>
             <div className="friendLeft">
-              <div className="friendAvatar">
+              <button
+                type="button"
+                className="friendAvatar profileAvatarButton"
+                onClick={(e) => handleOpenProfileSafe(e, blocked)}
+                title={
+                  canOpenProfile(blocked)
+                    ? `View ${blocked.username}'s profile`
+                    : "Profile unavailable"
+                }
+              >
                 {blocked.avatarData ? (
                   <img src={blocked.avatarData} alt={blocked.username} />
                 ) : (
                   <span>{blocked.username?.[0]?.toUpperCase() || "?"}</span>
                 )}
-              </div>
+              </button>
 
               <div>
                 <div className="friendNameRow">
@@ -785,7 +934,10 @@ const ONLINE_WINDOW_MS = 30000; // 30 sec
               <button
                 className="acceptButton"
                 type="button"
-                onClick={() => handleUnblock(blocked.id, blocked.username)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleUnblock(blocked.id, blocked.username);
+                }}
               >
                 Unblock
               </button>
@@ -863,15 +1015,24 @@ const ONLINE_WINDOW_MS = 30000; // 30 sec
   return (a.username || "").localeCompare(b.username || "");
 })
   .map((friend) => (
-                      <div className="friendRow" key={friend.id}>
+<div className="friendRow" key={friend.id}>
                         <div className="friendLeft">
-                          <div className="friendAvatar">
-                            {friend.avatarData ? (
-                              <img src={friend.avatarData} alt={friend.username} />
-                            ) : (
-                              <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
-                            )}
-                          </div>
+  <button
+  type="button"
+  className="friendAvatar profileAvatarButton"
+  onClick={(e) => handleOpenProfileSafe(e, friend)}
+  title={
+    canOpenProfile(friend)
+      ? `View ${friend.username}'s profile`
+      : "Profile unavailable"
+  }
+>
+  {friend.avatarData ? (
+    <img src={friend.avatarData} alt={friend.username} />
+  ) : (
+    <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
+  )}
+</button>
 
                           <div>
                             <div className="friendNameRow">
@@ -895,7 +1056,10 @@ alt={getDisplayRank(friend)}
 <button
   type="button"
   className="blockButton"
-  onClick={() => handleBlock(friend.id, friend.username)}
+  onClick={(e) => {
+    e.stopPropagation();
+    handleBlock(friend.id, friend.username);
+  }}
 >
   Block
 </button>
@@ -903,7 +1067,10 @@ alt={getDisplayRank(friend)}
                           <button
                             className="removeButton"
                             type="button"
-                            onClick={() => handleRemove(friend.id, friend.username)}
+                             onClick={(e) => {
+    e.stopPropagation();
+    handleRemove(friend.id, friend.username);
+  }}
                           >
                             Remove
                           </button>
@@ -933,15 +1100,24 @@ alt={getDisplayRank(friend)}
                 ) : requests.length > 0 ? (
                    requests
                   .map((request) => (
-                    <div className="friendRow" key={request.id}>
+<div className="friendRow" key={request.id}>
                       <div className="friendLeft">
-                        <div className="friendAvatar">
-                          {request.avatarData ? (
-                            <img src={request.avatarData} alt={request.username} />
-                          ) : (
-                            <span>{request.username?.[0]?.toUpperCase() || "?"}</span>
-                          )}
-                        </div>
+<button
+  type="button"
+  className="friendAvatar profileAvatarButton"
+  onClick={(e) => handleOpenProfileSafe(e, request)}
+  title={
+    canOpenProfile(request)
+      ? `View ${request.username}'s profile`
+      : "Profile unavailable"
+  }
+>
+  {request.avatarData ? (
+    <img src={request.avatarData} alt={request.username} />
+  ) : (
+    <span>{request.username?.[0]?.toUpperCase() || "?"}</span>
+  )}
+</button>
 
                         <div>
                           <div className="friendNameRow">
@@ -960,17 +1136,26 @@ alt={getDisplayRank(request)}
 
                       <div className="friendActions">
                         <button
-                          className="acceptButton"
-                          onClick={() => handleAccept(request)}
-                        >
-                          Accept
-                        </button>
-                        <button
-                          className="declineButton"
-                          onClick={() => handleDecline(request.id)}
-                        >
-                          Decline
-                        </button>
+  type="button"
+  className="acceptButton"
+  onClick={(e) => {
+    e.stopPropagation();
+    handleAccept(request);
+  }}
+>
+  Accept
+</button>
+
+<button
+  type="button"
+  className="declineButton"
+  onClick={(e) => {
+    e.stopPropagation();
+    handleDecline(request);
+  }}
+>
+  Decline
+</button>
                       </div>
                     </div>
                   ))
@@ -1031,13 +1216,22 @@ onClick={async () => {
                           onClick={() => openChat(friend)}
                         >
                           <div className="friendLeft">
-                            <div className="friendAvatar">
-                              {friend.avatarData ? (
-                                <img src={friend.avatarData} alt={friend.username} />
-                              ) : (
-                                <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
-                              )}
-                            </div>
+<button
+  type="button"
+  className="friendAvatar profileAvatarButton"
+  onClick={(e) => handleOpenProfileSafe(e, friend)}
+  title={
+    canOpenProfile(friend)
+      ? `View ${friend.username}'s profile`
+      : "Profile unavailable"
+  }
+>
+  {friend.avatarData ? (
+    <img src={friend.avatarData} alt={friend.username} />
+  ) : (
+    <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
+  )}
+</button>
 
                             <div>
                             
@@ -1137,6 +1331,36 @@ onClick={async () => {
         </main>
       </div>
 
+      {declineTarget && (
+  <div className="confirmModal">
+    <div className="confirmOverlay" onClick={() => setDeclineTarget(null)} />
+    <div className="confirmCard">
+      <div className="miniLabel">Confirm</div>
+      <h3>Decline Request?</h3>
+      <p className="confirmText">
+        Are you sure you want to decline <strong>{declineTarget.username}</strong>'s friend request?
+      </p>
+
+      <div className="confirmActions">
+        <button
+          type="button"
+          className="acceptButton"
+          onClick={() => setDeclineTarget(null)}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="declineButton"
+          onClick={confirmDeclineRequest}
+        >
+          Decline
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
      {blockTarget && (
   <div className="confirmModal">
     <div className="confirmOverlay" onClick={() => setBlockTarget(null)} />
@@ -1213,7 +1437,8 @@ onClick={async () => {
         <button
           type="button"
           className="declineButton"
-          onClick={() => setUnblockTarget(null)}
+          onClick={(e) => {
+    e.stopPropagation(); setUnblockTarget(null); }}
         >
           Cancel
         </button>
@@ -1354,6 +1579,18 @@ onClick={async () => {
   color: #fff2d2 !important;
 }
 
+.profileAvatarButton {
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.profileAvatarButton:hover {
+  transform: scale(1.04);
+}
+
+  
 .emptyState,
 .chatDayDivider span {
   background: rgba(36, 30, 22, 0.82) !important;
@@ -1545,6 +1782,15 @@ onClick={async () => {
           width: 100%;
         }
 
+        .profileAvatarButton {
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
         .connectionDot.in_room {
   background: #e0ab3f;
   box-shadow: 0 0 10px rgba(224, 171, 63, 0.55);
@@ -1648,6 +1894,7 @@ onClick={async () => {
           gap: 12px;
           flex-wrap: wrap;
           flex-shrink: 0;
+          margin-bottom: 20px;
         }
 
         .onlineFriendRankBadge {
@@ -1800,6 +2047,34 @@ onClick={async () => {
           cursor: pointer;
           font-size: 13px;
         }
+
+        .friendRow {
+  position: relative;
+}
+
+.friendLeft {
+  min-width: 0;
+  flex: 1;
+}
+
+.friendActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+  position: relative;
+  z-index: 5;
+  flex-shrink: 0;
+}
+
+.acceptButton,
+.declineButton,
+.removeButton,
+.blockButton {
+  position: relative;
+  z-index: 6 !important;
+  pointer-events: auto;
+}
 
         .actionButton,
         .acceptButton {

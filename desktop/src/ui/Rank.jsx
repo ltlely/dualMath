@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { userManager } from "../userManagerSupabase.js";
 
-
 const rankImages = {
-  "Novice Apprentice": "/noviceApprenticeRank.png",
+  "Novice": "/noviceApprenticeRank.png",
+  "Apprentice": "/noviceApprenticeRank.png",
   Skilled: "/skilledRank.png",
   Professional: "/professionalRank.png",
   Expert: "/expertRank.png",
@@ -44,63 +44,128 @@ function normalizePlayer(player, index) {
     player?.displayName ||
     `Player ${index + 1}`;
 
-  return {
-    id: player?.id || `player-${index}`,
-    username,
-    avatarData: player?.avatarData || null,
-    wins,
-    losses,
-    totalGames,
-    rankPoints: safeNumber(player?.rankPoints),
-    winRate: getWinRate(player),
-  };
+return {
+  ...player,
+  id: player?.id || `player-${index}`,
+  username,
+  name: player?.name || username,
+  displayName: player?.displayName || username,
+bio: player?.bio || "",
+country: player?.country || "",
+avatarData: player?.avatarData || player?.avatar || null,
+profileStatus: player?.profileStatus || "",
+wins,
+  losses,
+  totalGames,
+  rankPoints: safeNumber(player?.rankPoints),
+  winRate: getWinRate(player),
+  isBlockedByMe: player?.isBlockedByMe === true,
+  isBlockedByCurrentUser: player?.isBlockedByCurrentUser === true,
+};
 }
 
-export default function Rank({ currentUser, onBack }) {
+export default function Rank({ currentUser, onBack, onOpenProfile }) {
   const [players, setPlayers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const MIN_GAMES_FOR_RATIO = 5;
   const [friendIds, setFriendIds] = useState([]);
+  const [blockedUsers, setBlockedUsers] = useState([]);
+  const [error, setError] = useState("");
+  const MIN_GAMES_FOR_RATIO = 5;
 
- useEffect(() => {
-  let isMounted = true;
+  useEffect(() => {
+    let isMounted = true;
 
-  const loadFriends = async () => {
-    try {
-      const resolvedUser =
-        currentUser?.id ? currentUser : await userManager.getCurrentUser();
+    const loadRelationshipData = async () => {
+      try {
+        const resolvedUser =
+          currentUser?.id ? currentUser : await userManager.getCurrentUser();
 
-      if (!resolvedUser?.id) {
-        if (isMounted) setFriendIds([]);
-        return;
+        if (!resolvedUser?.id) {
+          if (isMounted) {
+            setFriendIds([]);
+            setBlockedUsers([]);
+          }
+          return;
+        }
+
+        const [friendsResult, blockedData] = await Promise.all([
+          userManager.getFriends(resolvedUser.id),
+          userManager.getBlockedUsers(resolvedUser.id),
+        ]);
+
+        if (!isMounted) return;
+
+        const friendsArray = Array.isArray(friendsResult)
+          ? friendsResult
+          : (friendsResult?.data || []);
+
+        const ids = friendsArray
+          .map((friend) => String(friend.id))
+          .filter(Boolean);
+
+        setFriendIds(ids);
+        setBlockedUsers(blockedData || []);
+      } catch (err) {
+        console.error("Failed to load relationship data for rank page:", err);
+        if (isMounted) {
+          setFriendIds([]);
+          setBlockedUsers([]);
+        }
       }
+    };
 
-      const friendsResult = await userManager.getFriends(resolvedUser.id);
+    loadRelationshipData();
 
-      if (!isMounted) return;
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.id]);
 
-      const friendsArray = Array.isArray(friendsResult)
-        ? friendsResult
-        : (friendsResult?.data || []);
+const buildProfilePayload = async (user) => {
+  const leaderboardVersion = players.find(
+    (p) => String(p.id) === String(user?.id)
+  );
 
-      const ids = friendsArray
-        .map((friend) => String(friend.id))
-        .filter(Boolean);
+  let freshUser = null;
 
-      setFriendIds(ids);
-      console.log("friendIds:", ids);
-    } catch (err) {
-      console.error("Failed to load friends for rank page:", err);
-      if (isMounted) setFriendIds([]);
+  try {
+    if (user?.id && typeof userManager.getUserById === "function") {
+      freshUser = await userManager.getUserById(user.id);
     }
-  };
+  } catch (err) {
+    console.error("Failed to fetch latest profile user in Rank:", err);
+  }
 
-  loadFriends();
+  return normalizePlayer(
+    {
+      ...(leaderboardVersion || {}),
+      ...(currentUser?.id === user?.id ? currentUser : {}),
+      ...(user || {}),
+      ...(freshUser || {}),
+    },
+    0
+  );
+};
+const syncUpdatedProfileUser = (updatedUser) => {
+  if (!updatedUser?.id) return;
 
-  return () => {
-    isMounted = false;
-  };
-}, [currentUser?.id]);
+  const normalized = normalizePlayer(updatedUser, 0);
+
+  setPlayers((prev) =>
+    (prev || []).map((player) =>
+      String(player.id) === String(updatedUser.id)
+        ? { ...player, ...normalized }
+        : player
+    )
+  );
+
+  if (String(updatedUser.id) === String(currentUser?.id)) {
+    setMe((prev) => ({
+      ...(prev || {}),
+      ...normalized,
+    }));
+  }
+};
 
   useEffect(() => {
     let isMounted = true;
@@ -108,10 +173,16 @@ export default function Rank({ currentUser, onBack }) {
     const loadLeaderboard = async () => {
       try {
         setIsLoading(true);
-        const data = await userManager.getLeaderboard();
-        if (isMounted) {
-          setPlayers(data || []);
-        }
+
+        const resolvedUser =
+          currentUser?.id ? currentUser : await userManager.getCurrentUser();
+
+        const data = await userManager.getLeaderboard(resolvedUser?.id);
+const mapped = (data || []).map(normalizePlayer);
+
+if (isMounted) {
+  setPlayers(mapped);
+}
       } catch (err) {
         console.error("Failed to load leaderboard:", err);
         if (isMounted) setPlayers([]);
@@ -125,27 +196,105 @@ export default function Rank({ currentUser, onBack }) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [currentUser?.id, blockedUsers]);
 
-  const normalizedPlayers = useMemo(() => {
-    return (players || []).map(normalizePlayer);
-  }, [players]);
+  const canOpenProfile = (user) => {
+    if (!user?.id) return false;
 
- const leaderboard = useMemo(() => {
-  return [...normalizedPlayers]
-    .filter((p) => p.totalGames >= MIN_GAMES_FOR_RATIO)
-    .sort((a, b) => {
-      if (b.wins !== a.wins) return b.wins - a.wins;
-      if (b.winRate !== a.winRate) return b.winRate - a.winRate;
-      return b.rankPoints - a.rankPoints;
-    })
-    .slice(0, 10);
-}, [normalizedPlayers]);
+    const isBlockedByMe =
+      blockedUsers.some((blocked) => String(blocked.id) === String(user.id)) ||
+      user?.isBlockedByMe === true;
 
-  const me = useMemo(() => {
-    if (!currentUser) return null;
-    return normalizePlayer(currentUser, 0);
-  }, [currentUser]);
+    const blockedMe = user?.isBlockedByCurrentUser === true;
+
+    return !isBlockedByMe && !blockedMe;
+  };
+
+const handleOpenProfileSafe = async (e, user) => {
+  e?.stopPropagation?.();
+
+  if (!canOpenProfile(user)) {
+    setError(
+      "You cannot view this profile because one of you has blocked the other."
+    );
+
+    clearTimeout(window.rankProfileBlockMessageTimeout);
+    window.rankProfileBlockMessageTimeout = setTimeout(() => {
+      setError("");
+    }, 4000);
+
+    return;
+  }
+
+const latestProfileUser = await buildProfilePayload(user);
+
+onOpenProfile?.(latestProfileUser, {
+  onProfileSaved: (updatedUser) => {
+    syncUpdatedProfileUser(updatedUser);
+  },
+});
+};
+
+const normalizedPlayers = useMemo(() => {
+  return (players || []).map(normalizePlayer);
+}, [players]);
+
+  const leaderboard = useMemo(() => {
+    return [...normalizedPlayers]
+      .filter((p) => p.totalGames >= MIN_GAMES_FOR_RATIO)
+      .sort((a, b) => {
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+        return b.rankPoints - a.rankPoints;
+      })
+      .slice(0, 10);
+  }, [normalizedPlayers]);
+
+ const [me, setMe] = useState(null);
+
+useEffect(() => {
+  let isMounted = true;
+
+  const loadMe = async () => {
+    if (!currentUser?.id) {
+      setMe(currentUser ? normalizePlayer(currentUser, 0) : null);
+      return;
+    }
+
+    const fromLeaderboard = normalizedPlayers.find(
+      (player) => String(player.id) === String(currentUser.id)
+    );
+
+    let freshMe = null;
+
+    try {
+      if (typeof userManager.getUserById === "function") {
+        freshMe = await userManager.getUserById(currentUser.id);
+      }
+    } catch (err) {
+      console.error("Failed to fetch latest current user in Rank:", err);
+    }
+
+    if (!isMounted) return;
+
+    setMe(
+      normalizePlayer(
+        {
+          ...(fromLeaderboard || {}),
+          ...(currentUser || {}),
+          ...(freshMe || {}),
+        },
+        0
+      )
+    );
+  };
+
+  loadMe();
+
+  return () => {
+    isMounted = false;
+  };
+}, [currentUser, normalizedPlayers]);
 
   return (
     <div className="rankShell">
@@ -153,7 +302,6 @@ export default function Rank({ currentUser, onBack }) {
         <div>
           <div className="miniLabel">Rank</div>
           <h1 className="rankHeading">Leaderboard</h1>
-          <p className="rankMuted">Top players by wins and win rate.</p>
         </div>
 
         <button type="button" className="backButton" onClick={onBack}>
@@ -164,7 +312,11 @@ export default function Rank({ currentUser, onBack }) {
       {me && (
         <section className="mePanel">
           <div className="miniLabel">Your Stats</div>
-          <div className="meCard">
+          <div
+            className="meCard"
+            style={{ cursor: "pointer" }}
+            onClick={(e) => handleOpenProfileSafe(e, me)}
+          >
             <div className="meIdentity">
               <div className="meAvatar">
                 {me.avatarData ? (
@@ -201,74 +353,92 @@ export default function Rank({ currentUser, onBack }) {
       )}
 
       <div className="rankGrid singleColumn">
-  <section className="rankPanel">
-    <div className="panelHeader">
-      <div className="miniLabel">Leaderboard</div>
-      <h2>Top Players</h2>
-    </div>
-
-    <div className="leaderList">
-      {isLoading ? (
-        <div className="emptyState">Loading leaderboard...</div>
-      ) : leaderboard.length > 0 ? (
-        leaderboard.map((player, index) => (
-          <div className="leaderRow" key={`leader-${player.id}`}>
-            <div className="leaderLeft">
-              <div className="leaderPlace">#{index + 1}</div>
-
-              <div className="leaderAvatar">
-                {player.avatarData ? (
-                  <img src={player.avatarData} alt={player.username} />
-                ) : (
-                  <span>{player.username?.[0]?.toUpperCase() || "?"}</span>
-                )}
-              </div>
-
-              <div>
-  <div className="leaderNameRow">
-  
-  <div className="leaderName">{player.username}</div>
-
-<img
-    className="leaderRankIcon"
-    src={getRankImage(userManager.getUserRank(player))}
-    alt={userManager.getUserRank(player)}
-  />
-
-  {String(player.id) !== String(currentUser?.id) &&
-    friendIds.includes(String(player.id)) && (
-      <div className="friendBadge">Friend</div>
-    )}
-</div>
-                <div className="leaderSub">
-                  {player.totalGames} games • {player.rankPoints} RP
-                </div>
-              </div>
-            </div>
-
-            <div className="leaderStats">
-              <div className="leaderStatBox">
-                <span>Wins</span>
-                <strong>{player.wins}</strong>
-              </div>
-              <div className="leaderStatBox">
-                <span>WR</span>
-                <strong>{player.winRate}%</strong>
-              </div>
-            </div>
+        <section className="rankPanel">
+          <div className="panelHeader">
+            <div className="miniLabel">Leaderboard</div>
+            <h2>Top Players</h2>
           </div>
-        ))
+
+          <div className="leaderList">
+            {isLoading ? (
+              <div className="emptyState">Loading leaderboard...</div>
+            ) : leaderboard.length > 0 ? (
+              leaderboard.map((player, index) => (
+<div
+  className="leaderRow"
+  key={`leader-${player.id}`}
+>
+  <div className="leaderLeft">
+    <div className="leaderPlace">#{index + 1}</div>
+
+    <button
+      type="button"
+      className={`leaderAvatar profileAvatarButton ${
+        !canOpenProfile(player) ? "leaderAvatarBlocked" : ""
+      }`}
+      onClick={(e) => handleOpenProfileSafe(e, player)}
+      disabled={!canOpenProfile(player)}
+      title={
+        canOpenProfile(player)
+          ? `View ${player.username}'s profile`
+          : "Profile unavailable"
+      }
+    >
+      {player.avatarData ? (
+        <img src={player.avatarData} alt={player.username} />
       ) : (
-        <div className="emptyState">
-          No players with at least {MIN_GAMES_FOR_RATIO} games yet.
-        </div>
+        <span>{player.username?.[0]?.toUpperCase() || "?"}</span>
       )}
-    </div>
-  </section>
+    </button>
 
+                    <div>
+                      <div className="leaderNameRow">
+                        <div className="leaderName">{player.username}</div>
 
-        
+                        <img
+                          className="leaderRankIcon"
+                          src={getRankImage(userManager.getUserRank(player))}
+                          alt={userManager.getUserRank(player)}
+                        />
+
+                        {String(player.id) !== String(currentUser?.id) &&
+                          friendIds.includes(String(player.id)) && (
+                            <div className="friendBadge">Friend</div>
+                          )}
+
+                            {blockedUsers.some((blocked) => String(blocked.id) === String(player.id)) && (
+    <div className="blockedBadge">Blocked</div>
+  )}
+                      </div>
+
+                      <div className="leaderSub">
+                        {player.totalGames} games • {player.rankPoints} RP
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="leaderStats">
+                    <div className="leaderStatBox">
+                      <span>Wins</span>
+                      <strong>{player.wins}</strong>
+                    </div>
+                    <div className="leaderStatBox">
+                      <span>WR</span>
+                      <strong>{player.winRate}%</strong>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="emptyState">
+                No players with at least {MIN_GAMES_FOR_RATIO} games yet.
+              </div>
+            )}
+          </div>
+        </section>
       </div>
+
+      {error && <div className="statusMessage error">{error}</div>}
 
       <style>{`
        :root{
@@ -298,6 +468,20 @@ export default function Rank({ currentUser, onBack }) {
   margin-left: 8px;
   margin-right: 8px;
 }
+
+.profileAvatarButton {
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.profileAvatarButton:disabled {
+  cursor: not-allowed;
+}
+
 
 .friendBadge {
   display: inline-flex;
@@ -371,8 +555,11 @@ export default function Rank({ currentUser, onBack }) {
     inset 0 1px 0 rgba(255, 236, 190, 0.06) !important;
 }
 
+.meCard {
+  background: linear-gradient(180deg, rgba(209, 158, 71, 0.42), rgba(209, 158, 71, 0.42)) !important;
+}
+
 .rankProgressSection,
-.meCard,
 .rankPanel,
 .roomCard,
 .onlineFriendsCard,
@@ -534,6 +721,24 @@ export default function Rank({ currentUser, onBack }) {
 
 .leaderStats .leaderStatBox strong {
   color: #fff1cf !important;
+}
+
+.leaderRowBlocked {
+  opacity: 0.58;
+  filter: grayscale(0.2);
+}
+
+.blockedBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(140, 67, 67, 0.95), rgba(110, 50, 50, 0.95));
+  border: 1px solid rgba(180, 90, 90, 0.28);
+  color: #fff2d2;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 4px 10px rgba(110, 50, 50, 0.16);
 }
 
 
