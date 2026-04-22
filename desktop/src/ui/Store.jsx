@@ -118,8 +118,8 @@ const storeItems = {
     { id: "GirlHair2", label: "Northwind Hair", asset: girlHair2, price: 20, rarity: "Common" },
     { id: "GirlHair1", label: "Maple Buns", asset: girlHair1, price: 1100, rarity: "Uncommon" },
     { id: "GirlHair3", label: "Violet Breeze", asset: girlHair3, price: 100, rarity: "Common" },
-    { id: "GirlHair4", label: "Blue Mist", asset: girlHair4, price: 150, rarity: "Common" },
-    { id: "GirlHair5", label: "Frosty Flair", asset: girlHair5, price: 1600, rarity: "Rare" },
+    { id: "GirlHair4", label: "Blue Mist", asset: girlHair4, price: 150, rarity: "Common", gender: "female", storeGender: "female" },
+    { id: "GirlHair5", label: "Frosty Flair", asset: girlHair5, price: 1600, rarity: "Rare" },    
     { id: "GirlHair6", label: "Tidal Whisper", asset: girlHair6, price: 2000, rarity: "Rare" },
     { id: "GirlHair7", label: "Sunset Halo", asset: girlHair7, price: 900, rarity: "Common" },
     { id: "GirlHair8", label: "Cinnamon Bun", asset: girlHair8, price: 450, rarity: "Common" },
@@ -189,6 +189,7 @@ const storeItems = {
 };
 
 
+
 const rarityClass = {
   Common: "rarityCommon",
   Uncommon: "rarityUncommon",
@@ -197,7 +198,9 @@ const rarityClass = {
 };
 
 const inferGenderFromItem = (item) => {
-  const raw = `${item.id} ${item.label} ${item.asset || ""}`.toLowerCase();
+  if (item?.gender) return item.gender;
+
+  const raw = `${item.id} ${item.label}`.toLowerCase();
   if (raw.includes("boy") || raw.includes("male")) return "male";
   if (raw.includes("girl") || raw.includes("female")) return "female";
   return "all";
@@ -208,7 +211,7 @@ const normalizedStoreItems = Object.fromEntries(
     category,
     items.map((item) => ({
       ...item,
-      gender: item.gender || inferGenderFromItem(item),
+      gender: inferGenderFromItem(item),
     })),
   ])
 );
@@ -475,13 +478,22 @@ useEffect(() => {
   setCoins(currentUser?.coins ?? STARTING_COINS);
 }, [currentUser?.id]);
 
- const categoryItems = useMemo(() => {
+const categoryItems = useMemo(() => {
   if (activeCategory === "owned") {
     return Object.entries(normalizedStoreItems)
       .flatMap(([category, items]) =>
         items.map((item) => ({ ...item, storeCategory: category }))
       )
       .filter((item) => {
+        if (item.id === "GirlHair4") {
+          console.log("GirlHair4 runtime", {
+            id: item.id,
+            label: item.label,
+            gender: item.gender,
+            activeGender,
+          });
+        }
+
         const matchesGender =
           item.gender === "all" || item.gender === activeGender;
         const matchesSearch = item.label
@@ -494,6 +506,15 @@ useEffect(() => {
   }
 
   return normalizedStoreItems[activeCategory].filter((item) => {
+    if (item.id === "GirlHair4") {
+      console.log("GirlHair4 runtime", {
+        id: item.id,
+        label: item.label,
+        gender: item.gender,
+        activeGender,
+      });
+    }
+
     const matchesGender =
       item.gender === "all" || item.gender === activeGender;
     const matchesSearch = item.label.toLowerCase().includes(search.toLowerCase());
