@@ -72,8 +72,10 @@ const isOwner = useMemo(() => {
   const wins = profileUser?.wins ?? 0;
   const losses = profileUser?.losses ?? 0;
   const totalGames = profileUser?.totalGames ?? wins + losses;
-  const rankPoints = profileUser?.rankPoints ?? 0;
-  const rank = profileUser?.rank || "Novice";
+const rankPoints = profileUser?.rankPoints ?? 0;
+const rank = userManager.getUserRank
+  ? userManager.getUserRank({ ...profileUser, rankPoints })
+  : (profileUser?.rank || profileUser?.rankLevel || "Novice");
   const winRate = getWinRate(profileUser);
   const shownStatus =
     profileUser?.profileStatus?.trim() || "Feeling cute and ready to play ✨";

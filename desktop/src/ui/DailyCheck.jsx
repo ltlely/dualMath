@@ -28,7 +28,7 @@ const progressKey = useMemo(
   [currentUser?.id]
 );
 
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const [openedChest, setOpenedChest] = useState(false);
   const [claimedToday, setClaimedToday] = useState(false);
   const [currentDay, setCurrentDay] = useState(1);
@@ -91,45 +91,47 @@ useEffect(() => {
 
 
 useEffect(() => {
-  if (!currentUser) return;
+  if (!currentUser) {
+    setIsOpen(false);
+    return;
+  }
 
-  const refreshAtMidnight = () => {
-    const todayKey = getTodayKey();
+  const todayKey = getTodayKey();
 
-    try {
-      const raw = localStorage.getItem(progressKey);
+  try {
+    const raw = localStorage.getItem(progressKey);
 
-      if (!raw) {
-        setCurrentDay(1);
-        setClaimedDays([]);
-        setClaimedToday(false);
-        return;
-      }
+    if (!raw) {
+      const initial = {
+        currentDay: 1,
+        claimedDays: [],
+        lastClaimDate: null,
+      };
 
-      const parsed = JSON.parse(raw);
-      const savedCurrentDay = parsed.currentDay || 1;
-      const savedClaimedDays = parsed.claimedDays || [];
-      const alreadyClaimed = parsed.lastClaimDate === todayKey;
-
-      setCurrentDay(savedCurrentDay);
-      setClaimedDays(savedClaimedDays);
-      setClaimedToday(alreadyClaimed);
-    } catch {
+      localStorage.setItem(progressKey, JSON.stringify(initial));
       setCurrentDay(1);
       setClaimedDays([]);
       setClaimedToday(false);
+      setIsOpen(true); // first time on this browser, show it
+      return;
     }
-  };
 
-  setTimeUntilReset(formatTimeUntilMidnight());
+    const parsed = JSON.parse(raw);
+    const savedCurrentDay = parsed.currentDay || 1;
+    const savedClaimedDays = parsed.claimedDays || [];
+    const alreadyClaimed = parsed.lastClaimDate === todayKey;
 
-  const interval = setInterval(() => {
-    setTimeUntilReset(formatTimeUntilMidnight());
-    refreshAtMidnight();
-  }, 1000);
-
-  return () => clearInterval(interval);
-}, [currentUser, progressKey]);
+    setCurrentDay(savedCurrentDay);
+    setClaimedDays(savedClaimedDays);
+    setClaimedToday(alreadyClaimed);
+    setIsOpen(!alreadyClaimed); // only open if not claimed today
+  } catch {
+    setCurrentDay(1);
+    setClaimedDays([]);
+    setClaimedToday(false);
+    setIsOpen(true);
+  }
+}, [progressKey, currentUser]);
 
 function formatTimeUntilMidnight() {
   const now = new Date();
