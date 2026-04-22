@@ -222,6 +222,7 @@ const [profileUser, setProfileUser] = useState(null);
 const [profileOptions, setProfileOptions] = useState({});
 const audioUnlockedRef = useRef(false);
 const pendingMusicRetryRef = useRef(false);
+const [friendsRefreshKey, setFriendsRefreshKey] = useState(0);
 
 const isInGameMusicState =
   view === "game" ||
@@ -1393,6 +1394,7 @@ if (isMobileView) {
       refreshUnreadCount={loadUnreadChatCount}
       onOnlineFriendsChange={setOnlineFriends}
        onOpenProfile={handleOpenProfile}
+       refreshKey={friendsRefreshKey}
     />
 
  {profileUser && (
@@ -1403,23 +1405,24 @@ if (isMobileView) {
       setProfileUser(null);
       setProfileOptions({});
     }}
-    onProfileSaved={(updatedUser) => {
-      setProfileUser(updatedUser);
+   onProfileSaved={(updatedUser) => {
+  setProfileUser(updatedUser);
 
-      if (String(currentUser?.id) === String(updatedUser?.id)) {
-        setCurrentUser(updatedUser);
-      }
+  if (String(currentUser?.id) === String(updatedUser?.id)) {
+    setCurrentUser(updatedUser);
+  }
 
-      setOnlineFriends((prev) =>
-        prev.map((friend) =>
-          String(friend.id) === String(updatedUser.id)
-            ? { ...friend, ...updatedUser }
-            : friend
-        )
-      );
+  setOnlineFriends((prev) =>
+    prev.map((friend) =>
+      String(friend.id) === String(updatedUser.id)
+        ? { ...friend, ...updatedUser }
+        : friend
+    )
+  );
 
-      profileOptions?.onProfileSaved?.(updatedUser);
-    }}
+  setFriendsRefreshKey((prev) => prev + 1);
+  profileOptions?.onProfileSaved?.(updatedUser);
+}}
   />
 )}
 </>

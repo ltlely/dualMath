@@ -33,6 +33,9 @@ export default function Profile({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isEditingStatus, setIsEditingStatus] = useState(false);
+  const [isFriend, setIsFriend] = useState(false);
+const [isBlocked, setIsBlocked] = useState(false);
+const [isActionLoading, setIsActionLoading] = useState(false);
 
   useEffect(() => {
   if (!message) return;
@@ -54,6 +57,45 @@ useEffect(() => {
 
   return () => clearTimeout(timer);
 }, [message, error]);
+
+useEffect(() => {
+  let ignore = false;
+
+  const loadRelationshipState = async () => {
+    if (!currentUser?.id || !profileUser?.id || currentUser.id === profileUser.id) {
+      if (!ignore) {
+        setIsFriend(false);
+        setIsBlocked(false);
+      }
+      return;
+    }
+
+    try {
+      const [friendsResult, blockedResult] = await Promise.all([
+        userManager.getFriends(currentUser.id),
+        userManager.getBlockedUsers(currentUser.id),
+      ]);
+
+      const friendsData = Array.isArray(friendsResult)
+        ? friendsResult
+        : (friendsResult?.data || []);
+
+      const blockedData = blockedResult || [];
+
+      if (!ignore) {
+        setIsFriend(friendsData.some((user) => String(user.id) === String(profileUser.id)));
+        setIsBlocked(blockedData.some((user) => String(user.id) === String(profileUser.id)));
+      }
+    } catch (err) {
+      console.error("Failed to load relationship state:", err);
+    }
+  };
+
+  loadRelationshipState();
+  return () => {
+    ignore = true;
+  };
+}, [currentUser?.id, profileUser?.id]);
 
 
 useEffect(() => {
@@ -127,6 +169,101 @@ if (onProfileSaved) {
     }
   };
 
+  const refreshProfileRelationship = async () => {
+  if (!currentUser?.id || !profileUser?.id) return;
+
+  const [friendsResult, blockedResult] = await Promise.all([
+    userManager.getFriends(currentUser.id),
+    userManager.getBlockedUsers(currentUser.id),
+  ]);
+
+  const friendsData = Array.isArray(friendsResult)
+    ? friendsResult
+    : (friendsResult?.data || []);
+
+  const blockedData = blockedResult || [];
+
+  setIsFriend(friendsData.some((user) => String(user.id) === String(profileUser.id)));
+  setIsBlocked(blockedData.some((user) => String(user.id) === String(profileUser.id)));
+};
+
+const handleToggleFriend = async () => {
+  if (!currentUser?.id || !profileUser?.id || currentUser.id === profileUser.id) return;
+
+  setMessage("");
+  setError("");
+  setIsActionLoading(true);
+
+  try {
+    if (isFriend) {
+      const result = await userManager.removeFriend(currentUser.id, profileUser.id);
+      if (!result?.success) {
+        setError(result?.message || "Could not remove friend.");
+        return;
+      }
+      setMessage(`${profileUser.username} removed from friends.`);
+    } else {
+      const result = await userManager.sendFriendRequest(currentUser.id, profileUser.username);
+      if (!result?.success) {
+        setError(result?.message || "Could not send friend request.");
+        return;
+      }
+      setMessage(result.message || "Friend request sent.");
+    }
+
+    await refreshProfileRelationship();
+onProfileSaved?.({
+  ...profileUser,
+//   isBlockedByMe: !isBlocked,
+//   isBlockedByCurrentUser: profileUser?.isBlockedByCurrentUser,
+});
+  } catch (err) {
+    console.error("handleToggleFriend error:", err);
+    setError("Could not update friend state.");
+  } finally {
+    setIsActionLoading(false);
+  }
+};
+
+const handleToggleBlock = async () => {
+  if (!currentUser?.id || !profileUser?.id || currentUser.id === profileUser.id) return;
+
+  setMessage("");
+  setError("");
+  setIsActionLoading(true);
+
+  try {
+    if (isBlocked) {
+      const result = await userManager.unblockUser(currentUser.id, profileUser.id);
+      if (!result?.success) {
+        setError(result?.message || "Could not unblock user.");
+        return;
+      }
+      setMessage(`${profileUser.username} unblocked.`);
+    } else {
+      const result = await userManager.blockUser(currentUser.id, profileUser.id);
+      if (!result?.success) {
+        setError(result?.message || "Could not block user.");
+        return;
+      }
+      setMessage(`${profileUser.username} blocked.`);
+    }
+
+    await refreshProfileRelationship();
+
+    onProfileSaved?.({
+      ...profileUser,
+      isBlockedByMe: !isBlocked,
+      isBlockedByCurrentUser: profileUser?.isBlockedByCurrentUser,
+    });
+  } catch (err) {
+    console.error("handleToggleBlock error:", err);
+    setError("Could not update block state.");
+  } finally {
+    setIsActionLoading(false);
+  }
+};
+
   return (
     <div className="profileModalRoot">
       <div
@@ -171,15 +308,40 @@ if (onProfileSaved) {
             </h1>
 
             <div className="profileRankRow">
-              <img
-                src={getRankImage(rank)}
-                alt={rank}
-                className="profileRankBadge"
-              />
-              <span className="profileRankName">{rank}</span>
-            </div>
+  <img
+    src={getRankImage(rank)}
+    alt={rank}
+    className="profileRankBadge"
+  />
+  <span className="profileRankName">{rank}</span>
+</div>
 
-            <div className="profileStatusCard">
+{!isOwner && (
+  <div className="profileActionRow">
+    <button
+      type="button"
+      className="profileActionButton friend"
+      onClick={handleToggleFriend}
+      disabled={isActionLoading || isBlocked}
+    >
+      {isFriend ? "Remove Friend" : "Add Friend"}
+    </button>
+
+    <button
+      type="button"
+      className="profileActionButton block"
+      onClick={handleToggleBlock}
+      disabled={isActionLoading}
+    >
+      {isBlocked ? "Unblock" : "Block"}
+    </button>
+  </div>
+)}
+
+ {message && <div className="profileMessage success">{message}</div>}
+              {error && <div className="profileMessage error">{error}</div>}
+
+<div className="profileStatusCard">
               <div className="profileStatusHeader">
                 <img
   className="profileStatusEmoji"
@@ -188,6 +350,8 @@ if (onProfileSaved) {
 />
                 <span className="profileStatusTitle">Status</span>
               </div>
+
+            
 
 {isOwner ? (
   isEditingStatus ? (
@@ -224,8 +388,7 @@ if (onProfileSaved) {
   <div className="profileStatusText">{shownStatus}</div>
 )}
 
-              {message && <div className="profileMessage success">{message}</div>}
-              {error && <div className="profileMessage error">{error}</div>}
+             
             </div>
           </div>
         </div>
@@ -257,6 +420,55 @@ if (onProfileSaved) {
       </div>
 
      <style>{`
+
+
+.profileActionButton.friend {
+  background: hotpink !important;
+  color: white !important;
+}
+
+.profileActionButton.block {
+  background: red !important;
+  color: white !important;
+}
+
+     .profileActionRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.profileActionButton {
+  border: none;
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.16s ease, filter 0.16s ease;
+}
+
+.profileActionButton:hover {
+  transform: translateY(-1px);
+}
+
+.profileActionButton.friend {
+  background: linear-gradient(180deg, rgba(255,255,255,0.62), rgba(232, 222, 255, 0.72));
+  color: #5f4c79;
+  box-shadow: 0 8px 18px rgba(86, 72, 116, 0.12);
+}
+
+.profileActionButton.block {
+  background: linear-gradient(180deg, rgba(255, 205, 220, 0.9), rgba(235, 152, 170, 0.92));
+  color: #7c3552;
+  box-shadow: 0 8px 18px rgba(139, 79, 104, 0.14);
+}
+
+.profileActionButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
 
      .profileStatusEmoji {
   width: 32px;
@@ -416,7 +628,7 @@ if (onProfileSaved) {
     text-transform: uppercase;
     letter-spacing: 0.2em;
     font-size: 11px;
-    color: #a48cc8;
+    color: #8753d4;
     margin-bottom: 10px;
   }
 
@@ -529,6 +741,7 @@ if (onProfileSaved) {
     border-radius: 14px;
     font-size: 13px;
     font-weight: 700;
+    margin-bottom: 10px;
   }
 
   .profileMessage.success {
