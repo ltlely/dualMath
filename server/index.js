@@ -103,6 +103,7 @@ function getPublicRoom(roomCode) {
 
   const players = Array.from(r.players.values()).map((p) => ({
     id: p.id,
+    profileId: p.profileId ?? null,
     name: p.name ?? null,
     ready: p.ready,
     score: p.score,
@@ -686,11 +687,19 @@ socket.on("disconnect", () => {
     setTimeout(() => endRoundForTeam(code, p.team), 150);
   });
 
-  socket.on("room:join", ({ roomCode, name, avatarData, rankPoints = 0, rankLevel = "Novice" }) => {
+  socket.on("room:join", ({ roomCode, name, avatarData, rankPoints = 0, rankLevel = "Novice", profileId = null }) => {
     const code = String(roomCode || "").trim().toUpperCase();
     const room = rooms.get(code);
 
     if (!room) return socket.emit("room:error", { message: "Room not found." });
+
+      const MAX_PLAYERS = 4;
+  if ((room.players?.size || 0) >= MAX_PLAYERS) {
+    io.to(socket.id).emit("room:error", {
+      message: "Room is full (4/4).",
+    });
+    return;
+  }
 
     room.players.set(socket.id, {
       id: socket.id,
@@ -702,6 +711,7 @@ socket.on("disconnect", () => {
       score: 0,
       rankPoints,
       rankLevel,
+      profileId: profileId ?? null,
     });
 
     
@@ -720,7 +730,7 @@ socket.on("disconnect", () => {
   });
 
   // Join a random available room or create one if none exist
-socket.on("room:joinRandom", ({ name, avatarData, rankPoints = 0, rankLevel = "Novice" }) => {
+socket.on("room:joinRandom", ({ name, avatarData, rankPoints = 0, rankLevel = "Novice",  profileId = null }) => {
   let targetRoom = null;
   let targetCode = null;
 
@@ -789,6 +799,7 @@ socket.on("room:joinRandom", ({ name, avatarData, rankPoints = 0, rankLevel = "N
     score: 0,
     rankPoints,
     rankLevel,
+      profileId: profileId ?? null,
   });
 
   socket.join(targetCode);
@@ -814,6 +825,7 @@ socket.on("room:joinRandom", ({ name, avatarData, rankPoints = 0, rankLevel = "N
     avatarData,
     rankPoints = 0,
     rankLevel = "Novice",
+    profileId = null
   } = payload || {};
 
   const roomCode = makeRoomCode();
@@ -851,6 +863,7 @@ socket.on("room:joinRandom", ({ name, avatarData, rankPoints = 0, rankLevel = "N
         score: 0,
         rankPoints,
         rankLevel,
+        profileId: profileId ?? null,
       });
 
 
