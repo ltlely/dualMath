@@ -902,21 +902,28 @@ const totalUsersOnline = publicPlayers.length;
                       <span className="rankName">{stats.rank}</span>
                     </div>
 
-                    <div className="rankAvatarWrap">
-                      {currentUser?.avatarData ? (
-                        <img
-                          className="rankAvatarImg"
-                          src={currentUser.avatarData}
-                          alt={currentUser.username || "Avatar"}
-                        />
-                      ) : (
-                        <img
-                          className="rankAvatarImg"
-                          src={getRankImage(stats.rank)}
-                          alt={stats.rank}
-                        />
-                      )}
-                    </div>
+                   <div className="rankAvatarWrap">
+  <button
+    type="button"
+    className="rankAvatarButton"
+    onClick={() => onOpenProfile?.(currentUser)}
+    title="View profile"
+  >
+    {currentUser?.avatarData ? (
+      <img
+        className="rankAvatarImg"
+        src={currentUser.avatarData}
+        alt={currentUser.username || "Avatar"}
+      />
+    ) : (
+      <img
+        className="rankAvatarImg"
+        src={getRankImage(stats.rank)}
+        alt={stats.rank}
+      />
+    )}
+  </button>
+</div>
                   </div>
                 </div>
 
@@ -2757,6 +2764,24 @@ const totalUsersOnline = publicPlayers.length;
   background: rgba(255, 253, 244, 0.75);
   border: 1px solid rgba(93, 88, 63, 0.08);
   color: var(--ink);
+}
+
+.rankAvatarButton {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: block;
+}
+
+.rankAvatarButton:hover .rankAvatarImg {
+  transform: translateY(44px);
+}
+
+.rankAvatarButton:focus-visible {
+  outline: 2px solid rgba(255, 230, 150, 0.7);
+  outline-offset: 6px;
+  border-radius: 20px;
 }
 
 /* ─── QUEUE PANEL ─────────────────────────────────────────────── */
