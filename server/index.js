@@ -1040,14 +1040,11 @@ socket.on("chat:send", ({ roomCode, text }) => {
   const p = room.players.get(socket.id);
   if (!p) return;
 
-  const trimmed = String(text || "").trim().slice(0, 300);
-  if (!trimmed) return;
-
   io.to(code).emit("chat:new", {
-    id: `${Date.now()}-${socket.id}`,
+    id: `${socket.id}-${Date.now()}`,
     senderId: socket.id,
     sender: p.name,
-    text: trimmed,
+    text: String(text || "").trim().slice(0, 300),
     createdAt: new Date().toISOString(),
   });
 });
