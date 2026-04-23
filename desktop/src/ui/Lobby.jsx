@@ -87,32 +87,10 @@ function getTodayKey() {
   return `${y}-${m}-${d}`;
 }
 
-function getProgressKey(userId) {
-  return `dualmath_daily_reward_progress_${userId || "guest"}`;
-}
 
 
-useEffect(() => {
-  if (!currentUser?.id) return;
 
-  try {
-    const todayKey = getTodayKey();
-    const progressKey = getProgressKey(currentUser.id);
-    const raw = localStorage.getItem(progressKey);
 
-    if (!raw) {
-      setShowDailyCheck(true);
-      return;
-    }
-
-    const parsed = JSON.parse(raw);
-    const alreadyClaimed = parsed.lastClaimDate === todayKey;
-
-    setShowDailyCheck(!alreadyClaimed);
-  } catch {
-    setShowDailyCheck(true);
-  }
-}, [currentUser?.id]);
 
 useEffect(() => {
   setSettingsEmail(currentUser?.email || "");
@@ -428,6 +406,15 @@ useEffect(() => {
 }, [showQueue]);
 
 useEffect(() => {
+  if (!currentUser) return;
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const alreadyClaimed = currentUser.dailyRewardLastClaimDate === todayKey;
+
+  setShowDailyCheck(!alreadyClaimed);
+}, [currentUser?.id]);
+
+useEffect(() => {
   let isMounted = true;
 
  const loadPublicPlayers = async () => {
@@ -489,8 +476,8 @@ const visibleOnlineFriends = friends.filter((friend) => {
   return value === "online" || value === "in_room" || value === "in_match";
 });
 
-const handleDailyClaim = async (reward) => {
-  if (!currentUser || !reward) return;
+const handleDailyClaim = async (reward, updatedUserWithProgress) => {
+  if (!currentUser || !reward) return { success: false };
 
   let addedCoins = 0;
 
@@ -501,20 +488,24 @@ const handleDailyClaim = async (reward) => {
   }
 
   const updatedUser = {
-    ...currentUser,
-    coins: (currentUser.coins ?? 2000) + addedCoins,
+    ...updatedUserWithProgress,
+    coins: (updatedUserWithProgress.coins ?? currentUser.coins ?? 2000) + addedCoins,
   };
 
   const result = await userManager.saveUser(updatedUser);
   const savedUser = result?.user || updatedUser;
 
-  if (onLoginSuccess) {
+  if (result?.success && onLoginSuccess) {
     onLoginSuccess(savedUser);
   }
+
+  return {
+    success: !!result?.success,
+    user: savedUser,
+  };
 };
 
 const totalUsersOnline = publicPlayers.length;
-
 
 
 
@@ -635,7 +626,7 @@ const totalUsersOnline = publicPlayers.length;
           <div className="settingsCard">
             <div className="settingsHeader">
               <div>
-                <div className="miniLabel">Account Settings</div>
+                <div className="miniLabel settings">Account Settings</div>
                 <h3>Manage Account</h3>
               </div>
 
@@ -982,7 +973,7 @@ const totalUsersOnline = publicPlayers.length;
         <main className="mainPanel queuePanel" ref={queueSectionRef}>
           <div className="queuePanelHeader">
             <div>
-              <div className="miniLabel">Dual Math</div>
+              <div className="miniLabel title">Dual Math</div>
               <h3>Find a Match</h3>
             </div>
           </div>
@@ -992,7 +983,7 @@ const totalUsersOnline = publicPlayers.length;
               <div className="miniLabel">Create</div>
               <h3>Create a room</h3>
               <div className="fieldStack">
-                <label className="fieldLabel">Room name</label>
+                <label className="fieldLabel play">Room name</label>
                 <input
                   className="roomNativeInput"
                   value={roomName}
@@ -1017,7 +1008,7 @@ const totalUsersOnline = publicPlayers.length;
               <div className="miniLabel">Join</div>
               <h3>Join a room</h3>
               <div className="fieldStack">
-                <label className="fieldLabel">Room code</label>
+                <label className="fieldLabel play">Room code</label>
                 <input
                   className="roomNativeInput"
                   value={code}
@@ -1047,7 +1038,7 @@ const totalUsersOnline = publicPlayers.length;
             <div className="roomCard">
               <div className="miniLabel">Random</div>
               <h3>Quick match</h3>
-              <p className="heroMuted">Find a match and join a random room instantly.</p>
+              <p className="heroMuted play">Find a match and join a random room instantly.</p>
               <button
                 type="button"
                 className="roomNativeButton roomNativeButtonGhost"
@@ -2582,7 +2573,7 @@ const totalUsersOnline = publicPlayers.length;
   background: rgba(255, 253, 244, 0.8) !important;
   color: #6b4a33 !important;
   font-weight: 700 !important;
-  font-size: 16px !important;
+  font-size: 13px !important;
   cursor: pointer !important;
   box-shadow: none !important;
   appearance: none !important;
@@ -2670,6 +2661,8 @@ const totalUsersOnline = publicPlayers.length;
   margin-top: 4px;
   color: var(--ink);
 }
+
+
 
 .miniMuted {
   margin-top: 4px;
@@ -2785,7 +2778,7 @@ const totalUsersOnline = publicPlayers.length;
 .queuePanelHeader h3 {
   margin: 4px 0 0;
   font-size: 24px;
-  color: var(--ink);
+  color: rgba(229, 194, 138, 0.96);
 }
 
 .queuePopup {
@@ -3175,14 +3168,17 @@ const totalUsersOnline = publicPlayers.length;
 
 /* ─── LABELS ──────────────────────────────────────────────────── */
 
-.miniLabel,
 .sidebarSectionTitle,
 .summaryLabel,
 .fieldLabel {
   text-transform: uppercase;
   letter-spacing: 0.18em;
   font-size: 11px;
-  color: var(--muted);
+  color: #424242;
+}
+
+.miniLabel.title {
+  color: #a08552 !important;
 }
 
 .sidebarSectionTitle {
@@ -3811,6 +3807,12 @@ const totalUsersOnline = publicPlayers.length;
   color: #f4e3be !important;
 }
 
+ .miniLabel,
+ .fieldLabel.play,
+ .heroMuted.play {
+   color: #000000 !important;
+ }
+
 .onlineFriendsHeader .miniLabel,
 .onlineFriendsTitle,
 .onlineFriendName,
@@ -3872,31 +3874,33 @@ const totalUsersOnline = publicPlayers.length;
     inset 0 1px 0 rgba(255, 236, 190, 0.05) !important;
 }
 
-.settingsHeader h3,
-.settingsCard h3,
-.settingsCard .miniLabel,
+
 .fieldLabel,
 .soundPercent,
 .settingsMessage,
 .settingsError {
-  color: #fff1cf !important;
+  color: #ffffff !important;
 }
 
-.settingsHeader .miniLabel,
-.settingsCard .miniLabel,
+.settingsHeader h3,
+.settingsCard h3,
+.settingsCard,
+.miniLabel.settings {
+  color : #fff !important;
+}
+
+
+
 .heroMuted,
 .settingsSection .heroMuted,
 .soundRowTop .fieldLabel {
-  color: #d0bb95 !important;
+  color: #ffffff !important;
 }
 
+
+
 .settingsCloseBtn {
-  background: linear-gradient(180deg, rgba(65, 54, 37, 0.95), rgba(46, 38, 25, 0.95)) !important;
   color: #fff1cf !important;
-  border: 1px solid rgba(214, 172, 95, 0.18) !important;
-  box-shadow:
-    0 8px 18px rgba(0, 0, 0, 0.16),
-    inset 0 1px 0 rgba(255, 236, 190, 0.04) !important;
 }
 
 .settingsTabs {
@@ -3977,7 +3981,7 @@ const totalUsersOnline = publicPlayers.length;
 }
 
 .roomNativeButton {
-  background: linear-gradient(180deg, rgba(112, 83, 36, 0.95), rgba(82, 61, 27, 0.95)) !important;
+  background: linear-gradient(180deg, rgba(65, 54, 37, 0.95), rgba(46, 38, 25, 0.95)) !important;
   color: #fff2d2 !important;
   border: 1px solid rgba(214, 172, 95, 0.20) !important;
 }

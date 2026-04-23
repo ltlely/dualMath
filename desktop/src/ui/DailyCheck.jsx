@@ -18,17 +18,12 @@ function getTodayKey() {
   return `${y}-${m}-${d}`;
 }
 
-function getProgressKey(userId) {
-  return `dualmath_daily_reward_progress_${userId || "guest"}`;
-}
+
 
 export default function DailyCheck({ currentUser, onClaim, onClose }) {
-const progressKey = useMemo(
-  () => getProgressKey(currentUser?.id),
-  [currentUser?.id]
-);
 
-  const [isOpen, setIsOpen] = useState(false);
+
+ 
   const [openedChest, setOpenedChest] = useState(false);
   const [claimedToday, setClaimedToday] = useState(false);
   const [currentDay, setCurrentDay] = useState(1);
@@ -37,50 +32,21 @@ const progressKey = useMemo(
   const isChestFuture = currentDay < 7 && !claimedToday;
 const [timeUntilReset, setTimeUntilReset] = useState("");
 
-
 useEffect(() => {
-  if (!currentUser) return;
+  if (!claimedToday) {
+    setTimeUntilReset("");
+    return;
+  }
 
-  const loadProgress = () => {
-    const todayKey = getTodayKey();
+  setTimeUntilReset(formatTimeUntilMidnight());
 
-    try {
-      const raw = localStorage.getItem(progressKey);
+  const interval = setInterval(() => {
+    setTimeUntilReset(formatTimeUntilMidnight());
+  }, 1000);
 
-      if (!raw) {
-        const initial = {
-          currentDay: 1,
-          claimedDays: [],
-          lastClaimDate: null,
-        };
-        localStorage.setItem(progressKey, JSON.stringify(initial));
-        setCurrentDay(1);
-        setClaimedDays([]);
-        setClaimedToday(false);
-        return;
-      }
+  return () => clearInterval(interval);
+}, [claimedToday]);
 
-      const parsed = JSON.parse(raw);
-      const savedCurrentDay = parsed.currentDay || 1;
-      const savedClaimedDays = parsed.claimedDays || [];
-      const alreadyClaimed = parsed.lastClaimDate === todayKey;
-
-      setCurrentDay(savedCurrentDay);
-      setClaimedDays(savedClaimedDays);
-      setClaimedToday(alreadyClaimed);
-    } catch {
-      setCurrentDay(1);
-      setClaimedDays([]);
-      setClaimedToday(false);
-    }
-  };
-
-  loadProgress();
-}, [progressKey, currentUser]);
-
-  const persistProgress = (next) => {
-    localStorage.setItem(progressKey, JSON.stringify(next));
-  };
 
   function getNextMidnight() {
   const now = new Date();
@@ -90,48 +56,26 @@ useEffect(() => {
 }
 
 
+
 useEffect(() => {
-  if (!currentUser) {
-    setIsOpen(false);
-    return;
-  }
+  if (!currentUser) return;
 
   const todayKey = getTodayKey();
+  const savedCurrentDay = Number(currentUser.dailyRewardDay || 1);
+  const savedClaimedDays = Array.isArray(currentUser.dailyRewardClaimedDays)
+    ? currentUser.dailyRewardClaimedDays
+    : [];
+  const alreadyClaimed = currentUser.dailyRewardLastClaimDate === todayKey;
 
-  try {
-    const raw = localStorage.getItem(progressKey);
+  const shouldStartFreshCycle =
+    savedCurrentDay === 1 &&
+    !alreadyClaimed &&
+    savedClaimedDays.includes(7);
 
-    if (!raw) {
-      const initial = {
-        currentDay: 1,
-        claimedDays: [],
-        lastClaimDate: null,
-      };
-
-      localStorage.setItem(progressKey, JSON.stringify(initial));
-      setCurrentDay(1);
-      setClaimedDays([]);
-      setClaimedToday(false);
-      setIsOpen(true); // first time on this browser, show it
-      return;
-    }
-
-    const parsed = JSON.parse(raw);
-    const savedCurrentDay = parsed.currentDay || 1;
-    const savedClaimedDays = parsed.claimedDays || [];
-    const alreadyClaimed = parsed.lastClaimDate === todayKey;
-
-    setCurrentDay(savedCurrentDay);
-    setClaimedDays(savedClaimedDays);
-    setClaimedToday(alreadyClaimed);
-    setIsOpen(!alreadyClaimed); // only open if not claimed today
-  } catch {
-    setCurrentDay(1);
-    setClaimedDays([]);
-    setClaimedToday(false);
-    setIsOpen(true);
-  }
-}, [progressKey, currentUser]);
+  setCurrentDay(savedCurrentDay);
+  setClaimedDays(shouldStartFreshCycle ? [] : savedClaimedDays);
+  setClaimedToday(alreadyClaimed);
+}, [currentUser]);
 
 function formatTimeUntilMidnight() {
   const now = new Date();
@@ -148,27 +92,28 @@ function formatTimeUntilMidnight() {
 
 
 
-const claimReward = (reward) => {
+const claimReward = async (reward) => {
   if (!currentUser || claimedToday) return;
 
   const todayKey = getTodayKey();
+  const nextClaimedDays = [...new Set([...(claimedDays || []), reward.day])];
+  const completedCycle = reward.day >= 7;
 
-  if (onClaim) {
-    onClaim(reward);
-  }
+  const updatedUser = {
+    ...currentUser,
+    dailyRewardDay: completedCycle ? 1 : reward.day + 1,
+    dailyRewardLastClaimDate: todayKey,
+    dailyRewardClaimedDays: nextClaimedDays,
+  };
 
-  const nextClaimedDays = [...new Set([...claimedDays, reward.day])];
-  const nextDay = reward.day >= 7 ? 1 : reward.day + 1;
+  const result = await onClaim?.(reward, updatedUser);
+  if (!result?.success) return;
 
-  persistProgress({
-    currentDay: nextDay,
-    claimedDays: nextDay === 1 ? [] : nextClaimedDays,
-    lastClaimDate: todayKey,
-  });
+setClaimedDays(nextClaimedDays);
+setCurrentDay(completedCycle ? 1 : reward.day + 1);
+setClaimedToday(true);
 
-  setClaimedDays(nextDay === 1 ? [] : nextClaimedDays);
-  setCurrentDay(nextDay);
-  setClaimedToday(true);
+if (onClose) onClose();
 
   if (reward.type === "gift") {
     setRewardMessage(
@@ -180,11 +125,7 @@ const claimReward = (reward) => {
     setRewardMessage(
       <span className="dailyRewardMessageInline">
         You got{" "}
-        <img
-          src={reward.icon}
-          alt="Coin"
-          className="dailyRewardMessageIcon"
-        />
+        <img src={reward.icon} alt="Coin" className="dailyRewardMessageIcon" />
         <span>{reward.amount} coins!</span>
       </span>
     );
@@ -203,22 +144,21 @@ const handleDayClick = (reward) => {
 };
 
 const handleOpenChest = () => {
-  const reward = DAILY_REWARDS.find((r) => r.day === currentDay);
-
+  const reward = DAILY_REWARDS.find((r) => r.day === 7);
   if (!reward) return;
 
-  if (reward.day !== 7) {
-    return;
-  }
+  setOpenedChest(false);
+  requestAnimationFrame(() => {
+    setOpenedChest(true);
+  });
 
-  setOpenedChest(true);
-
-  if (!claimedToday) {
+  const canClaimDay7 = currentDay === 7 && !claimedToday;
+  if (canClaimDay7) {
     claimReward(reward);
   }
 };
 
-  if (!isOpen) return null;
+
 
 
   return (
@@ -227,10 +167,9 @@ const handleOpenChest = () => {
         <button
           type="button"
           className="dailyRewardClose"
-          onClick={() => {
-            setIsOpen(false);
-            if (onClose) onClose();
-          }}
+onClick={() => {
+  if (onClose) onClose();
+}}
         >
           ×
         </button>
@@ -273,16 +212,15 @@ const handleOpenChest = () => {
           </div>
 
           <div className="dailyRewardFinalCol">
-  <button
-    type="button"
-    className={`treasureChestCard ${
-  openedChest ? "opened" : ""
-} ${claimedToday ? "claimed" : ""} ${
-  isChestFuture ? "disabled" : "clickable"
-}`}
-    onClick={handleOpenChest}
-    disabled={isChestFuture}
-  >
+<button
+  type="button"
+  className={`treasureChestCard ${
+    openedChest ? "opened" : ""
+  } ${claimedToday ? "claimed" : ""} ${
+    isChestFuture ? "disabled" : "clickable"
+  }`}
+  onClick={handleOpenChest}
+>
     <div className="dailyRewardDayPill final">Day 7</div>
     <div className="treasureGlow" />
     <div className="treasureChest">
@@ -602,9 +540,9 @@ const handleOpenChest = () => {
           filter: brightness(1.02);
         }
 
-        .treasureChestCard.claimed {
-          cursor: default;
-        }
+       .treasureChestCard.claimed {
+  cursor: pointer;
+}
 
         .treasureGlow {
           position: absolute;

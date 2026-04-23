@@ -1030,7 +1030,30 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
         </Card>
         
         <style>{`
+.authToggleWrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
 
+.authToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+.authToggleCentered {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.authToggleCentered .muted,
+.authToggleCentered .linkBtn {
+  display: inline;
+}
         .authModal .forgotEmailInput,
 .authModal .forgotEmailInput input,
 .authModal input.forgotEmailInput {
@@ -1516,13 +1539,23 @@ export default function Auth({ onLoginSuccess, isLoggedIn, currentUser, onClose,
         
         <style>{`
 
+.authToggleWrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.authToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
 .authToggleCentered {
   width: 100%;
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 6px;
-  margin-top: 6px;
+  align-items: center;
   text-align: center;
 }
 

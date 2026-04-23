@@ -108,17 +108,17 @@ const BoyTop1Frames = [
 const storeItems = {
   hair: [
     { id: "BoyHair1", label: "Soft Brown Cut", asset: boyHair1, price: 20, rarity: "Common" },
-    { id: "BoyHair2", label: "Layered Sweep", asset: boyHair2, price: 35, rarity: "Common" },
+    { id: "BoyHair2", label: "Layered Sweep", asset: boyHair2, price: 450, rarity: "Common" },
     { id: "GirlHair19", label: "Moonlit Aqua Hair", asset: girlHair19, price: 3000, rarity: "Epic" },
     { id: "BoyHair3", label: "Silver Breeze", asset: boyHair3, price: 1550, rarity: "Rare" },
-    { id: "BoyHair4", label: "Moss cut", asset: boyHair4, price: 75, rarity: "Common" },
+    { id: "BoyHair4", label: "Moss cut", asset: boyHair4, price: 450, rarity: "Common" },
     { id: "BoyHair5", label: "Stormy Waves", asset: boyHair5, price: 2200, rarity: "Epic" },
     { id: "BoyHair6", label: "Aura Shag", asset: boyHair6, price: 1300, rarity: "Rare" },
     { id: "BoyHair7", label: "Crimson Comet", asset: boyHair7, price: 650, rarity: "Uncommon" },
     { id: "GirlHair2", label: "Northwind Hair", asset: girlHair2, price: 20, rarity: "Common" },
     { id: "GirlHair1", label: "Maple Buns", asset: girlHair1, price: 1100, rarity: "Uncommon" },
-    { id: "GirlHair3", label: "Violet Breeze", asset: girlHair3, price: 100, rarity: "Common" },
-    { id: "GirlHair4", label: "Blue Mist", asset: girlHair4, price: 150, rarity: "Common", gender: "female", storeGender: "female" },
+    { id: "GirlHair3", label: "Violet Breeze", asset: girlHair3, price: 300, rarity: "Common" },
+    { id: "GirlHair4", label: "Blue Mist", asset: girlHair4, price: 350, rarity: "Common", gender: "female", storeGender: "female" },
     { id: "GirlHair5", label: "Frosty Flair", asset: girlHair5, price: 1600, rarity: "Rare" },    
     { id: "GirlHair6", label: "Tidal Whisper", asset: girlHair6, price: 2000, rarity: "Rare" },
     { id: "GirlHair7", label: "Sunset Halo", asset: girlHair7, price: 900, rarity: "Common" },
@@ -131,13 +131,13 @@ const storeItems = {
     { id: "GirlHair14", label: "Hairbow Twintails", asset: girlHair14, price: 2500, rarity: "Epic" },
     { id: "GirlHair15", label: "Bow Braids", asset: girlHair15, price: 2500, rarity: "Rare" },
     { id: "GirlHair16", label: "Strawberry Waves", asset: girlHair16, price: 800, rarity: "Uncommon" },
-    { id: "GirlHair17", label: "Shadow Cut", asset: girlHair17, price: 600, rarity: "Common" },
+    { id: "GirlHair17", label: "Shadow Cut", asset: girlHair17, price: 1200, rarity: "Common" },
     { id: "GirlHair18", label: "Cherry Puff Bangs ", asset: girlHair18, price: 450, rarity: "Common" },
     { id: "GirlHair20", label: "Crimson Puff Hair", asset: girlHair20, price: 2300, rarity: "Rare" },
   ],
   tops: [
-    { id: "GirlTop1", label: "Sky Puff Top", asset: GirlTop1, price: 150, rarity: "Uncommon" },
-    { id: "GirlTop2", label: "Brown Blouse", asset: GirlTop2, price: 120, rarity: "Common" },
+    { id: "GirlTop1", label: "Sky Puff Top", asset: GirlTop1, price: 250, rarity: "Uncommon" },
+    { id: "GirlTop2", label: "Brown Blouse", asset: GirlTop2, price: 320, rarity: "Common" },
     { id: "UniTop1", label: "Pink Bunny Tee", asset: UniTop1, price: 120, rarity: "Common" }, 
     { id: "BoyTop1", label: "Tuxedo Shirt", asset: BoyTop1, price: 1800, rarity: "Rare" },
     { id: "GirlTop1Animated", label: "Flower Bloom Top", asset: GirlTop1Frames[0], price: 2400, rarity: "Epic" },  
@@ -153,38 +153,38 @@ const storeItems = {
   ],
   bottoms: [
     { id: "GirlSkirt1", label: "White Skirt", asset: GirlSkirt1, price: 180, rarity: "Common" },
-    { id: "GirlSkirt2", label: "Aloha Petal Skirt", asset: GirlSkirt2, price: 75, rarity: "Common" },
-    { id: "UniShorts1", label: "Blue Shorts", asset: UniShorts1, price: 60, rarity: "Common" },
-    { id: "BoyShorts1", label: "Grey Sweats", asset: BoyShorts1, price: 50, rarity: "Common" },
+    { id: "GirlSkirt2", label: "Aloha Petal Skirt", asset: GirlSkirt2, price: 175, rarity: "Common" },
+    { id: "UniShorts1", label: "Blue Shorts", asset: UniShorts1, price: 160, rarity: "Common" },
+    { id: "BoyShorts1", label: "Grey Sweats", asset: BoyShorts1, price: 350, rarity: "Common" },
     { id: "BoyShorts2", label: "Brown Cozy Pants", asset: BoyShorts2, price: 350, rarity: "Uncommon" },
     { id: "BoyShorts3", label: "Khaki Pants", asset: BoyShorts3, price: 400, rarity: "Uncommon" },
   ],
   outfits: [
     { id: "girlDress1", label: "Inferno Sprite Hood", asset: girlDress1, price: 250, rarity: "Uncommon" },
-    { id: "girlDress2", label: "Berry Glow Dress", asset: girlDress2, price: 150, rarity: "Common" },
-    { id: "girlDress3", label: "Sky Cloud Dress", asset: girlDress3, price: 180, rarity: "Common" },
+    { id: "girlDress2", label: "Berry Glow Dress", asset: girlDress2, price: 350, rarity: "Common" },
+    { id: "girlDress3", label: "Sky Cloud Dress", asset: girlDress3, price: 280, rarity: "Common" },
     { id: "girlDress4", label: "Fairy Tale Dress", asset: girlDress4, price: 1400, rarity: "Rare" },
     { id: "girlDress5", label: "Watermelon Apron", asset: girlDress5, price: 650, rarity: "Uncommon" },
     { id: "BoyOutfit1", label: "Aloha Explorer", asset: BoyOutfit1, price: 1000, rarity: "Epic" },
-    { id: "BoyOutfit2", label: "Little Island", asset: BoyOutfit2, price: 200, rarity: "Common" },
+    { id: "BoyOutfit2", label: "Little Island", asset: BoyOutfit2, price: 400, rarity: "Common" },
     { id: "BoyOutfit3", label: "Lifeguard", asset: BoyOutfit3, price: 800, rarity: "Uncommon" },
-    { id: "GirlOutfit1", label: "Coral Reef", asset: GirlOutfit1, price: 300, rarity: "Uncommon" },
+    { id: "GirlOutfit1", label: "Coral Reef", asset: GirlOutfit1, price: 430, rarity: "Uncommon" },
   ],
   shoes: [
     {id: "UniShoes1", label: "Dark Wing", asset: UniShoes1, price: 70, rarity: "Common"},
-    {id: "UniShoes2", label: "Ducky", asset: UniShoes2, price: 190, rarity: "Uncommon"},
+    {id: "UniShoes2", label: "Ducky", asset: UniShoes2, price: 450, rarity: "Uncommon"},
     {id: "UniShoes3", label: "Gecko Slides", asset: UniShoes3, price: 450, rarity: "Rare"},
 
   ],
   accessories: [
     { id: "UniHat1", label: "Mushroom Hat", asset: uniHat1, price: 1150, rarity: "Rare", gender: "all" },
-    { id: "UniFlower1", label: "Flower", asset: uniFlower1, price: 95, rarity: "Common", gender: "all" },
+    { id: "UniFlower1", label: "Flower", asset: uniFlower1, price: 150, rarity: "Common", gender: "all" },
     { id: "UniGlass1", label: "Glasses", asset: uniGlass1, price: 120, rarity: "Uncommon", gender: "all" },
-    { id: "UniCrab1", label: "Crab Headband", asset: uniCrab1, price: 250, rarity: "Rare", gender: "all" },
+    { id: "UniCrab1", label: "Crab Headband", asset: uniCrab1, price: 450, rarity: "Rare", gender: "all" },
     { id: "UniHat2", label: "Frog Hat", asset: UniHat2, price: 1300, rarity: "Epic", gender: "all" },
     { id: "UniEyepatch", label: "Eyepatch", asset: UniEyepatch, price: 500, rarity: "Uncommon", gender: "all" },
     { id: "UniEgg", label: "Egg", asset: UniEgg, price: 1400, rarity: "Epic", gender: "all" },
-    { id: "UniToast", label: "Toast", asset: UniToast, price: 200, rarity: "Common", gender: "all" },
+    { id: "UniToast", label: "Toast", asset: UniToast, price: 400, rarity: "Common", gender: "all" },
   ],
 };
 
@@ -593,7 +593,7 @@ const handleUnequip = (category) => {
   setError("");
 };
 
-  const handleBuyItem = async (item) => {
+const handleBuyItem = async (item) => {
   setMessage("");
   setError("");
 
@@ -627,11 +627,7 @@ const handleUnequip = (category) => {
       throw new Error(result?.message || "Failed to save purchase.");
     }
 
-    // Update parent so currentUser stays in sync without closing the store
-    if (onLoginSuccess) {
-      onLoginSuccess(result.user || updatedUser);
-    }
-
+    // keep Store open; do not call onLoginSuccess here
   } catch (err) {
     console.error("Failed to save updated coins:", err);
     setError("Could not save purchase.");
@@ -1339,7 +1335,37 @@ return (
         .itemThumb { width: 84px; height: 84px; border-radius: 18px; background: radial-gradient(circle at top, var(--brown-soft), var(--brown-dark)); border: 1px solid rgba(107, 79, 52, 0.08); display: grid; place-items: center; overflow: hidden; }
         .itemThumb img { width: 70px; height: 70px; object-fit: contain; image-rendering: pixelated; }
         .itemInfo { display: flex; flex-direction: column; gap: 10px; }
-        .itemTopRow, .itemBottomRow, .itemMetaLine { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .itemInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  justify-content: space-between;
+}
+
+.itemTopRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.itemTopRow h3 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.25;
+  align-self: start;
+}
+
+.itemMetaLine,
+.itemBottomRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
         .itemTopRow h3 { margin: 0; font-size: 16px; color: var(--ink); }
         .rarityBadge, .priceTag, .ownershipBadge, .genderBadge, .actionButton { padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; border: none; }
         .rarityCommon { background: rgba(141, 111, 77, 0.12); color: var(--brown-dark); }
@@ -1743,7 +1769,7 @@ return (
         .card { background: linear-gradient(180deg, #fbf7e7, #e7d7b5); border: 2px solid #c7a87a; border-radius: 18px; box-shadow: 0 10px 24px rgba(95,70,48,0.18); padding: 16px; }
       
         .statusMessage { margin-top: 12px; padding: 12px 14px; border-radius: 14px; font-size: 13px; }
-        .statusMessage.success { background: var(--success-bg); border: 1px solid var(--success-border); color: #4d7e41; }
+        .statusMessage.success { background: var(--success-bg); border: 1px solid var(--success-border); color: #4d7e41 !important; }
         .statusMessage.error { background: var(--error-bg); border: 1px solid var(--error-border); color: #c23b3b !important; }
       `}</style>
     </div>

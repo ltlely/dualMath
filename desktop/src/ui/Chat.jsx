@@ -62,11 +62,12 @@ const formatTime = (value) => {
           </div>
         ) : (
           chat.map((message, index) => {
-  const senderId = message?.senderId;
-  const isMine = String(senderId) === String(selfId);
+  const senderId = String(message?.senderId || "");
+  const mineId = String(selfId || "");
+  const isMine = senderId === mineId;
 
   const senderPlayer = (room?.players || []).find(
-    (player) => String(player.id) === String(senderId)
+    (player) => String(player.id) === senderId
   );
 
   const senderName =
@@ -79,7 +80,7 @@ const formatTime = (value) => {
 
   return (
     <div
-      key={message?.id || `${senderId || senderName}-${index}-${message?.text || ""}`}
+      key={message?.id || `${senderId}-${index}-${message?.text || ""}`}
       className={`roomChatBubble ${isMine ? "mine" : "theirs"}`}
     >
       <div className="roomChatMetaRow">

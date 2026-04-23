@@ -495,9 +495,9 @@ const handleToggleBlock = async () => {
   margin: 0 auto 10px;
   background: transparent;
   filter:
-    drop-shadow(0 0 6px rgba(255, 219, 120, 0.75))
-    drop-shadow(0 0 14px rgba(255, 205, 92, 0.55))
-    drop-shadow(0 4px 10px rgba(255, 184, 59, 0.28));
+    drop-shadow(0 0 3px rgba(255, 219, 120, 0.75))
+    drop-shadow(0 0 3px rgba(255, 205, 92, 0.55))
+    drop-shadow(0 4px 5px rgba(255, 184, 59, 0.28));
 }
 
   .profileModalRoot {
@@ -783,7 +783,7 @@ const handleToggleBlock = async () => {
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.16em;
-    color: #a08cc4;
+    color: #2a0077;
     margin-bottom: 10px;
   }
 

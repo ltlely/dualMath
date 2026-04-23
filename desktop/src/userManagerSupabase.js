@@ -664,6 +664,9 @@ return (data || []).map((player) => ({
   totalGames: profile?.total_games || 0,
   createdAt: profile?.created_at || session.user.created_at,
   profileStatus: profile?.profile_status || "",
+  dailyRewardDay: profile?.daily_reward_day || 1,
+dailyRewardLastClaimDate: profile?.daily_reward_last_claim_date || null,
+dailyRewardClaimedDays: profile?.daily_reward_claimed_days || [],
 };
 
       // Cache locally for quick access
@@ -873,6 +876,9 @@ for (let i = 0; i < 5; i++) {
       active_session_token: sessionToken,
       last_active: new Date().toISOString(),
      profile_status: "",
+     daily_reward_day: 1,
+daily_reward_last_claim_date: null,
+daily_reward_claimed_days: [],
     })
     .eq("id", data.user.id)
     .select();
@@ -908,6 +914,9 @@ if (!updateSuccess) {
       totalGames: 0,
       skinTone: "light",
       profileStatus: "",
+      dailyRewardDay: 1,
+dailyRewardLastClaimDate: null,
+dailyRewardClaimedDays: [],
     };
 
     localStorage.setItem("dualmath_current_user", JSON.stringify(user));
@@ -1120,6 +1129,9 @@ getUserById: async (userId) => {
         losses: fullProfile?.losses || 0,
         totalGames: fullProfile?.total_games || 0,
         profileStatus: fullProfile?.profile_status || "",
+        dailyRewardDay: fullProfile?.daily_reward_day || 1,
+dailyRewardLastClaimDate: fullProfile?.daily_reward_last_claim_date || null,
+dailyRewardClaimedDays: fullProfile?.daily_reward_claimed_days || [],
       };
  
       localStorage.setItem("dualmath_current_user", JSON.stringify(user));
@@ -1280,7 +1292,9 @@ skin_tone: user.skinTone || "light",
       equipped_accessory: user.equippedAccessory || "",
       owned_items: user.ownedItems || [],
       profile_status: user.profileStatus || "",
-
+      daily_reward_day: user.dailyRewardDay || 1,
+daily_reward_last_claim_date: user.dailyRewardLastClaimDate || null,
+daily_reward_claimed_days: user.dailyRewardClaimedDays || [],
       last_active: new Date().toISOString(),
     };
 
@@ -1312,6 +1326,9 @@ skin_tone: user.skinTone || "light",
   equippedAccessory: payload.equipped_accessory,
   ownedItems: payload.owned_items,
   profileStatus: payload.profile_status,
+  dailyRewardDay: payload.daily_reward_day,
+dailyRewardLastClaimDate: payload.daily_reward_last_claim_date,
+dailyRewardClaimedDays: payload.daily_reward_claimed_days,
 };
 
 localStorage.setItem("dualmath_current_user", JSON.stringify(mergedUser));
