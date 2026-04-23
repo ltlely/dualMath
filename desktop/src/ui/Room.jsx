@@ -775,15 +775,15 @@ export default function Room({
   border: 1px solid rgba(146, 211, 110, 0.32);
 }
 
-.matchSetupBadge.diff-medium {
+.matchSetupBadge.diff-med {
   background: rgba(224, 171, 63, 0.18);
-  color: #8a5a10;
+  color: #ffc165;
   border: 1px solid rgba(224, 171, 63, 0.32);
 }
 
 .matchSetupBadge.diff-hard {
   background: rgba(217, 106, 106, 0.16);
-  color: #934646;
+  color: #ee8686;
   border: 1px solid rgba(217, 106, 106, 0.28);
 }
         .page .select:focus,
