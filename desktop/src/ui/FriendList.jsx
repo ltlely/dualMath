@@ -30,7 +30,7 @@ function getDisplayRank(user) {
   return "Novice";
 }
 
-export default function FriendList({ currentUser, onBack, onUnreadCountChange,refreshUnreadCount,  onOnlineFriendsChange, onOpenProfile,  refreshKey,}) {
+export default function FriendList({ currentUser, onBack, onUnreadCountChange,refreshUnreadCount,  onOnlineFriendsChange, onOpenProfile,  refreshKey, profileRefreshKey,}) {
   const [friends, setFriends] = useState([]);
   const [blockTarget, setBlockTarget] = useState(null);
 const [unblockTarget, setUnblockTarget] = useState(null);
@@ -286,7 +286,7 @@ useEffect(() => {
   loadData(true);
   const interval = setInterval(() => loadData(false), 3000);
   return () => clearInterval(interval);
-}, [loadData, refreshKey]);
+}, [loadData, refreshKey, profileRefreshKey]);
 
 const canOpenProfile = (user) => {
   if (!user?.id) return false;

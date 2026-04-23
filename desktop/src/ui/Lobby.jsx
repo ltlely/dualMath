@@ -50,6 +50,7 @@ export default function Lobby({
   setIsOnlineFriendsScrolling,
   dailyCheck,
   onOpenProfile,
+   profileRefreshKey,
 }) {
 const [showPublicLobbyPanel, setShowPublicLobbyPanel] = useState(false);
   const [settingsTab, setSettingsTab] = useState("account");
@@ -455,7 +456,7 @@ useEffect(() => {
     isMounted = false;
     clearInterval(interval);
   };
-}, [getComputedStatus, isBlockedEitherWay, currentUser?.id]);
+}, [getComputedStatus, isBlockedEitherWay, currentUser?.id, profileRefreshKey]);
 
   // If no current user, show auth
   if (!currentUser) {

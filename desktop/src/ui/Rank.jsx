@@ -64,7 +64,7 @@ wins,
 };
 }
 
-export default function Rank({ currentUser, onBack, onOpenProfile }) {
+export default function Rank({ currentUser, onBack, onOpenProfile, refreshKey }) {
   const [players, setPlayers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [friendIds, setFriendIds] = useState([]);
@@ -119,7 +119,7 @@ export default function Rank({ currentUser, onBack, onOpenProfile }) {
     return () => {
       isMounted = false;
     };
-  }, [currentUser?.id]);
+}, [currentUser?.id, refreshKey]);
 
 const buildProfilePayload = async (user) => {
   const leaderboardVersion = players.find(
@@ -196,7 +196,7 @@ if (isMounted) {
     return () => {
       isMounted = false;
     };
-  }, [currentUser?.id, blockedUsers]);
+ }, [currentUser?.id, blockedUsers, refreshKey]);
 
   const canOpenProfile = (user) => {
     if (!user?.id) return false;

@@ -223,6 +223,7 @@ const [profileOptions, setProfileOptions] = useState({});
 const audioUnlockedRef = useRef(false);
 const pendingMusicRetryRef = useRef(false);
 const [friendsRefreshKey, setFriendsRefreshKey] = useState(0);
+const [profileRefreshKey, setProfileRefreshKey] = useState(0);
 
 const isInGameMusicState =
   view === "game" ||
@@ -408,6 +409,36 @@ useEffect(() => {
   }
 }, [profileUser?.id, currentUser, onlineFriends]);
 
+const handleProfileSavedGlobal = useCallback((updatedUser) => {
+  if (!updatedUser?.id) return;
+
+  setProfileUser((prev) =>
+    prev && String(prev.id) === String(updatedUser.id)
+      ? { ...prev, ...updatedUser }
+      : prev
+  );
+
+
+  if (String(currentUser?.id) === String(updatedUser.id)) {
+    setCurrentUser((prev) => ({ ...prev, ...updatedUser }));
+  }
+
+  setOnlineFriends((prev) =>
+    prev.map((friend) =>
+      String(friend.id) === String(updatedUser.id)
+        ? { ...friend, ...updatedUser }
+        : friend
+    )
+  );
+
+  setFriendsRefreshKey((prev) => prev + 1);
+    setProfileRefreshKey((prev) => prev + 1);
+
+
+  if (profileOptions?.onProfileSaved) {
+    profileOptions.onProfileSaved(updatedUser);
+  }
+}, [currentUser?.id, profileOptions]);
 useEffect(() => {
   console.log("App passing teamRoundResult to Game:", teamRoundResult);
 }, [teamRoundResult]);
@@ -918,6 +949,7 @@ setView("game");
           avatarData: avatarThumbnail,
           rankPoints: effectiveRankPoints,
           rankLevel: effectiveRankLevel,
+          profileId: currentUser?.id || null
         };
 
         console.log("TEST RANK SEND createRoom", {
@@ -983,6 +1015,7 @@ setView("game");
           avatarData: avatarThumbnail,
           rankPoints: effectiveRankPoints,
           rankLevel: effectiveRankLevel,
+          profileId: currentUser?.id || null
         };
 
         console.log("TEST RANK SEND joinRoom", {
@@ -1015,6 +1048,7 @@ setView("game");
           avatarData: avatarThumbnail,
           rankPoints: effectiveRankPoints,
           rankLevel: effectiveRankLevel,
+          profileId: currentUser?.id || null
         };
 
         console.log("TEST RANK SEND joinRandomRoom", {
@@ -1395,34 +1429,19 @@ if (isMobileView) {
       onOnlineFriendsChange={setOnlineFriends}
        onOpenProfile={handleOpenProfile}
        refreshKey={friendsRefreshKey}
+       profileRefreshKey={profileRefreshKey}
     />
 
  {profileUser && (
   <Profile
     profileUser={profileUser}
     currentUser={currentUser}
+    
     onClose={() => {
       setProfileUser(null);
       setProfileOptions({});
     }}
-   onProfileSaved={(updatedUser) => {
-  setProfileUser(updatedUser);
-
-  if (String(currentUser?.id) === String(updatedUser?.id)) {
-    setCurrentUser(updatedUser);
-  }
-
-  setOnlineFriends((prev) =>
-    prev.map((friend) =>
-      String(friend.id) === String(updatedUser.id)
-        ? { ...friend, ...updatedUser }
-        : friend
-    )
-  );
-
-  setFriendsRefreshKey((prev) => prev + 1);
-  profileOptions?.onProfileSaved?.(updatedUser);
-}}
+onProfileSaved={handleProfileSavedGlobal}
   />
 )}
 </>
@@ -1438,6 +1457,7 @@ if (isMobileView) {
           currentUser={currentUser}
           onBack={() => setView("lobby")}
           onOpenProfile={handleOpenProfile}
+           refreshKey={profileRefreshKey}
         />
 
       {profileUser && (
@@ -1448,23 +1468,7 @@ if (isMobileView) {
       setProfileUser(null);
       setProfileOptions({});
     }}
-    onProfileSaved={(updatedUser) => {
-      setProfileUser(updatedUser);
-
-      if (String(currentUser?.id) === String(updatedUser?.id)) {
-        setCurrentUser(updatedUser);
-      }
-
-      setOnlineFriends((prev) =>
-        prev.map((friend) =>
-          String(friend.id) === String(updatedUser.id)
-            ? { ...friend, ...updatedUser }
-            : friend
-        )
-      );
-
-      profileOptions?.onProfileSaved?.(updatedUser);
-    }}
+    onProfileSaved={handleProfileSavedGlobal}
   />
 )}
     </>
@@ -1532,6 +1536,7 @@ onOpenStore={async () => {
            friends={onlineFriends}
            setIsOnlineFriendsScrolling={setIsOnlineFriendsScrolling}
 onOpenProfile={handleOpenProfile}
+ profileRefreshKey={profileRefreshKey}
         />
         
 {profileUser && (
@@ -1542,23 +1547,7 @@ onOpenProfile={handleOpenProfile}
       setProfileUser(null);
       setProfileOptions({});
     }}
-    onProfileSaved={(updatedUser) => {
-      setProfileUser(updatedUser);
-
-      if (String(currentUser?.id) === String(updatedUser?.id)) {
-        setCurrentUser(updatedUser);
-      }
-
-      setOnlineFriends((prev) =>
-        prev.map((friend) =>
-          String(friend.id) === String(updatedUser.id)
-            ? { ...friend, ...updatedUser }
-            : friend
-        )
-      );
-
-      profileOptions?.onProfileSaved?.(updatedUser);
-    }}
+    onProfileSaved={handleProfileSavedGlobal}
   />
 )}
 
@@ -1574,26 +1563,40 @@ onOpenProfile={handleOpenProfile}
   }
 
 
-  if (view === "room") {
-    return (
-      <>
-        <SessionErrorModal />
-        <Room
-          room={room}
-          selfId={selfId}
-          onReady={actions.ready}
-          onSettings={actions.settings}
-          onStart={actions.start}
-          onSit={actions.sit}
-          onLeaveRoom={actions.leaveRoom}
-          error={error}
+ if (view === "room") {
+  return (
+    <>
+      <SessionErrorModal />
+      <Room
+        room={room}
+        selfId={selfId}
+        onReady={actions.ready}
+        onSettings={actions.settings}
+        onStart={actions.start}
+        onSit={actions.sit}
+        onLeaveRoom={actions.leaveRoom}
+        error={error}
+        currentUser={currentUser}
+        chat={chat}
+        onChatSend={actions.chatSend}
+        profileRefreshKey={profileRefreshKey}
+        onOpenProfile={handleOpenProfile}
+      />
+
+      {profileUser && (
+        <Profile
+          profileUser={profileUser}
           currentUser={currentUser}
-          chat={chat}
-          onChatSend={actions.chatSend}
+          onClose={() => {
+            setProfileUser(null);
+            setProfileOptions({});
+          }}
+          onProfileSaved={handleProfileSavedGlobal}
         />
-      </>
-    );
-  }
+      )}
+    </>
+  );
+}
 
   
 

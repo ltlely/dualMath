@@ -282,7 +282,9 @@ getFriendRequests: async (userId) => {
             total_games,
             rank_points,
             status,
-            last_seen
+            last_seen,
+            profile_bg_color,
+profile_text_color
           )
         `)
         .eq("receiver_id", userId)
@@ -341,6 +343,8 @@ getFriendRequests: async (userId) => {
           status: sender?.status || "offline",
           last_seen: sender?.last_seen || null,
           isBlockedByCurrentUser: blockedBySet.has(row.sender_id),
+          profileBgColor: sender?.profile_bg_color || "#dbdbdb",
+profileTextColor: sender?.profile_text_color || "#5f4c79",
         };
       });
   } catch (error) {
@@ -403,7 +407,9 @@ getFriends: async (userId) => {
           rank_points,
           profile_status,
           status,
-          last_seen
+          last_seen,
+          profile_bg_color,
+profile_text_color
         )
       `)
       .eq("user_id", userId)
@@ -477,6 +483,8 @@ getFriends: async (userId) => {
         last_seen: friend?.last_seen || null,
         isBlockedByMe: blockedByMeSet.has(friend?.id),
         isBlockedByCurrentUser: blockedMeSet.has(friend?.id),
+        profileBgColor: friend?.profile_bg_color || "#dbdbdb",
+profileTextColor: friend?.profile_text_color || "#5f4c79",
       };
     });
 
@@ -525,7 +533,9 @@ getLeaderboard: async (currentUserId) => {
   losses,
   total_games,
   rank_points,
-  profile_status
+  profile_status,
+  profile_bg_color,
+profile_text_color
 `)
 
     const blockedByMePromise = currentUserId
@@ -586,6 +596,8 @@ return (data || []).map((player) => ({
   profileStatus: player.profile_status || "",
   isBlockedByMe: blockedByMeSet.has(String(player.id)),
   isBlockedByCurrentUser: blockedMeSet.has(String(player.id)),
+  profileBgColor: player.profile_bg_color || "#dbdbdb",
+profileTextColor: player.profile_text_color || "#5f4c79",
 }));
   } catch (error) {
     console.error("getLeaderboard catch error:", error);
@@ -667,6 +679,8 @@ return (data || []).map((player) => ({
   dailyRewardDay: profile?.daily_reward_day || 1,
 dailyRewardLastClaimDate: profile?.daily_reward_last_claim_date || null,
 dailyRewardClaimedDays: profile?.daily_reward_claimed_days || [],
+profileBgColor: profile?.profile_bg_color || "#dbdbdb",
+profileTextColor: profile?.profile_text_color || "#5f4c79",
 };
 
       // Cache locally for quick access
@@ -935,7 +949,16 @@ dailyRewardClaimedDays: [],
 },
 
 getUserById: async (userId) => {
+  
   try {
+    const isUuid =
+      typeof userId === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId);
+
+    if (!isUuid) {
+      console.warn("getUserById called with non-UUID:", userId);
+      return null;
+    } 
     const { data, error } = await supabase
       .from("profiles")
       .select(`
@@ -948,7 +971,9 @@ getUserById: async (userId) => {
         rank_points,
         profile_status,
         status,
-        last_seen
+        last_seen,
+        profile_bg_color,
+profile_text_color
       `)
       .eq("id", userId)
       .single();
@@ -969,6 +994,8 @@ getUserById: async (userId) => {
       profileStatus: data.profile_status || "",
       status: data.status || "offline",
       last_seen: data.last_seen || null,
+      profileBgColor: data.profile_bg_color || "#dbdbdb",
+profileTextColor: data.profile_text_color || "#5f4c79",
     };
   } catch (error) {
     console.error("getUserById catch error:", error);
@@ -1132,6 +1159,8 @@ getUserById: async (userId) => {
         dailyRewardDay: fullProfile?.daily_reward_day || 1,
 dailyRewardLastClaimDate: fullProfile?.daily_reward_last_claim_date || null,
 dailyRewardClaimedDays: fullProfile?.daily_reward_claimed_days || [],
+profileBgColor: fullProfile?.profile_bg_color || "#dbdbdb",
+profileTextColor: fullProfile?.profile_text_color || "#5f4c79",
       };
  
       localStorage.setItem("dualmath_current_user", JSON.stringify(user));
@@ -1296,6 +1325,8 @@ skin_tone: user.skinTone || "light",
 daily_reward_last_claim_date: user.dailyRewardLastClaimDate || null,
 daily_reward_claimed_days: user.dailyRewardClaimedDays || [],
       last_active: new Date().toISOString(),
+      profile_bg_color: user.profileBgColor || "#dbdbdb",
+profile_text_color: user.profileTextColor || "#5f4c79",
     };
 
     const { error: profileError } = await supabase
@@ -1329,6 +1360,8 @@ daily_reward_claimed_days: user.dailyRewardClaimedDays || [],
   dailyRewardDay: payload.daily_reward_day,
 dailyRewardLastClaimDate: payload.daily_reward_last_claim_date,
 dailyRewardClaimedDays: payload.daily_reward_claimed_days,
+profileBgColor: payload.profile_bg_color,
+profileTextColor: payload.profile_text_color
 };
 
 localStorage.setItem("dualmath_current_user", JSON.stringify(mergedUser));
@@ -1574,7 +1607,9 @@ getAllPlayers: async (currentUserId) => {
         rank_points,
         profile_status,
         status,
-        last_seen
+        last_seen,
+        profile_bg_color,
+profile_text_color
       `)
       .order("username", { ascending: true });
 
@@ -1649,6 +1684,8 @@ console.log("blockedMeRows:", blockedMeRows);
         winRate,
 isBlockedByMe: blockedByMeSet.has(String(player.id)),
 isBlockedByCurrentUser: blockedMeSet.has(String(player.id)),
+profileBgColor: player.profile_bg_color || "#dbdbdb",
+profileTextColor: player.profile_text_color || "#5f4c79",
       };
     });
   } catch (error) {

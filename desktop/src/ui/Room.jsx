@@ -16,7 +16,7 @@ function getRankImage(rank) {
   return rankImages[rank] || "/noviceApprenticeRank.png";
 }
 
-function Slot({ title, player, isYou, onSit, currentUserAvatarData, username, currentUser,  }) {
+function Slot({ title, player, isYou, onSit, currentUserAvatarData, username, currentUser,   onOpenProfile, roomIsFull, }) {
   const displayUser = isYou ? currentUser : player;
   const displayAvatar = isYou ? currentUserAvatarData : player?.avatarData;
   const displayName = isYou ? username : player?.name;
@@ -41,6 +41,67 @@ function Slot({ title, player, isYou, onSit, currentUserAvatarData, username, cu
     }
   }
 
+const handleOpenProfileClick = async (e) => {
+  e?.stopPropagation?.();
+
+  const targetUser = isYou ? currentUser : player;
+  if (!targetUser) return;
+
+  let resolvedProfileId = isYou ? currentUser?.id : targetUser?.profileId;
+  let freshUser = null;
+
+  try {
+    if (!resolvedProfileId && !isYou && targetUser?.name) {
+      const foundUser = await userManager.getUserByUsername(targetUser.name);
+      resolvedProfileId = foundUser?.id || null;
+    }
+
+    if (resolvedProfileId) {
+      freshUser = await userManager.getUserById(resolvedProfileId);
+    }
+  } catch (err) {
+    console.error("Failed to fetch room profile user:", err);
+  }
+
+  const profilePayload = {
+    ...(targetUser || {}),
+    ...(freshUser || {}),
+    id: freshUser?.id || resolvedProfileId || targetUser?.id,
+    username:
+      freshUser?.username ||
+      targetUser?.username ||
+      targetUser?.name ||
+      "Unknown User",
+    name:
+      freshUser?.username ||
+      targetUser?.name ||
+      targetUser?.username ||
+      "Unknown User",
+    avatarData:
+      freshUser?.avatarData ||
+      targetUser?.avatarData ||
+      null,
+    wins: freshUser?.wins ?? targetUser?.wins ?? 0,
+    losses: freshUser?.losses ?? targetUser?.losses ?? 0,
+    totalGames: freshUser?.totalGames ?? targetUser?.totalGames ?? 0,
+    rankPoints: freshUser?.rankPoints ?? targetUser?.rankPoints ?? 0,
+    profileStatus:
+      freshUser?.profileStatus ||
+      targetUser?.profileStatus ||
+      "",
+    profileBgColor:
+      freshUser?.profileBgColor ||
+      targetUser?.profileBgColor ||
+      "#dbdbdb",
+    profileTextColor:
+      freshUser?.profileTextColor ||
+      targetUser?.profileTextColor ||
+      "#5f4c79",
+  };
+
+  onOpenProfile?.(profilePayload);
+};
+
   return (
      <div className={`slot ${player ? "occupied" : "empty"}`}>
       <div className="slotTop">
@@ -50,13 +111,18 @@ function Slot({ title, player, isYou, onSit, currentUserAvatarData, username, cu
 
       {player ? (
         <div className="slotPlayer">
-          <div className="avatar">
-            {displayAvatar ? (
-              <img src={displayAvatar} alt="Avatar" />
-            ) : (
-              displayName?.[0]?.toUpperCase() ?? "?"
-            )}
-          </div>
+<button
+  type="button"
+  className="avatar avatarButton"
+  onClick={handleOpenProfileClick}
+  title={`View ${displayName}'s profile`}
+>
+  {displayAvatar ? (
+    <img src={displayAvatar} alt={displayName || "Avatar"} />
+  ) : (
+    displayName?.[0]?.toUpperCase() ?? "?"
+  )}
+</button>
 
           <div className="slotMeta">
             <div className="slotName">
@@ -76,7 +142,9 @@ function Slot({ title, player, isYou, onSit, currentUserAvatarData, username, cu
       ) : (
         <div className="slotEmpty">
        
-          <Button variant="secondary" onClick={onSit}>Join Slot</Button>
+<Button variant="secondary" onClick={onSit}>
+  Join Slot
+</Button>
         </div>
       )}
     </div>
@@ -95,6 +163,10 @@ export default function Room({
   currentUser,
   chat = [],
   onChatSend,
+    profileRefreshKey,
+     onOpenProfile,
+    
+    
 }) {
   const isHost = room?.hostId === selfId;
   const self = useMemo(() => room?.players?.find(p => p.id === selfId), [room, selfId]);
@@ -108,6 +180,14 @@ export default function Room({
     roundMs: room?.state?.roundMs,
     totalRounds: room?.state?.totalRounds,
   });
+
+  useEffect(() => {
+  // force Room to react to profile updates from parent
+}, [profileRefreshKey, currentUser?.avatarData, currentUser?.profileStatus]);
+
+const joinedCount = room?.players?.length ?? 0;
+const maxPlayers = 4;
+const roomIsFull = joinedCount >= maxPlayers;
 
   const handleSaveSettings = () => {
     onSettings({ diff, roundMs, totalRounds });
@@ -152,19 +232,23 @@ export default function Room({
       <div className="topBar">
         <div className="roomTitleWrap">
           <div className="roomLabel">Match Lobby</div>
-          <div className="roomTitle">
-            <span className="roomWord">Room</span>
-            <span className="roomName">{room?.name || "Unnamed"}</span>
-            <Pill tone="code">{room?.roomCode}</Pill>
+<div className="roomTitle">
+  <span className="roomWord">Room</span>
+  <span className="roomName">{room?.name || "Unnamed"}</span>
+<Pill tone="code">{room?.roomCode}</Pill>
+
+<span className="playerCountBadge">
+  {joinedCount}/{maxPlayers}
+</span>
+
 <span className={`rolePill ${isHost ? "hostGlowPill" : "playerPill"}`}>
   {isHost ? "Host" : "Player"}
 </span>
-     
-        <span className={`matchSetupBadge diff-${room?.state?.diff ?? "easy"}`}>
-          {room?.state?.diff ?? "easy"}
-        </span>
-   
-          </div>
+
+  <span className={`matchSetupBadge diff-${room?.state?.diff ?? "easy"}`}>
+    {room?.state?.diff ?? "easy"}
+  </span>
+</div>
         </div>
 
         <div className="topActions">
@@ -212,6 +296,8 @@ export default function Room({
               username={currentUser?.username}
               onSit={() => onSit({ team: "A", slot: 0 })}
                 currentUser={currentUser}
+                onOpenProfile={onOpenProfile}
+                 roomIsFull={joinedCount >= maxPlayers}
             />
             <Slot
               title="A2"
@@ -221,6 +307,8 @@ export default function Room({
               username={currentUser?.username}
               onSit={() => onSit({ team: "A", slot: 1 })}
                 currentUser={currentUser}
+                onOpenProfile={onOpenProfile}
+                 roomIsFull={joinedCount >= maxPlayers}
             />
           </div>
         </Card>
@@ -252,6 +340,8 @@ export default function Room({
               username={currentUser?.username}
               onSit={() => onSit({ team: "B", slot: 0 })}
                 currentUser={currentUser}
+                onOpenProfile={onOpenProfile}
+                 roomIsFull={joinedCount >= maxPlayers}
             />
             <Slot
               title="B2"
@@ -261,6 +351,8 @@ export default function Room({
               username={currentUser?.username}
               onSit={() => onSit({ team: "B", slot: 1 })}
                 currentUser={currentUser}
+                onOpenProfile={onOpenProfile}
+                 roomIsFull={joinedCount >= maxPlayers}
             />
           </div>
         </Card>
@@ -277,6 +369,39 @@ export default function Room({
       {error && <div className="toast bad">{error}</div>}
 
       <style>{`
+
+
+.page .avatarButton {
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.page .avatarButton:hover {
+  transform: translateY(-1px);
+}
+
+.page .avatarButton:focus-visible {
+  outline: 2px solid rgba(243, 196, 94, 0.6);
+  outline-offset: 2px;
+}
+
+.playerCountBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff1cf;
+  background: linear-gradient(180deg, rgba(60, 49, 33, 0.96), rgba(42, 34, 22, 0.94));
+  border: 1px solid rgba(214, 172, 95, 0.18);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04);
+}
 
 :root {
   --ink: #f5e7c6;
@@ -310,7 +435,22 @@ export default function Room({
   border-radius: 22px;
 }
 
-
+.playerCountBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff1cf;
+  background: linear-gradient(180deg, rgba(60, 49, 33, 0.96), rgba(42, 34, 22, 0.94));
+  border: 1px solid rgba(214, 172, 95, 0.18);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04);
+}
 
 .chatBox > * {
   flex: 1;

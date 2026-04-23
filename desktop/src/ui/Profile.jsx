@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { userManager } from "../userManagerSupabase.js";
 
 const rankImages = {
@@ -36,6 +36,40 @@ export default function Profile({
   const [isFriend, setIsFriend] = useState(false);
 const [isBlocked, setIsBlocked] = useState(false);
 const [isActionLoading, setIsActionLoading] = useState(false);
+const DEFAULT_PROFILE_BG = "#dbdbdb";
+const DEFAULT_PROFILE_TEXT = "#5f4c79";
+const editorRef = useRef(null);
+const isPickingColorRef = useRef(false);
+
+const [bgColor, setBgColor] = useState(profileUser?.profileBgColor || DEFAULT_PROFILE_BG);
+const [textColor, setTextColor] = useState(profileUser?.profileTextColor || DEFAULT_PROFILE_TEXT);
+
+useEffect(() => {
+  if (!isEditingStatus) return;
+
+  const handlePointerDown = (e) => {
+    const editorEl = editorRef.current;
+    if (!editorEl) return;
+
+    if (editorEl.contains(e.target)) return;
+    if (isPickingColorRef.current) return;
+
+    saveStatus(false);
+  };
+
+  document.addEventListener("mousedown", handlePointerDown);
+  document.addEventListener("touchstart", handlePointerDown);
+
+  return () => {
+    document.removeEventListener("mousedown", handlePointerDown);
+    document.removeEventListener("touchstart", handlePointerDown);
+  };
+}, [isEditingStatus, statusText, bgColor, textColor, profileUser]);
+
+const resetThemeToDefault = () => {
+  setBgColor(DEFAULT_PROFILE_BG);
+  setTextColor(DEFAULT_PROFILE_TEXT);
+};
 
   useEffect(() => {
   if (!message) return;
@@ -100,10 +134,17 @@ useEffect(() => {
 
 useEffect(() => {
   setStatusText(profileUser?.profileStatus || "");
+  setBgColor(profileUser?.profileBgColor || DEFAULT_PROFILE_BG);
+  setTextColor(profileUser?.profileTextColor || DEFAULT_PROFILE_TEXT);
   setIsEditingStatus(false);
   setMessage("");
   setError("");
-}, [profileUser?.id, profileUser?.profileStatus]);
+}, [
+  profileUser?.id,
+  profileUser?.profileStatus,
+  profileUser?.profileBgColor,
+  profileUser?.profileTextColor,
+]);
 
 const isOwner = useMemo(() => {
   return !!currentUser?.id && currentUser.id === profileUser?.id;
@@ -137,7 +178,9 @@ const rank = userManager.getUserRank
 
       const updatedUser = {
         ...profileUser,
-        profileStatus: trimmed,
+  profileStatus: trimmed,
+  profileBgColor: bgColor || DEFAULT_PROFILE_BG,
+  profileTextColor: textColor || DEFAULT_PROFILE_TEXT,
       };
 
       const result = await userManager.saveUser(updatedUser);
@@ -271,7 +314,15 @@ const handleToggleBlock = async () => {
         onClick={() => saveStatus(true)}
       />
 
-      <div className="profileModalCard">
+      <div
+  className="profileModalCard"
+style={{
+  background: isEditingStatus ? bgColor : (profileUser?.profileBgColor || "#dbdbdb"),
+  "--profile-text-color": isEditingStatus
+    ? textColor
+    : (profileUser?.profileTextColor || DEFAULT_PROFILE_TEXT),
+}}
+>
         <button
           type="button"
           className="profileModalClose"
@@ -303,9 +354,11 @@ const handleToggleBlock = async () => {
 
           <div className="profileIdentity">
             <div className="profileMiniLabel">Profile</div>
-            <h1 className="profileName">
-              {profileUser?.username || "Unknown User"}
-            </h1>
+<h1
+  className="profileName"
+>
+  {profileUser?.username || "Unknown User"}
+</h1>
 
             <div className="profileRankRow">
   <img
@@ -342,35 +395,99 @@ const handleToggleBlock = async () => {
               {error && <div className="profileMessage error">{error}</div>}
 
 <div className="profileStatusCard">
-              <div className="profileStatusHeader">
-                <img
-  className="profileStatusEmoji"
-  src="/bubblechat.png"
-  alt="Status"
-/>
-                <span className="profileStatusTitle">Status</span>
-              </div>
+  <div className="profileStatusHeader">
+    <img
+      className="profileStatusEmoji"
+      src="/bubblechat.png"
+      alt="Status"
+    />
+    <span className="profileStatusTitle">Status</span>
+  </div>
 
-            
+
 
 {isOwner ? (
   isEditingStatus ? (
     <>
-      <textarea
-        className="profileStatusInput"
-        value={statusText}
-        onChange={(e) => setStatusText(e.target.value.slice(0, 80))}
-        onBlur={() => saveStatus(false)}
-        placeholder="Write something cute..."
-        rows={3}
-        autoFocus
+    <div ref={editorRef}>
+<div className="profileThemeInlineRow">
+  <span className="profileThemeInlineTitle">Theme:</span>
+
+  <label className="profileThemeInlineItem">
+    <span className="profileThemeInlineText">BG</span>
+    <div className="profileThemePickerWrap">
+      <span
+        className="profileThemeMiniSwatch"
+        style={{ background: bgColor }}
       />
-      <div className="profileStatusActions">
-        <span className="profileStatusCount">{statusText.length}/80</span>
-        <span className="profileAutoSaveText">
-          {isSavingStatus ? "Saving..." : "Click out to save"}
-        </span>
-      </div>
+      <input
+        type="color"
+        value={bgColor}
+        onMouseDown={() => {
+          isPickingColorRef.current = true;
+        }}
+        onChange={(e) => setBgColor(e.target.value)}
+        onBlur={() => {
+          setTimeout(() => {
+            isPickingColorRef.current = false;
+          }, 0);
+        }}
+        className="profileThemeColorInput"
+        aria-label="Choose background color"
+      />
+    </div>
+  </label>
+
+  <label className="profileThemeInlineItem">
+    <span className="profileThemeInlineText">Text</span>
+    <div className="profileThemePickerWrap">
+      <span
+        className="profileThemeMiniSwatch"
+        style={{ background: textColor }}
+      />
+      <input
+        type="color"
+        value={textColor}
+        onMouseDown={() => {
+          isPickingColorRef.current = true;
+        }}
+        onChange={(e) => setTextColor(e.target.value)}
+        onBlur={() => {
+          setTimeout(() => {
+            isPickingColorRef.current = false;
+          }, 0);
+        }}
+        className="profileThemeColorInput"
+        aria-label="Choose text color"
+      />
+    </div>
+  </label>
+
+  <button
+    type="button"
+    className="profileThemeResetButton"
+    onMouseDown={(e) => e.preventDefault()}
+    onClick={resetThemeToDefault}
+  >
+    Default
+  </button>
+</div>
+  <textarea
+    className="profileStatusInput"
+    value={statusText}
+    onChange={(e) => setStatusText(e.target.value.slice(0, 80))}
+    placeholder="Write something cute..."
+    rows={3}
+    autoFocus
+  />
+  <div className="profileStatusActions">
+    <span className="profileStatusCount">{statusText.length}/80</span>
+    <span className="profileAutoSaveText">
+      {isSavingStatus ? "Saving..." : "Click out to save"}
+    </span>
+  </div>
+</div>
+
     </>
   ) : (
     <button
@@ -378,18 +495,29 @@ const handleToggleBlock = async () => {
       className="profileStatusViewButton"
       onClick={() => {
         setStatusText(profileUser?.profileStatus || "");
+        setBgColor(profileUser?.profileBgColor || "#dbdbdb");
+        setTextColor(profileUser?.profileTextColor || "#5f4c79");
         setIsEditingStatus(true);
       }}
     >
-      <div className="profileStatusText">{shownStatus}</div>
+      <div
+        className="profileStatusText"
+   
+      >
+        {shownStatus}
+      </div>
     </button>
   )
 ) : (
-  <div className="profileStatusText">{shownStatus}</div>
+  <div
+    className="profileStatusText"
+   
+  >
+    {shownStatus}
+  </div>
 )}
-
-             
-            </div>
+    
+</div>
           </div>
         </div>
 <div className="profileStatsGrid">
@@ -421,6 +549,140 @@ const handleToggleBlock = async () => {
 
      <style>{`
 
+.profileThemeInlineRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.profileThemeInlineTitle {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.profileThemeInlineItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.profileThemeInlineText {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profileThemePickerWrap {
+  position: relative;
+  width: 28px;
+  height: 28px;
+}
+
+.profileThemeMiniSwatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,0.82);
+  box-shadow:
+    0 4px 10px rgba(80, 62, 104, 0.12),
+    0 0 0 1px rgba(108, 90, 135, 0.12);
+  display: block;
+}
+
+.profileThemeColorInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+.profileThemeResetButton {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  background: rgba(255,255,255,0.62);
+  box-shadow: 0 6px 14px rgba(86, 72, 116, 0.08);
+}
+
+.profileModalCard,
+.profileModalCard .profileMiniLabel,
+.profileModalCard .profileName,
+.profileModalCard .profileRankName,
+.profileModalCard .profileStatusTitle,
+.profileModalCard .profileStatusText,
+.profileModalCard .profileStatLabel,
+.profileModalCard .profileStatValue,
+.profileModalCard .profileStatusCount,
+.profileModalCard .profileAutoSaveText,
+.profileModalCard .profileThemeMiniHeader,
+.profileModalCard .profileThemeMiniLabel,
+.profileModalCard .profileThemeResetButton {
+  color: var(--profile-text-color) !important;
+}
+
+.profileModalCard .profileStatusInput {
+  color: var(--profile-text-color) !important;
+}
+
+.profileModalCard .profileStatusInput::placeholder {
+  color: var(--profile-text-color) !important;
+  opacity: 0.65;
+}
+
+
+
+
+
+.profileThemePickerWrap {
+  position: relative;
+  width: 32px;
+  height: 32px;
+}
+
+.profileThemeMiniSwatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,0.82);
+  box-shadow:
+    0 4px 10px rgba(80, 62, 104, 0.12),
+    0 0 0 1px rgba(108, 90, 135, 0.12);
+  display: block;
+}
+
+.profileThemeColorInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+.profileThemeColorInput::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.profileThemeColorInput::-webkit-color-swatch {
+  border: none;
+  border-radius: 999px;
+}
+
+.profileThemeColorInput::-moz-color-swatch {
+  border: none;
+  border-radius: 999px;
+}
 
 .profileActionButton.friend {
   background: hotpink !important;
