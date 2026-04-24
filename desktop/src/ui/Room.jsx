@@ -465,79 +465,104 @@ const visibleOnlineFriends = friends.filter((friend) => {
           }, 150);
         }}
       >
-       {visibleOnlineFriends.length > 0 ? (
-  visibleOnlineFriends.slice(0, 4).map((friend) => (
-    <div
-      key={friend.id}
-      role="button"
-      tabIndex={0}
-      className="onlineFriendRow"
-      onClick={() => {
-        if (isBlockedEitherWay(friend)) return;
-        onOpenProfile?.(friend);
-      }}
-      onKeyDown={(e) => {
-        if (e.key !== "Enter" && e.key !== " ") return;
-        e.preventDefault();
+      {visibleOnlineFriends.length > 0 ? (
+  visibleOnlineFriends.slice(0, 4).map((friend) => {
+    const isFriendAlreadyInRoom = (room?.players || []).some((player) => {
+      return (
+        String(player.profileId || player.id) === String(friend.id) ||
+        String(player.name || "").toLowerCase() ===
+          String(friend.username || "").toLowerCase()
+      );
+    });
 
-        if (isBlockedEitherWay(friend)) return;
-        onOpenProfile?.(friend);
-      }}
-    >
-      <div className="onlineFriendLeft">
-        <div className="onlineFriendAvatar">
-          {friend.avatarData ? (
-            <img src={friend.avatarData} alt={friend.username} />
-          ) : (
-            <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
-          )}
-        </div>
+    return (
+      <div
+        key={friend.id}
+        role="button"
+        tabIndex={0}
+        className="onlineFriendRow"
+        onClick={() => {
+          if (isBlockedEitherWay(friend)) return;
+          onOpenProfile?.(friend);
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
 
-        <div className="onlineFriendMeta">
-          <div className="onlineFriendNameRow">
-            <span className={`connectionDot ${getComputedStatus(friend)}`} />
-            <span className="onlineFriendName">{friend.username}</span>
-            <img
-              className="onlineFriendRankBadge"
-              src={getRankImage(userManager.getUserRank(friend))}
-              alt={userManager.getUserRank(friend)}
-            />
-          </div>
+          if (isBlockedEitherWay(friend)) return;
+          onOpenProfile?.(friend);
+        }}
+      >
+<div className="onlineFriendLeft">
+  <div className="onlineFriendAvatar">
+    {friend.avatarData ? (
+      <img src={friend.avatarData} alt={friend.username} />
+    ) : (
+      <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
+    )}
+  </div>
 
-          <div className="onlineFriendSub">
-            {friend.rankPoints ?? 0} RP
-          </div>
-        </div>
-      </div>
+  <div className="onlineFriendMeta">
+    <div className="onlineFriendNameRow">
+      <span className={`connectionDot ${getComputedStatus(friend)}`} />
+
+      <span className="onlineFriendName">{friend.username}</span>
+
+      <img
+        className="onlineFriendRankBadge"
+        src={getRankImage(userManager.getUserRank(friend))}
+        alt={userManager.getUserRank(friend)}
+      />
+    </div>
+
+    <div className="onlineFriendSub">
+      {friend.rankPoints ?? 0} RP
+    </div>
+  </div>
+</div>
 
 {room?.roomCode && (
   <button
     type="button"
     className={`onlineFriendInviteBtn ${
       pendingInviteUserIds[friend.id] ? "sent" : ""
-    } ${roomIsFull ? "disabled" : ""}`}
-    disabled={!!pendingInviteUserIds[friend.id] || roomIsFull}
-    title={roomIsFull ? "Room is full" : "Invite friend"}
+    } ${roomIsFull || isFriendAlreadyInRoom ? "disabled" : ""}`}
+    disabled={
+      !!pendingInviteUserIds[friend.id] ||
+      roomIsFull ||
+      isFriendAlreadyInRoom
+    }
+    title={
+      isFriendAlreadyInRoom
+        ? "Already in this room"
+        : roomIsFull
+        ? "Room is full"
+        : "Invite friend"
+    }
     onClick={(e) => {
       e.preventDefault();
       e.stopPropagation();
 
       if (roomIsFull) return;
+      if (isFriendAlreadyInRoom) return;
       if (isBlockedEitherWay(friend)) return;
       if (pendingInviteUserIds[friend.id]) return;
 
       onInviteFriend?.(friend);
     }}
   >
-    {roomIsFull
+    {isFriendAlreadyInRoom
+      ? "Here"
+      : roomIsFull
       ? "Full"
       : pendingInviteUserIds[friend.id]
       ? "Sent"
       : "Invite"}
   </button>
 )}
-    </div>
-  ))
+      </div>
+    );
+  })
 ) : (
   <div className="onlineFriendsEmpty">No friends online right now.</div>
 )}
@@ -683,6 +708,34 @@ const visibleOnlineFriends = friends.filter((friend) => {
   justify-content: center;
 }
 
+.connectionDot {
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 50% !important;
+  display: inline-block !important;
+  flex-shrink: 0 !important;
+}
+
+.connectionDot.online {
+  background: #92d36e !important;
+  box-shadow: 0 0 10px rgba(146, 211, 110, 0.65) !important;
+}
+
+.connectionDot.in_room {
+  background: #e0ab3f !important;
+  box-shadow: 0 0 10px rgba(224, 171, 63, 0.55) !important;
+}
+
+.connectionDot.in_match {
+  background: #d96a6a !important;
+  box-shadow: 0 0 10px rgba(217, 106, 106, 0.65) !important;
+}
+
+.connectionDot.offline {
+  background: #8f8068 !important;
+  box-shadow: none !important;
+}
+  
 .friendsDrawerToggle.open {
   right: min(340px, 88vw);
 }

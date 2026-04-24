@@ -461,7 +461,7 @@ const handleInviteStatus = (status) => {
   };
 }, [inviteIdToUserId]);
 
-const handleSendGameInvite = (friend) => {
+const handleSendGameInvite = async (friend) => {
   if (!currentUser?.id || !friend?.id) return;
 
   if (!roomCode) {
@@ -476,6 +476,66 @@ const handleSendGameInvite = (friend) => {
     setGameInviteMessage("Room is full. You cannot invite more players.");
     setTimeout(() => setGameInviteMessage(""), 3000);
     return;
+  }
+
+  const isFriendAlreadyInRoom = (room?.players || []).some((player) => {
+    return (
+      String(player.profileId || player.id) === String(friend.id) ||
+      String(player.name || "").toLowerCase() ===
+        String(friend.username || "").toLowerCase()
+    );
+  });
+
+  if (isFriendAlreadyInRoom) {
+    setGameInviteMessage(`${friend.username} is already in this room.`);
+    setTimeout(() => setGameInviteMessage(""), 3000);
+    return;
+  }
+
+  // Fresh check right before invite
+  const freshFriend = await userManager.getUserById(friend.id);
+  const freshStatus = getComputedStatus(freshFriend);
+
+  if (
+  !freshFriend ||
+  freshStatus === "offline" ||
+  freshFriend?.status === "offline"
+) {
+  setPendingInviteUserIds((prev) => {
+    const next = { ...prev };
+    delete next[friend.id];
+    return next;
+  });
+
+  setInviteIdToUserId((prev) => {
+    const next = { ...prev };
+    Object.keys(next).forEach((inviteId) => {
+      if (String(next[inviteId]) === String(friend.id)) {
+        delete next[inviteId];
+      }
+    });
+    return next;
+  });
+
+  setGameInviteMessage(`${friend.username} is offline. Invite not sent.`);
+  setTimeout(() => setGameInviteMessage(""), 3000);
+
+  setOnlineFriends((prev) =>
+    prev.map((item) =>
+      String(item.id) === String(friend.id)
+        ? {
+            ...item,
+            status: "offline",
+            last_seen: null,
+          }
+        : item
+    )
+  );
+
+  setFriendsRefreshKey((prev) => prev + 1);
+  setProfileRefreshKey((prev) => prev + 1);
+
+  return;
   }
 
   const inviteId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -500,6 +560,20 @@ const handleSendGameInvite = (friend) => {
     toUserId: friend.id,
     roomCode,
   });
+
+  setTimeout(() => {
+    setPendingInviteUserIds((prev) => {
+      const next = { ...prev };
+      delete next[friend.id];
+      return next;
+    });
+
+    setInviteIdToUserId((prev) => {
+      const next = { ...prev };
+      delete next[inviteId];
+      return next;
+    });
+  }, 20000);
 };
 
 const handleProfileSavedGlobal = useCallback((updatedUser) => {
@@ -647,7 +721,7 @@ const getComputedStatus = useCallback((friend) => {
 
   const diff = Date.now() - new Date(friend.last_seen).getTime();
 
-  if (diff < 45000) return "online";
+  if (diff < 1000) return "online";
   return "offline";
 }, []);
 
@@ -675,19 +749,9 @@ useEffect(() => {
         return value === "online" || value === "in_room" || value === "in_match";
       });
 
-      if (isMounted) {
-        setOnlineFriends((prev) => {
-          const prevIds = prev
-            .map((f) => `${f.id}:${getComputedStatus(f)}:${f.last_seen || ""}`)
-            .join("|");
-
-          const nextIds = nextOnline
-            .map((f) => `${f.id}:${getComputedStatus(f)}:${f.last_seen || ""}`)
-            .join("|");
-
-          return prevIds === nextIds ? prev : nextOnline;
-        });
-      }
+     if (isMounted) {
+  setOnlineFriends(nextOnline);
+}
     } catch (err) {
       console.error("Could not load online friends:", err);
       if (isMounted) setOnlineFriends([]);
@@ -695,7 +759,7 @@ useEffect(() => {
   };
 
   loadOnlineFriends();
-  const interval = setInterval(loadOnlineFriends, 3000);
+  const interval = setInterval(loadOnlineFriends, 1000);
 
   return () => {
     isMounted = false;
@@ -1281,9 +1345,9 @@ const handleLoginSuccess = (user) => {
   useEffect(() => {
   if (!currentUser?.id) return;
 
-  const interval = setInterval(() => {
-    userManager.refreshPresence(currentUser.id);
-  }, 30000); // every 30 sec
+const interval = setInterval(() => {
+  userManager.refreshPresence(currentUser.id);
+}, 1000); // every 30 sec
 
   return () => clearInterval(interval);
 }, [currentUser?.id]);
