@@ -64,13 +64,33 @@ wins,
 };
 }
 
-export default function Rank({ currentUser, onBack, onOpenProfile, refreshKey }) {
-  const [players, setPlayers] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [friendIds, setFriendIds] = useState([]);
-  const [blockedUsers, setBlockedUsers] = useState([]);
+export default function Rank({ currentUser, onBack, onOpenProfile,  preloadedRankData, }) {
+const [players, setPlayers] = useState(() =>
+  (preloadedRankData?.players || []).map(normalizePlayer)
+);
+
+const [isLoading, setIsLoading] = useState(
+  !(preloadedRankData?.players || []).length
+);
+
+const [friendIds, setFriendIds] = useState(
+  preloadedRankData?.friendIds || []
+);
+
+const [blockedUsers, setBlockedUsers] = useState(
+  preloadedRankData?.blockedUsers || []
+);
   const [error, setError] = useState("");
   const MIN_GAMES_FOR_RATIO = 5;
+
+  useEffect(() => {
+  if (!preloadedRankData) return;
+
+  setPlayers((preloadedRankData.players || []).map(normalizePlayer));
+  setFriendIds(preloadedRankData.friendIds || []);
+  setBlockedUsers(preloadedRankData.blockedUsers || []);
+  setIsLoading(false);
+}, [preloadedRankData]);
 
   useEffect(() => {
     let isMounted = true;
@@ -119,7 +139,7 @@ export default function Rank({ currentUser, onBack, onOpenProfile, refreshKey })
     return () => {
       isMounted = false;
     };
-}, [currentUser?.id, refreshKey]);
+}, [currentUser?.id]);
 
 const buildProfilePayload = async (user) => {
   const leaderboardVersion = players.find(
@@ -172,7 +192,9 @@ const syncUpdatedProfileUser = (updatedUser) => {
 
     const loadLeaderboard = async () => {
       try {
-        setIsLoading(true);
+        if (!preloadedRankData?.players?.length) {
+  setIsLoading(true);
+}
 
         const resolvedUser =
           currentUser?.id ? currentUser : await userManager.getCurrentUser();
@@ -196,7 +218,7 @@ if (isMounted) {
     return () => {
       isMounted = false;
     };
- }, [currentUser?.id, blockedUsers, refreshKey]);
+}, [currentUser?.id, preloadedRankData?.players?.length]);
 
   const canOpenProfile = (user) => {
     if (!user?.id) return false;
@@ -226,13 +248,14 @@ const handleOpenProfileSafe = async (e, user) => {
     return;
   }
 
-const latestProfileUser = await buildProfilePayload(user);
+  // Open immediately using current leaderboard data
+  const quickProfileUser = normalizePlayer(user, 0);
 
-onOpenProfile?.(latestProfileUser, {
-  onProfileSaved: (updatedUser) => {
-    syncUpdatedProfileUser(updatedUser);
-  },
-});
+  onOpenProfile?.(quickProfileUser, {
+    onProfileSaved: (updatedUser) => {
+      syncUpdatedProfileUser(updatedUser);
+    },
+  });
 };
 
 const normalizedPlayers = useMemo(() => {
@@ -250,7 +273,21 @@ const normalizedPlayers = useMemo(() => {
       .slice(0, 10);
   }, [normalizedPlayers]);
 
- const [me, setMe] = useState(null);
+ const [me, setMe] = useState(() => {
+  if (!currentUser) return null;
+
+  const fromPreload = (preloadedRankData?.players || []).find(
+    (player) => String(player.id) === String(currentUser.id)
+  );
+
+  return normalizePlayer(
+    {
+      ...(fromPreload || {}),
+      ...(currentUser || {}),
+    },
+    0
+  );
+});
 
 useEffect(() => {
   let isMounted = true;
@@ -265,15 +302,18 @@ useEffect(() => {
       (player) => String(player.id) === String(currentUser.id)
     );
 
-    let freshMe = null;
+let freshMe = null;
 
-    try {
-      if (typeof userManager.getUserById === "function") {
-        freshMe = await userManager.getUserById(currentUser.id);
-      }
-    } catch (err) {
-      console.error("Failed to fetch latest current user in Rank:", err);
+// Only fetch if we did not already preload this user.
+if (!fromLeaderboard) {
+  try {
+    if (typeof userManager.getUserById === "function") {
+      freshMe = await userManager.getUserById(currentUser.id);
     }
+  } catch (err) {
+    console.error("Failed to fetch latest current user in Rank:", err);
+  }
+}
 
     if (!isMounted) return;
 

@@ -471,6 +471,52 @@ const confirmLeaveTribe = async () => {
   });
 };
 
+function formatTribeActivity(item) {
+  const action = String(item?.action || "");
+  const actor = item?.actorUsername || "Someone";
+  const target = item?.targetUsername || "";
+
+  if (action === "promoted" && target) {
+    return `${actor} promoted ${target} to officer`;
+  }
+
+  if (action === "demoted" && target) {
+    return `${actor} demoted ${target} to member`;
+  }
+
+  if (action === "invite_sent" && target) {
+    return `${actor} invited ${target} to the tribe`;
+  }
+
+  if (action === "invite_declined") {
+    return target
+      ? `${target} declined ${actor}'s tribe invite`
+      : `${actor} declined a tribe invite`;
+  }
+
+  if (action === "kicked" && target) {
+    return `${actor} kicked ${target} from the tribe`;
+  }
+
+  if (action === "announcement_updated") {
+    return `${actor} updated the tribe announcement`;
+  }
+
+  if (action === "joined" && target) {
+    return `${target} joined the tribe`;
+  }
+
+  if (action === "left") {
+    return `${actor} left the tribe`;
+  }
+
+  if (action === "tribe_created") {
+    return `${actor} created the tribe`;
+  }
+
+  return item?.details || `${actor} ${action.replaceAll("_", " ")}`;
+}
+
   return (
     <div className="tribeModalOverlay">
       <div className="tribeModalBackdrop" onClick={onClose} />
@@ -739,24 +785,20 @@ const confirmLeaveTribe = async () => {
   </div>
 </div> ) : (
   <div className="tribeHistoryCard">
-    <div className="miniLabel">Track Record</div>
-
     <div className="tribeHistoryList">
       {tribeActivity.length > 0 ? (
         tribeActivity.map((item) => (
           <div className="tribeHistoryRow" key={item.id}>
-            <div className="tribeHistoryAction">
-  {String(item.action || "").replaceAll("_", " ")}
+<div className="tribeHistoryAction">
+  {String(item.action || "")
+    .replaceAll("_", " ")
+    .replace("invite sent", "Invite sent")
+    .replace("invite declined", "Invite declined")
+    .replace("announcement updated", "Announcement updated")}
 </div>
 
 <div className="tribeHistoryDetails">
-  {item.action === "promoted" && item.targetUsername
-    ? `${item.actorUsername} promoted ${item.targetUsername} to officer`
-    : item.action === "demoted" && item.targetUsername
-    ? `${item.actorUsername} demoted ${item.targetUsername} to member`
-    : item.targetUsername
-    ? `${item.actorUsername} → ${item.targetUsername} ${item.details || String(item.action || "").replaceAll("_", " ")}`
-    : `${item.actorUsername} ${item.details || String(item.action || "").replaceAll("_", " ")}`}
+  {formatTribeActivity(item)}
 </div>
 
             <div className="tribeHistoryTime">

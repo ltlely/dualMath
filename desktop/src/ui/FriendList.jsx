@@ -30,18 +30,17 @@ function getDisplayRank(user) {
   return "Novice";
 }
 
-export default function FriendList({ currentUser, onBack, onUnreadCountChange,refreshUnreadCount,  onOnlineFriendsChange, onOpenProfile,  refreshKey, profileRefreshKey,}) {
-  const [friends, setFriends] = useState([]);
+export default function FriendList({ currentUser, onBack, 
+  onUnreadCountChange,refreshUnreadCount,  
+  onOnlineFriendsChange, onOpenProfile,  refreshKey, 
+  profileRefreshKey,
+   preloadedFriendData,
+}) {
   const [blockTarget, setBlockTarget] = useState(null);
 const [unblockTarget, setUnblockTarget] = useState(null);
-const [blockedUsers, setBlockedUsers] = useState([]);
-  const [requests, setRequests] = useState([]);
   const [searchUsername, setSearchUsername] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-const hasLoadedOnceRef = useRef(false);
   const [isSending, setIsSending] = useState(false);
   const [removeTarget, setRemoveTarget] = useState(null);
 
@@ -61,11 +60,37 @@ const [isBlocking, setIsBlocking] = useState(false);
 const [declineTarget, setDeclineTarget] = useState(null);
 const [blockSearchUsername, setBlockSearchUsername] = useState("");
 const [isBlockingByUsername, setIsBlockingByUsername] = useState(false);
-const [tribeRequests, setTribeRequests] = useState([]);
 const [tribeRequestTarget, setTribeRequestTarget] = useState(null);
+const [friends, setFriends] = useState(preloadedFriendData?.friends || []);
+const [blockedUsers, setBlockedUsers] = useState(preloadedFriendData?.blockedUsers || []);
+const [requests, setRequests] = useState(preloadedFriendData?.requests || []);
+const [tribeRequests, setTribeRequests] = useState(
+  preloadedFriendData?.tribeRequests || []
+);
+const [isPreloadingFriends, setIsPreloadingFriends] = useState(false);
+const [isLoading, setIsLoading] = useState(!preloadedFriendData);
+const [hasLoadedOnce, setHasLoadedOnce] = useState(Boolean(preloadedFriendData));
+const hasLoadedOnceRef = useRef(Boolean(preloadedFriendData));
 
+useEffect(() => {
+  if (!preloadedFriendData) return;
 
+  setFriends(preloadedFriendData.friends || []);
+  setRequests(preloadedFriendData.requests || []);
+  setBlockedUsers(preloadedFriendData.blockedUsers || []);
+  setTribeRequests(preloadedFriendData.tribeRequests || []);
 
+  hasLoadedOnceRef.current = true;
+  setHasLoadedOnce(true);
+  setIsLoading(false);
+
+  const computedOnlineFriends = (preloadedFriendData.friends || []).filter((friend) => {
+    const value = getComputedStatus(friend);
+    return value === "online" || value === "in_room" || value === "in_match";
+  });
+
+  onOnlineFriendsChange?.(computedOnlineFriends);
+}, [preloadedFriendData, onOnlineFriendsChange]);
 
 const handleBlockByUsername = async () => {
   const typedUsername = blockSearchUsername.trim();
@@ -144,6 +169,8 @@ const handleBlockByUsername = async () => {
     setIsBlockingByUsername(false);
   }
 };
+
+
 
 function getComputedStatus(friend) {
   const rawStatus = (friend?.status || "").toLowerCase();
@@ -225,7 +252,7 @@ const loadUnreadChatSummary = useCallback(async () => {
     return () => clearInterval(interval);
   }, [currentUser?.id, loadUnreadChatSummary]);
 
- const loadData = useCallback(
+const loadData = useCallback(
   async (showLoading = false) => {
     if (showLoading && !hasLoadedOnceRef.current) setIsLoading(true);
 
@@ -234,44 +261,40 @@ const loadUnreadChatSummary = useCallback(async () => {
     if (!resolvedUser?.id) {
       setFriends([]);
       setRequests([]);
-       onOnlineFriendsChange?.([]);
+      setBlockedUsers([]);
+      setTribeRequests([]);
+      onOnlineFriendsChange?.([]);
       setIsLoading(false);
       return;
     }
 
     try {
-const [friendsResult, requestsData, blockedData, tribeRequestsData] =
-  await Promise.all([
-    userManager.getFriends(resolvedUser.id),
-    userManager.getFriendRequests(resolvedUser.id),
-    userManager.getBlockedUsers(resolvedUser.id),
-    userManager.getTribeRequests(resolvedUser.id),
-  ]);
+      const [friendsResult, requestsData, blockedData, tribeRequestsData] =
+        await Promise.all([
+          userManager.getFriends(resolvedUser.id),
+          userManager.getFriendRequests(resolvedUser.id),
+          userManager.getBlockedUsers(resolvedUser.id),
+          userManager.getTribeRequests(resolvedUser.id),
+        ]);
 
       const friendsData = Array.isArray(friendsResult)
         ? friendsResult
-        : (friendsResult?.data || []);
-
-//         console.log("friendsData statuses:", friendsData.map(f => ({
-//   username: f.username,
-//   status: f.status,
-//   last_seen: f.last_seen
-// })
-// ));
+        : friendsResult?.data || [];
 
       setFriends(friendsData);
       setRequests(requestsData || []);
       setBlockedUsers(blockedData || []);
       setTribeRequests(tribeRequestsData || []);
+
       hasLoadedOnceRef.current = true;
       setHasLoadedOnce(true);
 
- const computedOnlineFriends = friendsData.filter((friend) => {
-  const value = getComputedStatus(friend);
-  return value === "online" || value === "in_room" || value === "in_match";
-});
+      const computedOnlineFriends = friendsData.filter((friend) => {
+        const value = getComputedStatus(friend);
+        return value === "online" || value === "in_room" || value === "in_match";
+      });
 
-onOnlineFriendsChange?.(computedOnlineFriends);
+      onOnlineFriendsChange?.(computedOnlineFriends);
 
       if (!Array.isArray(friendsResult) && friendsResult?.success === false) {
         setError(friendsResult.message || "Could not load friends.");
@@ -284,14 +307,13 @@ onOnlineFriendsChange?.(computedOnlineFriends);
     } finally {
       setIsLoading(false);
     }
-
-    
   },
-  [getResolvedUser]
+  [getResolvedUser, onOnlineFriendsChange]
 );
 
 useEffect(() => {
-  loadData(true);
+  loadData(!hasLoadedOnceRef.current);
+
   const interval = setInterval(() => loadData(false), 3000);
   return () => clearInterval(interval);
 }, [loadData, refreshKey, profileRefreshKey]);
@@ -972,9 +994,9 @@ const handleDeclineTribeRequest = async (request) => {
     </div>
 
     <div className="friendsList requestScroll">
-      {isLoading ? (
-        <div className="emptyState">Loading blocked users...</div>
-      ) : blockedUsers.length > 0 ? (
+{isLoading && !hasLoadedOnce ? (
+  <div className="emptyState">Loading blocked users...</div>
+) : blockedUsers.length > 0 ? (
         blockedUsers.map((blocked) => (
           <div className="friendRow" key={blocked.id}>
             <div className="friendLeft">
@@ -1170,9 +1192,9 @@ alt={getDisplayRank(friend)}
               </div>
 
               <div className="friendsList requestScroll">
-                {isLoading ? (
-                  <div className="emptyState">Loading requests...</div>
-                ) : requests.length > 0 ? (
+      {isLoading && !hasLoadedOnce ? (
+  <div className="emptyState">Loading requests...</div>
+) : requests.length > 0 ? (
                    requests
                   .map((request) => (
 <div className="friendRow" key={request.id}>
@@ -1415,9 +1437,9 @@ onClick={async () => {
     </div>
 
     <div className="friendsList requestScroll">
-      {isLoading ? (
-        <div className="emptyState">Loading tribe requests...</div>
-      ) : tribeRequests.length > 0 ? (
+    {isLoading && !hasLoadedOnce ? (
+  <div className="emptyState">Loading tribe requests...</div>
+) : tribeRequests.length > 0 ? (
         tribeRequests.map((request) => (
           <div className="friendRow" key={request.id}>
             <div className="friendLeft">

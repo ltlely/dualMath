@@ -90,6 +90,7 @@ function getTodayKey() {
   const d = String(now.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
+const [isPreloadingFriends, setIsPreloadingFriends] = useState(false);
 
 
 
@@ -569,16 +570,14 @@ const totalUsersOnline = publicPlayers.length;
       Rank
     </button>
 
-    <button
-      type="button"
-      className="topNavItem"
-      onClick={onOpenFriends}
-    >
-      <span>Friends</span>
-      {friendChatBadgeCount > 0 && (
-        <span className="topNavBadge">{friendChatBadgeCount}</span>
-      )}
-    </button>
+<button
+  type="button"
+  className="topNavItem"
+  onClick={onOpenFriends}
+  disabled={isPreloadingFriends}
+>
+  {isPreloadingFriends ? "Loading..." : "Friends"}
+</button>
   </div>
 
   <div className="topNavRight">

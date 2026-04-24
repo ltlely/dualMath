@@ -228,6 +228,8 @@ const [incomingGameInvite, setIncomingGameInvite] = useState(null);
 const [gameInviteMessage, setGameInviteMessage] = useState("");
 const [pendingInviteUserIds, setPendingInviteUserIds] = useState({});
 const [inviteIdToUserId, setInviteIdToUserId] = useState({});
+const [preloadedRankData, setPreloadedRankData] = useState(null);
+const [preloadedFriendData, setPreloadedFriendData] = useState(null);
 
 const isInGameMusicState =
   view === "game" ||
@@ -292,14 +294,97 @@ const syncMusicPlayback = useCallback(() => {
   }
 }, [currentUser, isInGameMusicState]);
 
-const handleOpenProfile = (user, options = {}) => {
-  setProfileUser(user);
-  setProfileOptions(options);
+const handleOpenProfile = async (user, options = {}) => {
+  if (!user?.id) return;
+
+  let relationshipState = {};
+
+  if (currentUser?.id && String(currentUser.id) !== String(user.id)) {
+    relationshipState = await userManager.getProfileRelationshipState(
+      currentUser.id,
+      user.id
+    );
+  } else if (currentUser?.id && String(currentUser.id) === String(user.id)) {
+    const myTribeResult = await userManager.getMyTribe(currentUser.id);
+
+    relationshipState = {
+      profileTribe: myTribeResult?.tribe || null,
+      currentUserTribe: myTribeResult?.tribe || null,
+      currentUserTribeRole:
+        myTribeResult?.members?.find(
+          (member) => String(member.user_id) === String(currentUser.id)
+        )?.role || null,
+      tribeInviteSent: false,
+    };
+  }
+
+  const userWithRelationship = {
+    ...user,
+    ...relationshipState,
+  };
+
+  setProfileUser(userWithRelationship);
+  setProfileOptions(options || {});
+
+  try {
+    if (typeof userManager.getUserById !== "function") return;
+
+    const freshUser = await userManager.getUserById(user.id);
+    if (!freshUser?.id) return;
+
+    setProfileUser((prev) => {
+      if (!prev || String(prev.id) !== String(user.id)) return prev;
+
+      return {
+        ...prev,
+        ...freshUser,
+        ...relationshipState,
+      };
+    });
+  } catch (err) {
+    console.error("Failed to refresh opened profile:", err);
+  }
 };
 
 socket.onAny((event, ...args) => {
   console.log("🛎️ RAW:", event, args);
 });
+
+const preloadFriendData = async () => {
+  if (!currentUser?.id) return null;
+
+  try {
+    const [friendsResult, requestsData, blockedData, tribeRequestsData] =
+      await Promise.all([
+        userManager.getFriends(currentUser.id),
+        userManager.getFriendRequests(currentUser.id),
+        userManager.getBlockedUsers(currentUser.id),
+        userManager.getTribeRequests(currentUser.id),
+      ]);
+
+    const friendsData = Array.isArray(friendsResult)
+      ? friendsResult
+      : friendsResult?.data || [];
+
+    const nextFriendData = {
+      friends: friendsData,
+      requests: requestsData || [],
+      blockedUsers: blockedData || [],
+      tribeRequests: tribeRequestsData || [],
+      loadedAt: Date.now(),
+    };
+
+    setPreloadedFriendData(nextFriendData);
+    return nextFriendData;
+  } catch (err) {
+    console.error("preloadFriendData error:", err);
+    return null;
+  }
+};
+useEffect(() => {
+  if (!currentUser?.id) return;
+  preloadFriendData();
+}, [currentUser?.id]);
 
 const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768);
 
@@ -315,6 +400,35 @@ useEffect(() => {
 }, []);
 
 
+const preloadRankData = async () => {
+  if (!currentUser?.id) return;
+
+  try {
+    const [leaderboardData, friendsResult, blockedData] = await Promise.all([
+      userManager.getLeaderboard(currentUser.id),
+      userManager.getFriends(currentUser.id),
+      userManager.getBlockedUsers(currentUser.id),
+    ]);
+
+    const friendsArray = Array.isArray(friendsResult)
+      ? friendsResult
+      : friendsResult?.data || [];
+
+    setPreloadedRankData({
+      players: leaderboardData || [],
+      friendIds: friendsArray.map((friend) => String(friend.id)).filter(Boolean),
+      blockedUsers: blockedData || [],
+      loadedAt: Date.now(),
+    });
+  } catch (err) {
+    console.error("preloadRankData error:", err);
+  }
+};
+
+useEffect(() => {
+  if (!currentUser?.id) return;
+  preloadRankData();
+}, [currentUser?.id]);
 
 useEffect(() => {
   const handleAny = (event, ...args) => {
@@ -984,7 +1098,16 @@ useEffect(() => {
   };
 }, []);
 
+const openFriendsView = async () => {
+  if (!currentUser?.id) return;
 
+  setIsPreloadingFriends(true);
+
+  await preloadFriendData();
+
+  setIsPreloadingFriends(false);
+  setView("friends");
+};
 
   useEffect(() => {
     if (!currentUser) return;
@@ -1922,6 +2045,7 @@ const GameInviteStatusToast = () => {
        onOpenProfile={handleOpenProfile}
        refreshKey={friendsRefreshKey}
        profileRefreshKey={profileRefreshKey}
+         preloadedFriendData={preloadedFriendData}
     />
 
  {profileUser && (
@@ -1952,7 +2076,8 @@ onProfileSaved={handleProfileSavedGlobal}
           currentUser={currentUser}
           onBack={() => setView("lobby")}
           onOpenProfile={handleOpenProfile}
-           refreshKey={profileRefreshKey}
+          preloadedRankData={preloadedRankData}
+
         />
 
       {profileUser && (

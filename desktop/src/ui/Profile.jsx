@@ -34,19 +34,74 @@ export default function Profile({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isEditingStatus, setIsEditingStatus] = useState(false);
-  const [isFriend, setIsFriend] = useState(false);
-const [isBlocked, setIsBlocked] = useState(false);
+const [isFriend, setIsFriend] = useState(profileUser?.isFriend === true);
+const [friendRequestSent, setFriendRequestSent] = useState(
+  profileUser?.friendRequestSent === true
+);
+const [isBlocked, setIsBlocked] = useState(
+  profileUser?.isBlocked === true || profileUser?.isBlockedByMe === true
+);
 const [isActionLoading, setIsActionLoading] = useState(false);
 const DEFAULT_PROFILE_BG = "#dbdbdb";
 const DEFAULT_PROFILE_TEXT = "#5f4c79";
 const editorRef = useRef(null);
 const isPickingColorRef = useRef(false);
-const [profileTribe, setProfileTribe] = useState(null);
 const [bgColor, setBgColor] = useState(profileUser?.profileBgColor || DEFAULT_PROFILE_BG);
 const [textColor, setTextColor] = useState(profileUser?.profileTextColor || DEFAULT_PROFILE_TEXT);
 const [isInvitingTribe, setIsInvitingTribe] = useState(false);
-const [currentUserTribe, setCurrentUserTribe] = useState(null);
-const [currentUserTribeRole, setCurrentUserTribeRole] = useState(null);
+const [tribeInviteSent, setTribeInviteSent] = useState(
+  profileUser?.tribeInviteSent === true
+);
+const [profileTribe, setProfileTribe] = useState(
+  profileUser?.profileTribe || null
+);
+
+const [currentUserTribe, setCurrentUserTribe] = useState(
+  profileUser?.currentUserTribe || null
+);
+
+const [currentUserTribeRole, setCurrentUserTribeRole] = useState(
+  profileUser?.currentUserTribeRole || null
+);
+
+const [isLoadingCurrentUserTribe, setIsLoadingCurrentUserTribe] = useState(
+  !profileUser?.currentUserTribe && !profileUser?.currentUserTribeRole
+);
+
+useEffect(() => {
+  setProfileTribe(profileUser?.profileTribe || null);
+  setCurrentUserTribe(profileUser?.currentUserTribe || null);
+  setCurrentUserTribeRole(profileUser?.currentUserTribeRole || null);
+  setTribeInviteSent(profileUser?.tribeInviteSent === true);
+
+  if (profileUser?.currentUserTribe || profileUser?.currentUserTribeRole) {
+    setIsLoadingCurrentUserTribe(false);
+  }
+}, [
+  profileUser?.id,
+  profileUser?.profileTribe,
+  profileUser?.currentUserTribe,
+  profileUser?.currentUserTribeRole,
+  profileUser?.tribeInviteSent,
+]);
+
+useEffect(() => {
+  const nextIsFriend = profileUser?.isFriend === true;
+
+  setIsFriend(nextIsFriend);
+  setFriendRequestSent(
+    nextIsFriend ? false : profileUser?.friendRequestSent === true
+  );
+  setIsBlocked(
+    profileUser?.isBlocked === true || profileUser?.isBlockedByMe === true
+  );
+}, [
+  profileUser?.id,
+  profileUser?.isFriend,
+  profileUser?.friendRequestSent,
+  profileUser?.isBlocked,
+  profileUser?.isBlockedByMe,
+]);
 
 useEffect(() => {
   if (!isEditingStatus) return;
@@ -70,50 +125,32 @@ useEffect(() => {
   };
 }, [isEditingStatus, statusText, bgColor, textColor, profileUser]);
 
-useEffect(() => {
-  let ignore = false;
-
-  const loadProfileTribe = async () => {
-    if (!profileUser?.id) {
-      setProfileTribe(null);
-      return;
-    }
-
-    try {
-      const result = await userManager.getUserTribeBadge(profileUser.id);
-
-      if (!ignore) {
-        setProfileTribe(result?.tribe || null);
-      }
-    } catch (err) {
-      console.error("Could not load profile tribe:", err);
-      if (!ignore) setProfileTribe(null);
-    }
-  };
-
-  loadProfileTribe();
-
-  return () => {
-    ignore = true;
-  };
-}, [profileUser?.id]);
-
-const resetThemeToDefault = () => {
-  setBgColor(DEFAULT_PROFILE_BG);
-  setTextColor(DEFAULT_PROFILE_TEXT);
-};
 
 useEffect(() => {
   let ignore = false;
 
   const loadCurrentUserTribe = async () => {
+    if (profileUser?.currentUserTribe || profileUser?.currentUserTribeRole) {
+      if (!ignore) {
+        setCurrentUserTribe(profileUser?.currentUserTribe || null);
+        setCurrentUserTribeRole(profileUser?.currentUserTribeRole || null);
+        setIsLoadingCurrentUserTribe(false);
+      }
+      return;
+    }
+
     if (!currentUser?.id) {
-      setCurrentUserTribe(null);
-      setCurrentUserTribeRole(null);
+      if (!ignore) {
+        setCurrentUserTribe(null);
+        setCurrentUserTribeRole(null);
+        setIsLoadingCurrentUserTribe(false);
+      }
       return;
     }
 
     try {
+      if (!ignore) setIsLoadingCurrentUserTribe(true);
+
       const result = await userManager.getMyTribe(currentUser.id);
 
       const tribe =
@@ -143,10 +180,13 @@ useEffect(() => {
       }
     } catch (err) {
       console.error("Could not load current user tribe:", err);
+
       if (!ignore) {
         setCurrentUserTribe(null);
         setCurrentUserTribeRole(null);
       }
+    } finally {
+      if (!ignore) setIsLoadingCurrentUserTribe(false);
     }
   };
 
@@ -155,7 +195,50 @@ useEffect(() => {
   return () => {
     ignore = true;
   };
-}, [currentUser?.id]);
+}, [
+  currentUser?.id,
+  profileUser?.currentUserTribe,
+  profileUser?.currentUserTribeRole,
+]);
+
+useEffect(() => {
+  let ignore = false;
+
+  const loadProfileTribe = async () => {
+    if (!profileUser?.id) {
+      if (!ignore) setProfileTribe(null);
+      return;
+    }
+
+    if (profileUser?.profileTribe) {
+      if (!ignore) setProfileTribe(profileUser.profileTribe);
+      return;
+    }
+
+    try {
+      const result = await userManager.getUserTribeBadge(profileUser.id);
+
+      if (!ignore) {
+        setProfileTribe((prev) => prev || result?.tribe || null);
+      }
+    } catch (err) {
+      console.error("Could not load profile tribe:", err);
+      if (!ignore) setProfileTribe(null);
+    }
+  };
+
+  loadProfileTribe();
+
+  return () => {
+    ignore = true;
+  };
+}, [profileUser?.id, profileUser?.profileTribe]);
+
+const resetThemeToDefault = () => {
+  setBgColor(DEFAULT_PROFILE_BG);
+  setTextColor(DEFAULT_PROFILE_TEXT);
+};
+
 
   useEffect(() => {
   if (!message) return;
@@ -203,8 +286,16 @@ useEffect(() => {
       const blockedData = blockedResult || [];
 
       if (!ignore) {
-        setIsFriend(friendsData.some((user) => String(user.id) === String(profileUser.id)));
-        setIsBlocked(blockedData.some((user) => String(user.id) === String(profileUser.id)));
+const nextIsFriend = friendsData.some(
+  (user) => String(user.id) === String(profileUser.id)
+);
+
+setIsFriend(nextIsFriend);
+if (nextIsFriend) setFriendRequestSent(false);
+
+setIsBlocked(
+  blockedData.some((user) => String(user.id) === String(profileUser.id))
+);
       }
     } catch (err) {
       console.error("Failed to load relationship state:", err);
@@ -219,9 +310,13 @@ useEffect(() => {
 
 
 useEffect(() => {
+  if (!profileUser?.id) return;
+
   setStatusText(profileUser?.profileStatus || "");
   setBgColor(profileUser?.profileBgColor || DEFAULT_PROFILE_BG);
   setTextColor(profileUser?.profileTextColor || DEFAULT_PROFILE_TEXT);
+
+  // Only reset editing when switching to a different profile
   setIsEditingStatus(false);
   setMessage("");
   setError("");
@@ -280,8 +375,8 @@ const rank = userManager.getUserRank
   ? userManager.getUserRank({ ...profileUser, rankPoints })
   : (profileUser?.rank || profileUser?.rankLevel || "Novice");
   const winRate = getWinRate(profileUser);
-  const shownStatus =
-    profileUser?.profileStatus?.trim() || "Feeling cute and ready to play ✨";
+ const shownStatus =
+  profileUser?.profileStatus?.trim() || "Feeling cute and ready to play ✨";
 
   const saveStatus = async (shouldClose = false) => {
     if (!isOwner) {
@@ -353,21 +448,31 @@ if (onProfileSaved) {
 const handleInviteToTribe = async () => {
   if (!currentUser?.id || !profileUser?.id || isOwner) return;
 
+  const wasInviteSent = tribeInviteSent;
+
   setMessage("");
   setError("");
+  setTribeInviteSent(true);
   setIsInvitingTribe(true);
 
   try {
     const result = await onInviteToTribe?.(profileUser);
 
     if (!result?.success) {
+      setTribeInviteSent(wasInviteSent);
       setError(result?.message || "Could not send tribe invite.");
       return;
     }
 
     setMessage(result.message || `Tribe invite sent to ${profileUser.username}.`);
+
+    onProfileSaved?.({
+      ...profileUser,
+      tribeInviteSent: true,
+    });
   } catch (err) {
     console.error("handleInviteToTribe error:", err);
+    setTribeInviteSent(wasInviteSent);
     setError("Could not send tribe invite.");
   } finally {
     setIsInvitingTribe(false);
@@ -377,35 +482,56 @@ const handleInviteToTribe = async () => {
 const handleToggleFriend = async () => {
   if (!currentUser?.id || !profileUser?.id || currentUser.id === profileUser.id) return;
 
+  const wasFriend = isFriend;
+
   setMessage("");
   setError("");
   setIsActionLoading(true);
 
+  // Update UI immediately
+  setIsFriend(!wasFriend);
+
   try {
-    if (isFriend) {
+    if (wasFriend) {
       const result = await userManager.removeFriend(currentUser.id, profileUser.id);
+
       if (!result?.success) {
+        setIsFriend(wasFriend);
         setError(result?.message || "Could not remove friend.");
         return;
       }
+
       setMessage(`${profileUser.username} removed from friends.`);
     } else {
-      const result = await userManager.sendFriendRequest(currentUser.id, profileUser.username);
+      const result = await userManager.sendFriendRequest(
+        currentUser.id,
+        profileUser.username
+      );
+
       if (!result?.success) {
+        setIsFriend(wasFriend);
         setError(result?.message || "Could not send friend request.");
         return;
       }
-      setMessage(result.message || "Friend request sent.");
+
+      // If this is only a request, keep button as Add Friend unless your backend instantly creates friendship.
+      setIsFriend(false);
+setFriendRequestSent(true);
+setMessage(result.message || "Friend request sent.");
     }
 
-    await refreshProfileRelationship();
-onProfileSaved?.({
-  ...profileUser,
-//   isBlockedByMe: !isBlocked,
-//   isBlockedByCurrentUser: profileUser?.isBlockedByCurrentUser,
-});
+    // Sync parent/list after action, but don't block button feedback
+    onProfileSaved?.({
+      ...profileUser,
+      isFriend: wasFriend ? false : isFriend,
+    });
+
+    refreshProfileRelationship().catch((err) => {
+      console.error("refreshProfileRelationship after friend toggle failed:", err);
+    });
   } catch (err) {
     console.error("handleToggleFriend error:", err);
+    setIsFriend(wasFriend);
     setError("Could not update friend state.");
   } finally {
     setIsActionLoading(false);
@@ -522,16 +648,15 @@ style={{
 
 {!isOwner && (
   <div className="profileActionRow">
-    <button
-      type="button"
-      className="profileActionButton friend"
-      onClick={handleToggleFriend}
-      disabled={isActionLoading || isBlocked}
-    >
-      {isFriend ? "Remove Friend" : "Add Friend"}
-    </button>
-
-{!targetAlreadyInTribe && (
+<button
+  type="button"
+  className="profileActionButton friend"
+  onClick={handleToggleFriend}
+  disabled={isActionLoading || isBlocked || (!isFriend && friendRequestSent)}
+>
+  {isFriend ? "Remove Friend" : friendRequestSent ? "Request Sent" : "Add Friend"}
+</button>
+{!targetAlreadyInTribe && !isLoadingCurrentUserTribe && canCurrentUserInviteToTribe && (
   <button
     type="button"
     className="profileActionButton tribe"
@@ -540,20 +665,12 @@ style={{
       isActionLoading ||
       isBlocked ||
       isInvitingTribe ||
-      !canCurrentUserInviteToTribe
+      tribeInviteSent
     }
-    title={
-      !currentUserTribe?.id
-        ? "You need to be in a tribe first"
-        : !canCurrentUserInviteToTribe
-        ? "Only owner or officers can invite users"
-        : "Invite to tribe"
-    }
+    title={tribeInviteSent ? "Tribe invite already sent" : "Invite to tribe"}
   >
-    {!currentUserTribe?.id
-      ? "Need Tribe"
-      : !canCurrentUserInviteToTribe
-      ? "No Permission"
+    {tribeInviteSent
+      ? "Invite Sent"
       : isInvitingTribe
       ? "Inviting..."
       : "Invite to Tribe"}

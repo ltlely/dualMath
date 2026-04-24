@@ -1043,6 +1043,135 @@ const members = (memberRows || []).map((row) => {
   }
 },
 
+getProfileRelationshipState: async (currentUserId, targetUserId) => {
+  try {
+    if (!currentUserId || !targetUserId) {
+      return {
+        isFriend: false,
+        friendRequestSent: false,
+        hasIncomingRequest: false,
+        isBlocked: false,
+        isBlockedByCurrentUser: false,
+        tribeInviteSent: false,
+        profileTribe: null,
+        currentUserTribe: null,
+        currentUserTribeRole: null,
+      };
+    }
+
+    const [
+      { data: friendRows, error: friendError },
+      { data: requestRows, error: requestError },
+      { data: blockedByMeRows, error: blockedByMeError },
+      { data: blockedMeRows, error: blockedMeError },
+      myTribeResult,
+      targetTribeResult,
+    ] = await Promise.all([
+      supabase
+        .from("friends")
+        .select("id, user_id, friend_id")
+        .or(
+          `and(user_id.eq.${currentUserId},friend_id.eq.${targetUserId}),and(user_id.eq.${targetUserId},friend_id.eq.${currentUserId})`
+        ),
+
+      supabase
+        .from("friend_requests")
+        .select("id, sender_id, receiver_id, status")
+        .or(
+          `and(sender_id.eq.${currentUserId},receiver_id.eq.${targetUserId}),and(sender_id.eq.${targetUserId},receiver_id.eq.${currentUserId})`
+        )
+        .eq("status", "pending"),
+
+      supabase
+        .from("blocked_users")
+        .select("id")
+        .eq("user_id", currentUserId)
+        .eq("blocked_user_id", targetUserId),
+
+      supabase
+        .from("blocked_users")
+        .select("id")
+        .eq("user_id", targetUserId)
+        .eq("blocked_user_id", currentUserId),
+
+      userManager.getMyTribe(currentUserId),
+      userManager.getUserTribeBadge(targetUserId),
+    ]);
+
+    if (friendError) console.error("relationship friendError:", friendError);
+    if (requestError) console.error("relationship requestError:", requestError);
+    if (blockedByMeError) console.error("relationship blockedByMeError:", blockedByMeError);
+    if (blockedMeError) console.error("relationship blockedMeError:", blockedMeError);
+
+    const pendingOutgoing = (requestRows || []).some(
+      (row) =>
+        String(row.sender_id) === String(currentUserId) &&
+        String(row.receiver_id) === String(targetUserId)
+    );
+
+    const pendingIncoming = (requestRows || []).some(
+      (row) =>
+        String(row.sender_id) === String(targetUserId) &&
+        String(row.receiver_id) === String(currentUserId)
+    );
+
+    const currentUserTribe = myTribeResult?.tribe || null;
+
+    const currentUserMember = (myTribeResult?.members || []).find((member) => {
+      const memberUserId = member?.user_id || member?.userId || member?.id;
+      return String(memberUserId) === String(currentUserId);
+    });
+
+    const currentUserTribeRole =
+      currentUserMember?.role || currentUserTribe?.role || null;
+
+    const profileTribe = targetTribeResult?.tribe || null;
+
+    let tribeInviteSent = false;
+
+    if (currentUserTribe?.id) {
+      const { data: tribeRequestRows, error: tribeRequestError } = await supabase
+        .from("tribe_requests")
+        .select("id, tribe_id, sender_id, receiver_id, status")
+        .eq("tribe_id", currentUserTribe.id)
+        .eq("receiver_id", targetUserId)
+        .eq("status", "pending");
+
+      if (tribeRequestError) {
+        console.error("relationship tribeRequestError:", tribeRequestError);
+      }
+
+      tribeInviteSent = (tribeRequestRows || []).length > 0;
+    }
+
+    return {
+      isFriend: (friendRows || []).length > 0,
+      friendRequestSent: pendingOutgoing,
+      hasIncomingRequest: pendingIncoming,
+      isBlocked: (blockedByMeRows || []).length > 0,
+      isBlockedByCurrentUser: (blockedMeRows || []).length > 0,
+      tribeInviteSent,
+      profileTribe,
+      currentUserTribe,
+      currentUserTribeRole,
+    };
+  } catch (err) {
+    console.error("getProfileRelationshipState error:", err);
+
+    return {
+      isFriend: false,
+      friendRequestSent: false,
+      hasIncomingRequest: false,
+      isBlocked: false,
+      isBlockedByCurrentUser: false,
+      tribeInviteSent: false,
+      profileTribe: null,
+      currentUserTribe: null,
+      currentUserTribeRole: null,
+    };
+  }
+},
+
 async getUserTribeBadge(userId) {
   try {
     if (!userId) {
