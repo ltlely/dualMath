@@ -1263,13 +1263,6 @@ function formatTribeActivity(item) {
     inset 0 1px 0 rgba(255, 255, 255, 0.62);
 }
 
-.tribeHistoryList {
-  display: grid;
-  gap: 10px;
-  margin-top: 12px;
-  max-height: 460px;
-  overflow-y: auto;
-}
 
 .tribeHistoryRow {
   padding: 12px;
@@ -1518,9 +1511,6 @@ function formatTribeActivity(item) {
   overflow-x: hidden !important;
 }
 
-.tribeHistoryList {
-  overflow-y: auto;
-}
 
 .tribeAnnouncementInput {
   overflow-y: auto;
@@ -2615,6 +2605,73 @@ function formatTribeActivity(item) {
 .tribeAnnouncementViewMeta {
   flex: 0 0 auto !important;
   margin-top: 6px !important;
+}
+
+/* Track Record scroll fix */
+.tribeHistoryCard {
+  height: 400px !important;
+  min-height: 400px !important;
+  max-height: 400px !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  padding: 16px !important;
+
+  border-radius: 28px 28px 0 0 !important;
+}
+
+.tribeHistoryList {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+
+  padding-right: 8px !important;
+  margin-top: 0 !important;
+
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(191, 141, 86, 0.65) rgba(255, 255, 255, 0.28) !important;
+}
+
+.tribeHistoryList::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tribeHistoryList::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  margin: 6px 0;
+}
+
+.tribeHistoryList::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(216, 168, 94, 0.9),
+    rgba(122, 83, 44, 0.72)
+  );
+  border-radius: 999px;
+  border: 2px solid rgba(255, 248, 232, 0.72);
+}
+
+.tribeHistoryList::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(226, 180, 108, 1),
+    rgba(122, 83, 44, 0.88)
+  );
+}
+
+.tribeHistoryRow {
+  flex: 0 0 auto !important;
 }
 
       `}</style>

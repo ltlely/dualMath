@@ -1958,6 +1958,21 @@ declineTribeRequest: async (requestId, userId) => {
 
 async getTribeActivity(tribeId) {
   try {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    // Delete old Track Record rows first
+    const { error: deleteOldError } = await supabase
+      .from("tribe_activity")
+      .delete()
+      .eq("tribe_id", tribeId)
+      .lt("created_at", sevenDaysAgo.toISOString());
+
+    if (deleteOldError) {
+      console.error("delete old tribe activity error:", deleteOldError);
+      // Do not return here. Still load the current activity.
+    }
+
     const { data, error } = await supabase
       .from("tribe_activity")
       .select(`
@@ -1976,6 +1991,7 @@ async getTribeActivity(tribeId) {
         )
       `)
       .eq("tribe_id", tribeId)
+      .gte("created_at", sevenDaysAgo.toISOString())
       .order("created_at", { ascending: false });
 
     if (error) {

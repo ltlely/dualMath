@@ -230,6 +230,12 @@ const [pendingInviteUserIds, setPendingInviteUserIds] = useState({});
 const [inviteIdToUserId, setInviteIdToUserId] = useState({});
 const [preloadedRankData, setPreloadedRankData] = useState(null);
 const [preloadedFriendData, setPreloadedFriendData] = useState(null);
+const friendRequestCount = preloadedFriendData?.requests?.length || 0;
+const tribeRequestCount = preloadedFriendData?.tribeRequests?.length || 0;
+const chatNotificationCount = unreadChatCount || 0;
+
+const friendsLobbyNotificationCount =
+  friendRequestCount + tribeRequestCount + chatNotificationCount;
 
 const isInGameMusicState =
   view === "game" ||
@@ -2160,6 +2166,7 @@ onOpenStore={async () => {
            setIsOnlineFriendsScrolling={setIsOnlineFriendsScrolling}
 onOpenProfile={handleOpenProfile}
  profileRefreshKey={profileRefreshKey}
+ friendChatBadgeCount={friendsLobbyNotificationCount}
         />
         
 {profileUser && (

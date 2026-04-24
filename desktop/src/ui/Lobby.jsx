@@ -576,7 +576,13 @@ const totalUsersOnline = publicPlayers.length;
   onClick={onOpenFriends}
   disabled={isPreloadingFriends}
 >
-  {isPreloadingFriends ? "Loading..." : "Friends"}
+  <span>{isPreloadingFriends ? "Loading..." : "Friends"}</span>
+
+  {friendChatBadgeCount > 0 && (
+    <span className="topNavBadge">
+      {friendChatBadgeCount > 99 ? "99+" : friendChatBadgeCount}
+    </span>
+  )}
 </button>
   </div>
 
