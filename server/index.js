@@ -90,6 +90,7 @@ const io = new Server(server, {
 
 const rooms = new Map(); // roomCode -> { hostId, players: Map(socketId -> player), state }
 const onlineUsers = new Map();
+const pendingGameInvites = new Map();
 
 function makeRoomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -555,6 +556,17 @@ socket.on("gameInvite:send", (payload) => {
     return;
   }
 
+  const receiverId = String(toUserId);
+
+  const existing = pendingGameInvites.get(receiverId) || [];
+  pendingGameInvites.set(receiverId, [
+    ...existing,
+    {
+      inviteId,
+      senderProfileId: fromUser?.id,
+    },
+  ]);
+
   io.to(receiverSocketId).emit("gameInvite:incoming", {
     inviteId,
     fromUser,
@@ -572,8 +584,17 @@ socket.on("gameInvite:respond", (payload) => {
     roomCode = null,
   } = payload || {};
 
-  const senderSocketId = onlineUsers.get(String(fromUserId));
+  const responderId = String(toUser?.id || "");
 
+  if (responderId) {
+    const existing = pendingGameInvites.get(responderId) || [];
+    const next = existing.filter((item) => item.inviteId !== inviteId);
+
+    if (next.length) pendingGameInvites.set(responderId, next);
+    else pendingGameInvites.delete(responderId);
+  }
+
+  const senderSocketId = onlineUsers.get(String(fromUserId));
   if (!senderSocketId) return;
 
   io.to(senderSocketId).emit("gameInvite:status", {
@@ -600,9 +621,28 @@ socket.on("gameInvite:respond", (payload) => {
   });
 
 socket.on("disconnect", () => {
-  if (socket.profileId) {
-  onlineUsers.delete(String(socket.profileId));
-}
+ const disconnectedProfileId = socket.profileId
+    ? String(socket.profileId)
+    : null;
+
+  if (disconnectedProfileId) {
+    const pendingForUser = pendingGameInvites.get(disconnectedProfileId) || [];
+
+    for (const invite of pendingForUser) {
+      const senderSocketId = onlineUsers.get(String(invite.senderProfileId));
+
+      if (senderSocketId) {
+        io.to(senderSocketId).emit("gameInvite:status", {
+          inviteId: invite.inviteId,
+          accepted: false,
+          message: "User went offline. Invite expired.",
+        });
+      }
+    }
+
+    pendingGameInvites.delete(disconnectedProfileId);
+    onlineUsers.delete(disconnectedProfileId);
+  }
 
   try {
     for (const [roomCode, room] of rooms.entries()) {
