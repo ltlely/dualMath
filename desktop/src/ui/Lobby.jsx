@@ -850,13 +850,13 @@ const totalUsersOnline = publicPlayers.length;
       </div>
     )}
 
-{/* <button
+ {/* <button
   type="button"
   className="topNavItem"
   onClick={onOpenGame}
 >
   Open Game
-</button> */}
+</button>  */}
 
     <div className="lobbyLayout lobbySparkles ">
       {!showQueue ? (

@@ -472,29 +472,49 @@ useEffect(() => {
   applyVolume(clickAudio, "click", settings);
   clickSoundRef.current = clickAudio;
 
-  const handleGlobalInteraction = () => {
+  const isClickableElement = (target) => {
+    return Boolean(
+      target?.closest?.(
+        'button, [role="button"], .clickSound, input[type="button"], input[type="submit"]'
+      )
+    );
+  };
+
+  const playClickSound = () => {
     const latest = getSoundSettings();
 
-    if (clickSoundRef.current) {
-      clickSoundRef.current.muted = false;
-      applyVolume(clickSoundRef.current, "click", latest);
-      clickSoundRef.current.pause();
-      clickSoundRef.current.currentTime = 0;
-      clickSoundRef.current.play().catch((err) => {
-        console.log("Click sound blocked:", err);
-      });
-    }
+    if (!clickSoundRef.current) return;
 
+    clickSoundRef.current.muted = false;
+    applyVolume(clickSoundRef.current, "click", latest);
+    clickSoundRef.current.pause();
+    clickSoundRef.current.currentTime = 0;
+
+    clickSoundRef.current.play().catch((err) => {
+      console.log("Click sound blocked:", err);
+    });
+  };
+
+  const handleButtonClick = (event) => {
+    audioUnlockedRef.current = true;
+    syncMusicPlayback();
+
+    if (!isClickableElement(event.target)) return;
+
+    playClickSound();
+  };
+
+  const handleFirstKeyUnlock = () => {
     audioUnlockedRef.current = true;
     syncMusicPlayback();
   };
 
-  document.addEventListener("pointerdown", handleGlobalInteraction);
-  document.addEventListener("keydown", handleGlobalInteraction);
+  document.addEventListener("pointerdown", handleButtonClick);
+  document.addEventListener("keydown", handleFirstKeyUnlock, { once: true });
 
   return () => {
-    document.removeEventListener("pointerdown", handleGlobalInteraction);
-    document.removeEventListener("keydown", handleGlobalInteraction);
+    document.removeEventListener("pointerdown", handleButtonClick);
+    document.removeEventListener("keydown", handleFirstKeyUnlock);
     clickAudio.pause();
     clickAudio.currentTime = 0;
   };

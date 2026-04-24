@@ -84,6 +84,7 @@ import BoyShorts3 from "../public/Bottoms/Boy/BoyShorts3.png";
 import UniTop2 from "../public/Tops/Uni/UniTop2.png";
 import GirlTop11 from "../public/Tops/Girl/GirlTop11.png";
 import UniTop3 from "../public/Tops/Uni/UniTop3.png";
+import BoyHair8 from "../public/Hair/Boy/BoyHair8.png";
 
 const STARTING_COINS = 2000;
 const LAST_GENDER_KEY = "store_last_gender";
@@ -134,6 +135,7 @@ const storeItems = {
     { id: "GirlHair17", label: "Shadow Cut", asset: girlHair17, price: 1200, rarity: "Common" },
     { id: "GirlHair18", label: "Cherry Puff Bangs ", asset: girlHair18, price: 450, rarity: "Common" },
     { id: "GirlHair20", label: "Crimson Puff Hair", asset: girlHair20, price: 2300, rarity: "Rare" },
+    { id: "BoyHair8", label: "Soft Sweep Fade", asset: BoyHair8, price: 650, rarity: "Common" },
   ],
   tops: [
     { id: "GirlTop1", label: "Sky Puff Top", asset: GirlTop1, price: 250, rarity: "Uncommon" },
@@ -244,6 +246,7 @@ const getHairAsset = (name) => {
   if (name === "GirlHair17") return girlHair17;
   if (name === "GirlHair18") return girlHair18;
   if (name === "GirlHair20") return girlHair20;
+  if (name === "BoyHair8") return BoyHair8;
   return boyHair1;
 };
 
