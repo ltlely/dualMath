@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Card, Button, Select, Pill } from "./components.jsx";
 import { userManager } from "../userManagerSupabase.js";
 import Chat from "./Chat.jsx";
@@ -165,12 +165,19 @@ export default function Room({
   onChatSend,
     profileRefreshKey,
      onOpenProfile,
-    
+
+  friends = [],
+  publicPlayers = [],
+  onOpenFriends,
+  onInviteFriend,
+  gameInviteMessage,
+  setIsOnlineFriendsScrolling,
+    pendingInviteUserIds = {},
     
 }) {
   const isHost = room?.hostId === selfId;
   const self = useMemo(() => room?.players?.find(p => p.id === selfId), [room, selfId]);
-
+const [sentInvites, setSentInvites] = useState({});
   const [diff, setDiff] = useState(room?.state?.diff ?? "easy");
   const [roundMs, setRoundMs] = useState(room?.state?.roundMs ?? 12000);
   const [totalRounds, setTotalRounds] = useState(room?.state?.totalRounds ?? 10);
@@ -226,6 +233,35 @@ const roomIsFull = joinedCount >= maxPlayers;
 };
 
   const seated = !!(self?.team && (self.slot === 0 || self.slot === 1));
+  const [showFriendsDrawer, setShowFriendsDrawer] = useState(false);
+const [showPublicLobbyPanel, setShowPublicLobbyPanel] = useState(false);
+const friendsDrawerRef = useRef(null);
+
+const getComputedStatus = useCallback((friend) => {
+  const rawStatus = (friend?.status || "").toLowerCase();
+
+  if (!friend?.last_seen) return "offline";
+
+  const diff = Date.now() - new Date(friend.last_seen).getTime();
+
+  if (diff >= 45000) return "offline";
+  if (rawStatus === "in_match") return "in_match";
+  if (rawStatus === "in_room") return "in_room";
+
+  return "online";
+}, []);
+
+const isBlockedEitherWay = useCallback((user) => {
+  if (!user?.id) return true;
+  return user?.isBlockedByMe === true || user?.isBlockedByCurrentUser === true;
+}, []);
+
+const visibleOnlineFriends = friends.filter((friend) => {
+  if (isBlockedEitherWay(friend)) return false;
+
+  const value = getComputedStatus(friend);
+  return value === "online" || value === "in_room" || value === "in_match";
+});
 
   return (
     <div className="page">
@@ -366,10 +402,478 @@ const roomIsFull = joinedCount >= maxPlayers;
   onSend={onChatSend}
 />
 </div>
+
+
+<button
+  type="button"
+  className={`friendsDrawerToggle ${showFriendsDrawer ? "open" : ""}`}
+  onClick={() => {
+    setShowFriendsDrawer((prev) => {
+      const next = !prev;
+      if (!next) setShowPublicLobbyPanel(false);
+      return next;
+    });
+  }}
+>
+  <span className="friendsDrawerToggleArrow">
+    {showFriendsDrawer ? "→" : "←"}
+  </span>
+</button>
+
+<div
+  ref={friendsDrawerRef}
+  className={`friendsDrawer ${showFriendsDrawer ? "open" : ""}`}
+>
+  <div className="friendsDrawerInner">
+    <div className="friendsHeaderRow">
+      <div className="sidebarSectionTitle">
+        {"Your Friends"}
+      </div>
+    </div>
+
+    <div className="onlineFriendsCard">
+      <div className="onlineFriendsHeader">
+        <div>
+          <div className="miniLabel">
+            {showPublicLobbyPanel ? "Players Online" : "Friends Online"}
+          </div>
+          <div className="onlineFriendsTitle">
+            {showPublicLobbyPanel
+              ? `${publicPlayers.length} online`
+              : `${visibleOnlineFriends.length} online`}
+          </div>
+        </div>
+
+        {!showPublicLobbyPanel && (
+          <button
+            type="button"
+            className="onlineFriendsViewAll"
+            onClick={onOpenFriends}
+          >
+            View
+          </button>
+        )}
+      </div>
+
+      <div
+        className="onlineFriendsList"
+        onScroll={() => {
+          setIsOnlineFriendsScrolling?.(true);
+          clearTimeout(window.__onlineFriendsScrollTimer);
+          window.__onlineFriendsScrollTimer = setTimeout(() => {
+            setIsOnlineFriendsScrolling?.(false);
+          }, 150);
+        }}
+      >
+       {visibleOnlineFriends.length > 0 ? (
+  visibleOnlineFriends.slice(0, 4).map((friend) => (
+    <div
+      key={friend.id}
+      role="button"
+      tabIndex={0}
+      className="onlineFriendRow"
+      onClick={() => {
+        if (isBlockedEitherWay(friend)) return;
+        onOpenProfile?.(friend);
+      }}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+
+        if (isBlockedEitherWay(friend)) return;
+        onOpenProfile?.(friend);
+      }}
+    >
+      <div className="onlineFriendLeft">
+        <div className="onlineFriendAvatar">
+          {friend.avatarData ? (
+            <img src={friend.avatarData} alt={friend.username} />
+          ) : (
+            <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
+          )}
+        </div>
+
+        <div className="onlineFriendMeta">
+          <div className="onlineFriendNameRow">
+            <span className={`connectionDot ${getComputedStatus(friend)}`} />
+            <span className="onlineFriendName">{friend.username}</span>
+            <img
+              className="onlineFriendRankBadge"
+              src={getRankImage(userManager.getUserRank(friend))}
+              alt={userManager.getUserRank(friend)}
+            />
+          </div>
+
+          <div className="onlineFriendSub">
+            {friend.rankPoints ?? 0} RP
+          </div>
+        </div>
+      </div>
+
+{room?.roomCode && (
+  <button
+    type="button"
+    className={`onlineFriendInviteBtn ${
+      pendingInviteUserIds[friend.id] ? "sent" : ""
+    } ${roomIsFull ? "disabled" : ""}`}
+    disabled={!!pendingInviteUserIds[friend.id] || roomIsFull}
+    title={roomIsFull ? "Room is full" : "Invite friend"}
+    onClick={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (roomIsFull) return;
+      if (isBlockedEitherWay(friend)) return;
+      if (pendingInviteUserIds[friend.id]) return;
+
+      onInviteFriend?.(friend);
+    }}
+  >
+    {roomIsFull
+      ? "Full"
+      : pendingInviteUserIds[friend.id]
+      ? "Sent"
+      : "Invite"}
+  </button>
+)}
+    </div>
+  ))
+) : (
+  <div className="onlineFriendsEmpty">No friends online right now.</div>
+)}
+      </div>
+    </div>
+  </div>
+</div>
       {error && <div className="toast bad">{error}</div>}
 
       <style>{`
+.onlineFriendInviteBtn.disabled,
+.onlineFriendInviteBtn:disabled {
+  opacity: 0.65 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  background: linear-gradient(180deg, #b8aa8e, #8f7856) !important;
+  color: #fff7df !important;
+}
 
+      .onlineFriendInviteBtn.sent,
+.onlineFriendInviteBtn:disabled {
+  opacity: 0.8 !important;
+  cursor: default !important;
+  transform: none !important;
+  background: linear-gradient(180deg, #d8c7a3, #a98a57) !important;
+  color: #fff7df !important;
+}
+
+/* Room sidebar: match dark lobby theme */
+.page .friendsDrawerInner,
+.friendsDrawerInner {
+  background:
+    radial-gradient(circle at top, rgba(120, 92, 38, 0.20), transparent 32%),
+    linear-gradient(180deg, rgba(58, 52, 43, 0.98) 0%, rgba(38, 33, 28, 0.98) 52%, rgba(23, 20, 17, 0.98) 100%) !important;
+
+  border-left: 1px solid rgba(224, 171, 63, 0.18) !important;
+  box-shadow:
+    -18px 0 40px rgba(0, 0, 0, 0.28),
+    inset 1px 0 0 rgba(255, 236, 190, 0.05) !important;
+}
+
+.page .onlineFriendsCard,
+.onlineFriendsCard {
+  background: linear-gradient(
+    180deg,
+    rgba(50, 42, 30, 0.96),
+    rgba(34, 28, 20, 0.96)
+  ) !important;
+  border: 1px solid rgba(214, 172, 95, 0.18) !important;
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 236, 190, 0.05) !important;
+}
+
+.page .onlineFriendRow,
+.onlineFriendRow {
+  background: linear-gradient(
+    180deg,
+    rgba(140, 118, 82, 0.28),
+    rgba(89, 72, 48, 0.24)
+  ) !important;
+  border: 1px solid rgba(214, 172, 95, 0.16) !important;
+  color: #f5e7c6 !important;
+}
+
+.page .sidebarSectionTitle,
+.page .onlineFriendsTitle,
+.page .onlineFriendName,
+.sidebarSectionTitle,
+.onlineFriendsTitle,
+.onlineFriendName {
+  color: #f5e7c6 !important;
+}
+
+.onlineFriendInviteBtn.sent,
+.onlineFriendInviteBtn:disabled {
+  opacity: 0.75 !important;
+  cursor: default !important;
+  transform: none !important;
+  background: linear-gradient(180deg, #d8c7a3, #a98a57) !important;
+  color: #fff7df !important;
+}
+
+.page .miniLabel,
+.page .onlineFriendSub,
+.miniLabel,
+.onlineFriendSub {
+  color: #d9c39a !important;
+}
+
+.page .friendsDrawerToggle,
+.friendsDrawerToggle {
+  background: linear-gradient(
+    180deg,
+    rgba(72, 58, 36, 0.98),
+    rgba(38, 33, 28, 0.98)
+  ) !important;
+  color: #f5e7c6 !important;
+  border-color: rgba(224, 171, 63, 0.22) !important;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28) !important;
+}
+
+.page .publicLobbyToggle,
+.page .onlineFriendsViewAll,
+.publicLobbyToggle,
+.onlineFriendsViewAll {
+  background: rgba(255, 236, 190, 0.08) !important;
+  color: #f5e7c6 !important;
+  border: 1px solid rgba(214, 172, 95, 0.20) !important;
+}
+
+.page .onlineFriendInviteBtn,
+.onlineFriendInviteBtn {
+  background: linear-gradient(180deg, #ffe9b8, #dca95a) !important;
+  color: #6b4520 !important;
+  border: 1px solid rgba(224, 171, 63, 0.28) !important;
+}
+
+.page .onlineFriendsEmpty,
+.onlineFriendsEmpty {
+  background: rgba(255, 236, 190, 0.08) !important;
+  color: #d9c39a !important;
+  border: 1px solid rgba(214, 172, 95, 0.14) !important;
+}
+
+.friendsDrawerToggle {
+  position: fixed;
+  right: 0;
+  top: 46%;
+  transform: translateY(-50%);
+  z-index: 40;
+  width: 46px;
+  height: 70px;
+  border: 1px solid rgba(107, 79, 52, 0.18);
+  border-right: none;
+  border-radius: 18px 0 0 18px;
+  background: linear-gradient(180deg, rgba(255, 248, 232, 0.96), rgba(229, 194, 138, 0.96));
+  color: #6b4520;
+  box-shadow: 0 12px 24px rgba(107, 79, 52, 0.14);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.friendsDrawerToggle.open {
+  right: min(340px, 88vw);
+}
+
+.friendsDrawerToggleArrow {
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.friendsDrawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100dvh;
+  width: min(340px, 88vw);
+  z-index: 35;
+  pointer-events: none;
+}
+
+.friendsDrawer.open {
+  pointer-events: auto;
+}
+
+.friendsDrawerInner {
+  position: absolute;
+  top: 110px;
+  right: 0;
+  bottom: 24px;
+  width: 100%;
+  padding: 18px;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, rgba(245, 220, 164, 0.96), rgba(229, 194, 138, 0.96));
+  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: -18px 0 40px rgba(107, 79, 52, 0.16);
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.friendsDrawer.open .friendsDrawerInner {
+  transform: translateX(0);
+}
+
+.friendsHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.sidebarSectionTitle {
+  color: #5a3817;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.publicLobbyToggle,
+.onlineFriendsViewAll {
+  border: 1px solid rgba(107, 79, 52, 0.14);
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(255, 253, 244, 0.62);
+  color: #6b4520;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.onlineFriendsCard {
+  border-radius: 24px;
+  padding: 14px;
+  background: rgba(255, 248, 232, 0.52);
+  border: 1px solid rgba(107, 79, 52, 0.14);
+}
+
+.onlineFriendsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.onlineFriendsTitle {
+  color: #5a3817;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.onlineFriendsList {
+  display: grid;
+  gap: 10px;
+}
+
+.onlineFriendRow {
+  position: relative !important;
+  min-height: 88px !important;
+  padding: 12px 14px 30px 14px !important;
+  box-sizing: border-box !important;
+  border-radius: 18px;
+  background: rgba(255, 253, 244, 0.52);
+  border: 1px solid rgba(107, 79, 52, 0.10);
+  cursor: pointer;
+}
+
+.onlineFriendLeft {
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.onlineFriendAvatar {
+  width: 54px !important;
+  height: 54px !important;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.onlineFriendAvatar img {
+  width: 54px !important;
+  height: 54px !important;
+  object-fit: contain !important;
+  image-rendering: pixelated;
+}
+
+.onlineFriendMeta {
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+
+.onlineFriendNameRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.onlineFriendName {
+  font-weight: 900;
+  color: #5a3817;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+
+.onlineFriendRankBadge {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.onlineFriendSub {
+  color: #8a684b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.onlineFriendInviteBtn {
+  position: absolute !important;
+  right: 10px !important;
+  bottom: 7px !important;
+  height: 23px !important;
+  padding: 3px 8px !important;
+  border: 1px solid rgba(107, 79, 52, 0.14) !important;
+  border-radius: 999px !important;
+  background: linear-gradient(180deg, #ffe9b8, #dca95a) !important;
+  color: #6b4520 !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  z-index: 2 !important;
+}
+
+.onlineFriendsEmpty {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 253, 244, 0.42);
+  color: #8a684b;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
 
 .page .avatarButton {
   border: none;

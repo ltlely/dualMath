@@ -712,6 +712,8 @@ const currentRank = currentUser ? userManager.getUserRank(currentUser) : "Novice
   </div>
 )}
 
+
+
       <style>{`
 :root{
   --ink:#f5e7c6;

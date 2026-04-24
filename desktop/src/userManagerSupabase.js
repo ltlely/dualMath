@@ -948,6 +948,926 @@ dailyRewardClaimedDays: [],
   }
 },
 
+async getMyTribe(userId) {
+  try {
+    if (!userId) {
+      return { success: false, message: "Missing user id." };
+    }
+
+    const { data: myMembership, error: membershipError } = await supabase
+      .from("tribe_members")
+      .select("tribe_id, role")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (membershipError) {
+      console.error("getMyTribe membership error:", membershipError);
+      return { success: false, message: "Could not load tribe." };
+    }
+
+    if (!myMembership?.tribe_id) {
+      return { success: true, tribe: null, members: [] };
+    }
+
+    const { data: tribe, error: tribeError } = await supabase
+      .from("tribes")
+      .select("*")
+      .eq("id", myMembership.tribe_id)
+      .maybeSingle();
+
+    if (tribeError) {
+      console.error("getMyTribe tribe error:", tribeError);
+      return { success: false, message: "Could not load tribe." };
+    }
+
+    const { data: memberRows, error: membersError } = await supabase
+      .from("tribe_members")
+      .select(`
+        user_id,
+        role,
+        joined_at,
+profiles:user_id (
+  id,
+  username,
+  avatar_data,
+  rank_points,
+  wins,
+  losses,
+  total_games,
+  profile_status,
+  profile_bg_color,
+  profile_text_color
+)
+      `)
+      .eq("tribe_id", myMembership.tribe_id)
+      .order("joined_at", { ascending: true });
+
+    if (membersError) {
+      console.error("getMyTribe members error:", membersError);
+      return { success: false, message: "Could not load tribe members." };
+    }
+
+const members = (memberRows || []).map((row) => {
+  const profile = Array.isArray(row.profiles)
+    ? row.profiles[0]
+    : row.profiles;
+
+  return {
+    id: row.user_id,
+    user_id: row.user_id,
+    role: row.role,
+    joined_at: row.joined_at,
+
+    username: profile?.username || "Unknown",
+    avatarData: profile?.avatar_data || null,
+
+    wins: profile?.wins || 0,
+    losses: profile?.losses || 0,
+    totalGames: profile?.total_games || 0,
+    rankPoints: profile?.rank_points || 0,
+
+    profileStatus: profile?.profile_status || "",
+    profileBgColor: profile?.profile_bg_color || "#dbdbdb",
+    profileTextColor: profile?.profile_text_color || "#5f4c79",
+  };
+});
+
+    return {
+      success: true,
+      tribe,
+      members,
+    };
+  } catch (err) {
+    console.error("getMyTribe catch error:", err);
+    return { success: false, message: "Could not load tribe." };
+  }
+},
+
+async getUserTribeBadge(userId) {
+  try {
+    if (!userId) {
+      return { success: false, tribe: null };
+    }
+
+    const { data: membership, error: membershipError } = await supabase
+      .from("tribe_members")
+      .select("tribe_id, role")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (membershipError) {
+      console.error("getUserTribeBadge membership error:", membershipError);
+      return { success: false, tribe: null };
+    }
+
+    if (!membership?.tribe_id) {
+      return { success: true, tribe: null };
+    }
+
+    const { data: tribe, error: tribeError } = await supabase
+      .from("tribes")
+      .select("id, name, owner_id")
+      .eq("id", membership.tribe_id)
+      .maybeSingle();
+
+    if (tribeError) {
+      console.error("getUserTribeBadge tribe error:", tribeError);
+      return { success: false, tribe: null };
+    }
+
+    return {
+      success: true,
+      tribe: tribe
+        ? {
+            id: tribe.id,
+            name: tribe.name,
+            role: membership.role,
+            ownerId: tribe.owner_id,
+          }
+        : null,
+    };
+  } catch (err) {
+    console.error("getUserTribeBadge catch error:", err);
+    return { success: false, tribe: null };
+  }
+},
+
+async createTribe({ ownerId, name }) {
+  try {
+    if (!ownerId || !name?.trim()) {
+      return { success: false, message: "Missing tribe name." };
+    }
+
+    const cleanName = name.trim();
+
+    const { data: existingMembership } = await supabase
+      .from("tribe_members")
+      .select("id")
+      .eq("user_id", ownerId)
+      .maybeSingle();
+
+    if (existingMembership) {
+      return { success: false, message: "You are already in a tribe." };
+    }
+
+    const { data: tribe, error: tribeError } = await supabase
+      .from("tribes")
+      .insert({
+        name: cleanName,
+        owner_id: ownerId,
+      })
+      .select("*")
+      .single();
+
+    if (tribeError) {
+      console.error("createTribe tribe error:", tribeError);
+      return {
+        success: false,
+        message:
+          tribeError.code === "23505"
+            ? "That tribe name is already taken."
+            : "Could not create tribe.",
+      };
+    }
+
+    const { error: memberError } = await supabase.from("tribe_members").insert({
+      tribe_id: tribe.id,
+      user_id: ownerId,
+      role: "owner",
+    });
+
+    if (memberError) {
+      console.error("createTribe member error:", memberError);
+
+      await supabase.from("tribes").delete().eq("id", tribe.id);
+
+      return { success: false, message: "Could not add owner to tribe." };
+    }
+
+    return { success: true, tribe };
+  } catch (err) {
+    console.error("createTribe catch error:", err);
+    return { success: false, message: "Could not create tribe." };
+  }
+},
+
+async addTribeMemberByUsername({ tribeId, actorId, username }) {
+  try {
+    if (!tribeId || !actorId || !username?.trim()) {
+      return { success: false, message: "Missing information." };
+    }
+
+    const actorCheck = await this.getTribeMemberRole({ tribeId, userId: actorId });
+
+    if (!actorCheck.success || !["owner", "officer"].includes(actorCheck.role)) {
+      return { success: false, message: "You cannot add members." };
+    }
+
+    const cleanUsername = username.trim();
+
+    const { data: targetUser, error: userError } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .ilike("username", cleanUsername)
+      .maybeSingle();
+
+    if (userError) {
+      console.error("addTribeMemberByUsername user error:", userError);
+      return { success: false, message: "Could not find user." };
+    }
+
+    if (!targetUser?.id) {
+      return { success: false, message: "User not found." };
+    }
+
+    const { data: existingMembership } = await supabase
+      .from("tribe_members")
+      .select("id")
+      .eq("user_id", targetUser.id)
+      .maybeSingle();
+
+    if (existingMembership) {
+      return { success: false, message: "This user is already in a tribe." };
+    }
+
+    const { error: insertError } = await supabase.from("tribe_members").insert({
+      tribe_id: tribeId,
+      user_id: targetUser.id,
+      role: "member",
+    });
+
+    if (insertError) {
+      console.error("addTribeMemberByUsername insert error:", insertError);
+      return { success: false, message: "Could not add member." };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("addTribeMemberByUsername catch error:", err);
+    return { success: false, message: "Could not add member." };
+  }
+},
+
+async getTribeMemberRole({ tribeId, userId }) {
+  try {
+    const { data, error } = await supabase
+      .from("tribe_members")
+      .select("role")
+      .eq("tribe_id", tribeId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("getTribeMemberRole error:", error);
+      return { success: false };
+    }
+
+    return {
+      success: !!data,
+      role: data?.role || null,
+    };
+  } catch (err) {
+    console.error("getTribeMemberRole catch error:", err);
+    return { success: false };
+  }
+},
+
+async kickTribeMember({ tribeId, actorId, targetUserId }) {
+  try {
+    if (!tribeId || !actorId || !targetUserId) {
+      return { success: false, message: "Missing information." };
+    }
+
+    if (String(actorId) === String(targetUserId)) {
+      return { success: false, message: "Use Leave Tribe instead." };
+    }
+
+    const actorCheck = await this.getTribeMemberRole({ tribeId, userId: actorId });
+
+    if (!actorCheck.success || !["owner", "officer"].includes(actorCheck.role)) {
+      return { success: false, message: "You cannot kick members." };
+    }
+
+    const targetCheck = await this.getTribeMemberRole({
+      tribeId,
+      userId: targetUserId,
+    });
+
+    if (targetCheck.role === "owner") {
+      return { success: false, message: "You cannot kick the owner." };
+    }
+
+    if (actorCheck.role === "officer" && targetCheck.role === "officer") {
+      return { success: false, message: "Officers cannot kick other officers." };
+    }
+
+    const { error } = await supabase
+      .from("tribe_members")
+      .delete()
+      .eq("tribe_id", tribeId)
+      .eq("user_id", targetUserId);
+
+    if (error) {
+      console.error("kickTribeMember error:", error);
+      return { success: false, message: "Could not kick member." };
+    }
+
+    await this.logTribeActivity({
+    tribeId,
+    actorId,
+    targetId: targetUserId,
+    action: "kicked",
+    details: "User was kicked from the tribe.",
+  });
+
+    return { success: true };
+  } catch (err) {
+    console.error("kickTribeMember catch error:", err);
+    return { success: false, message: "Could not kick member." };
+  }
+},
+
+async updateTribeMemberRole({ tribeId, actorId, targetUserId, role }) {
+  try {
+    if (!["member", "officer"].includes(role)) {
+      return { success: false, message: "Invalid role." };
+    }
+
+    const actorCheck = await this.getTribeMemberRole({
+      tribeId,
+      userId: actorId,
+    });
+
+    if (!actorCheck?.success || actorCheck.role !== "owner") {
+      return { success: false, message: "Only owner can change roles." };
+    }
+
+    const targetCheck = await this.getTribeMemberRole({
+      tribeId,
+      userId: targetUserId,
+    });
+
+    if (!targetCheck?.success) {
+      return { success: false, message: "Target member not found." };
+    }
+
+    if (targetCheck.role === "owner") {
+      return { success: false, message: "Cannot change owner role." };
+    }
+
+    const { error } = await supabase
+      .from("tribe_members")
+      .update({ role })
+      .eq("tribe_id", tribeId)
+      .eq("user_id", targetUserId);
+
+    if (error) {
+      console.error("updateTribeMemberRole error:", error);
+      return { success: false, message: error.message || "Could not update role." };
+    }
+
+    const action = role === "officer" ? "promoted" : "demoted";
+
+    const logResult = await this.logTribeActivity({
+      tribeId,
+      actorId,
+      targetId: targetUserId,
+      action,
+      details:
+        role === "officer"
+          ? "User was promoted to officer."
+          : "User was demoted to member.",
+    });
+
+    if (!logResult?.success) {
+      console.warn("Role updated, but activity log failed:", logResult?.message);
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("updateTribeMemberRole catch error:", err);
+    return { success: false, message: "Could not update role." };
+  }
+},
+
+async leaveTribe({ tribeId, userId }) {
+  try {
+    const roleCheck = await this.getTribeMemberRole({ tribeId, userId });
+
+    if (roleCheck.role === "owner") {
+      return {
+        success: false,
+        message: "Owner cannot leave. Delete the tribe instead.",
+      };
+    }
+
+    const { error } = await supabase
+      .from("tribe_members")
+      .delete()
+      .eq("tribe_id", tribeId)
+      .eq("user_id", userId);
+
+    if (error) {
+      console.error("leaveTribe error:", error);
+      return { success: false, message: "Could not leave tribe." };
+    }
+
+    await this.logTribeActivity({
+  tribeId,
+  actorId: userId,
+  targetId: userId,
+  action: "left",
+  details: "User left the tribe.",
+});
+
+    return { success: true };
+  } catch (err) {
+    console.error("leaveTribe catch error:", err);
+    return { success: false, message: "Could not leave tribe." };
+  }
+},
+
+async deleteTribe({ tribeId, ownerId }) {
+  try {
+    const { data: tribe, error: tribeError } = await supabase
+      .from("tribes")
+      .select("owner_id")
+      .eq("id", tribeId)
+      .maybeSingle();
+
+    if (tribeError || !tribe) {
+      return { success: false, message: "Tribe not found." };
+    }
+
+    if (String(tribe.owner_id) !== String(ownerId)) {
+      return { success: false, message: "Only owner can delete tribe." };
+    }
+
+    const { error } = await supabase
+      .from("tribes")
+      .delete()
+      .eq("id", tribeId)
+      .eq("owner_id", ownerId);
+
+    if (error) {
+      console.error("deleteTribe error:", error);
+      return { success: false, message: "Could not delete tribe." };
+    }
+
+    await this.logTribeActivity({
+  tribeId,
+  actorId: ownerId,
+  targetId: null,
+  action: "tribe_deleted",
+  details: "Tribe was deleted by the owner.",
+});
+
+    return { success: true };
+  } catch (err) {
+    console.error("deleteTribe catch error:", err);
+    return { success: false, message: "Could not delete tribe." };
+  }
+},
+
+async getTribeAnnouncements(tribeId) {
+  try {
+    const { data, error } = await supabase
+      .from("tribe_announcements")
+      .select(`
+        id,
+        tribe_id,
+        author_id,
+        message,
+        created_at,
+        profiles!tribe_announcements_author_id_fkey (
+          username
+        )
+      `)
+      .eq("tribe_id", tribeId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("getTribeAnnouncements error:", error);
+      return { success: false, message: error.message };
+    }
+
+    const announcements = (data || []).map((item) => ({
+      ...item,
+      author_username: item.profiles?.username || "Unknown",
+    }));
+
+    return { success: true, announcements };
+  } catch (err) {
+    console.error("getTribeAnnouncements unexpected error:", err);
+    return { success: false, message: "Could not load tribe announcements." };
+  }
+},
+
+async postTribeAnnouncement({ tribeId, actorId, message }) {
+  try {
+    const cleanMessage = String(message || "").trim();
+
+    if (!cleanMessage) {
+      return { success: false, message: "Message is required." };
+    }
+
+    const { error } = await supabase
+      .from("tribe_announcements")
+      .insert([
+        {
+          tribe_id: tribeId,
+          author_id: actorId,
+          message: cleanMessage,
+        },
+      ]);
+
+    if (error) {
+      console.error("postTribeAnnouncement error:", error);
+      return { success: false, message: error.message };
+    }
+
+    const logResult = await this.logTribeActivity({
+      tribeId,
+      actorId,
+      targetId: actorId,
+      action: "announcement_updated",
+      details: "Updated the tribe announcement.",
+    });
+
+    if (!logResult?.success) {
+      console.warn(
+        "Announcement saved, but activity log failed:",
+        logResult?.message
+      );
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("postTribeAnnouncement unexpected error:", err);
+    return { success: false, message: "Could not post tribe announcement." };
+  }
+},
+
+logTribeActivity: async ({ tribeId, actorId, targetId = null, action, details = "" }) => {
+  try {
+    const { error } = await supabase.from("tribe_activity").insert({
+      tribe_id: tribeId,
+      actor_id: actorId,
+      target_id: targetId,
+      action,
+      details,
+    });
+
+    if (error) {
+      console.error("logTribeActivity error:", error);
+      return { success: false, message: error.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("logTribeActivity catch error:", err);
+    return { success: false, message: "Could not log tribe activity." };
+  }
+},
+async sendTribeRequestByUsername({ tribeId, senderId, username }) {
+  try {
+    if (!tribeId || !senderId || !username?.trim()) {
+      return { success: false, message: "Missing information." };
+    }
+
+    const actorCheck = await this.getTribeMemberRole({
+      tribeId,
+      userId: senderId,
+    });
+
+    if (!actorCheck.success || !["owner", "officer"].includes(actorCheck.role)) {
+      return { success: false, message: "Only owner or officers can invite users." };
+    }
+
+    const cleanUsername = username.trim();
+
+    const { data: targetUser, error: userError } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .ilike("username", cleanUsername)
+      .maybeSingle();
+
+    if (userError || !targetUser?.id) {
+      return { success: false, message: "User not found." };
+    }
+
+    if (String(targetUser.id) === String(senderId)) {
+      return { success: false, message: "You cannot invite yourself." };
+    }
+
+    const { data: existingMembership } = await supabase
+      .from("tribe_members")
+      .select("id")
+      .eq("user_id", targetUser.id)
+      .maybeSingle();
+
+    if (existingMembership) {
+      return { success: false, message: "This user is already in a tribe." };
+    }
+
+    const { data: existingRequest } = await supabase
+      .from("tribe_requests")
+      .select("id, status")
+      .eq("tribe_id", tribeId)
+      .eq("receiver_id", targetUser.id)
+      .eq("status", "pending")
+      .maybeSingle();
+
+    if (existingRequest) {
+      return { success: false, message: "This user already has a pending tribe request." };
+    }
+
+    const { error: insertError } = await supabase.from("tribe_requests").insert({
+      tribe_id: tribeId,
+      sender_id: senderId,
+      receiver_id: targetUser.id,
+      status: "pending",
+    });
+
+    if (insertError) {
+      console.error("sendTribeRequestByUsername error:", insertError);
+      return { success: false, message: "Could not send tribe request." };
+    }
+
+    await this.logTribeActivity({
+      tribeId,
+      actorId: senderId,
+      targetId: targetUser.id,
+      action: "invite_sent",
+      details: `Tribe request sent to ${targetUser.username}.`,
+    });
+
+    return { success: true };
+  } catch (err) {
+    console.error("sendTribeRequestByUsername catch error:", err);
+    return { success: false, message: "Could not send tribe request." };
+  }
+},
+
+getTribeRequests: async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from("tribe_requests")
+      .select(`
+        id,
+        tribe_id,
+        sender_id,
+        receiver_id,
+        status,
+        created_at,
+        sender:sender_id (
+          id,
+          username,
+          avatar_data,
+          rank_points,
+          wins,
+          losses,
+          total_games
+        )
+      `)
+      .eq("receiver_id", userId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("getTribeRequests error:", error);
+      return [];
+    }
+
+    const tribeIds = [...new Set((data || []).map((row) => row.tribe_id))];
+
+    const { data: tribeRows, error: tribeError } = await supabase
+      .from("tribes")
+      .select("id, name, owner_id")
+      .in("id", tribeIds);
+
+    if (tribeError) {
+      console.error("getTribeRequests tribe lookup error:", tribeError);
+    }
+
+    const tribeMap = new Map(
+      (tribeRows || []).map((tribe) => [String(tribe.id), tribe])
+    );
+
+    return (data || []).map((request) => {
+      const sender = Array.isArray(request.sender)
+        ? request.sender[0]
+        : request.sender;
+
+      const tribe = tribeMap.get(String(request.tribe_id));
+
+      return {
+        id: request.id,
+        tribeId: request.tribe_id,
+        tribeName: tribe?.name || "Unknown Tribe",
+        senderId: request.sender_id,
+        senderUsername: sender?.username || "Unknown",
+        senderAvatarData: sender?.avatar_data || null,
+        senderRankPoints: sender?.rank_points ?? 0,
+        createdAt: request.created_at,
+      };
+    });
+  } catch (err) {
+    console.error("getTribeRequests catch error:", err);
+    return [];
+  }
+},
+
+acceptTribeRequest: async (requestId, userId) => {
+  try {
+    const { data: request, error: requestError } = await supabase
+      .from("tribe_requests")
+      .select("id, tribe_id, sender_id, receiver_id, status")
+      .eq("id", requestId)
+      .eq("receiver_id", userId)
+      .eq("status", "pending")
+      .maybeSingle();
+
+    if (requestError || !request) {
+      return { success: false, message: "Tribe request not found." };
+    }
+
+    const { data: existingMembership, error: existingError } = await supabase
+      .from("tribe_members")
+      .select("id, tribe_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (existingError) {
+      console.error("acceptTribeRequest existing membership error:", existingError);
+      return { success: false, message: "Could not check tribe membership." };
+    }
+
+    if (existingMembership) {
+      return { success: false, message: "You are already in a tribe." };
+    }
+
+    const { error: memberError } = await supabase
+      .from("tribe_members")
+      .insert({
+        tribe_id: request.tribe_id,
+        user_id: userId,
+        role: "member",
+      });
+
+    if (memberError) {
+      console.error("acceptTribeRequest member insert error:", memberError);
+      return {
+        success: false,
+        message: memberError.message || "Could not join tribe.",
+      };
+    }
+
+    const { error: deleteError } = await supabase
+      .from("tribe_requests")
+      .delete()
+      .eq("id", requestId)
+      .eq("receiver_id", userId);
+
+    if (deleteError) {
+      console.warn("Accepted tribe request, but could not remove request:", deleteError);
+    }
+
+    try {
+      await this.logTribeActivity({
+        tribeId: request.tribe_id,
+        actorId: userId,
+        targetId: userId,
+        action: "joined",
+        details: "Accepted tribe request and joined the tribe.",
+      });
+    } catch (logErr) {
+      console.warn("Joined tribe, but activity log failed:", logErr);
+    }
+
+    return {
+      success: true,
+      message: "Joined tribe.",
+      tribeId: request.tribe_id,
+    };
+  } catch (err) {
+    console.error("acceptTribeRequest catch error:", err);
+    return { success: false, message: "Could not accept tribe request." };
+  }
+},
+
+declineTribeRequest: async (requestId, userId) => {
+  try {
+    const { data: request, error: requestError } = await supabase
+      .from("tribe_requests")
+      .select("id, tribe_id, receiver_id")
+      .eq("id", requestId)
+      .eq("receiver_id", userId)
+      .eq("status", "pending")
+      .maybeSingle();
+
+    // If it is already gone, treat it as declined.
+    if (!request) {
+      if (requestError) {
+        console.warn("declineTribeRequest request lookup warning:", requestError);
+      }
+
+      return {
+        success: true,
+        message: "Tribe request declined.",
+      };
+    }
+
+    const { error: deleteError } = await supabase
+      .from("tribe_requests")
+      .delete()
+      .eq("id", requestId)
+      .eq("receiver_id", userId);
+
+    if (deleteError) {
+      console.error("declineTribeRequest delete error:", deleteError);
+      return {
+        success: false,
+        message: deleteError.message || "Could not decline tribe request.",
+      };
+    }
+
+    // Log activity, but do not fail the decline if logging fails.
+    try {
+      const logResult = await this.logTribeActivity({
+        tribeId: request.tribe_id,
+        actorId: userId,
+        targetId: userId,
+        action: "invite_declined",
+        details: "Declined tribe request.",
+      });
+
+      if (!logResult?.success) {
+        console.warn(
+          "Tribe request declined, but activity log failed:",
+          logResult?.message
+        );
+      }
+    } catch (logErr) {
+      console.warn("Tribe request declined, but activity log threw:", logErr);
+    }
+
+    return {
+      success: true,
+      message: "Tribe request declined.",
+    };
+  } catch (err) {
+    console.error("declineTribeRequest catch error:", err);
+    return {
+      success: false,
+      message: "Could not decline tribe request.",
+    };
+  }
+},
+
+async getTribeActivity(tribeId) {
+  try {
+    const { data, error } = await supabase
+      .from("tribe_activity")
+      .select(`
+        id,
+        tribe_id,
+        actor_id,
+        target_id,
+        action,
+        details,
+        created_at,
+        actor:actor_id (
+          username
+        ),
+        target:target_id (
+          username
+        )
+      `)
+      .eq("tribe_id", tribeId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("getTribeActivity error:", error);
+      return { success: false, activity: [] };
+    }
+
+    const activity = (data || []).map((item) => ({
+      id: item.id,
+      action: item.action,
+      details: item.details,
+      createdAt: item.created_at,
+      actorUsername: item.actor?.username || "Unknown",
+      targetUsername: item.target?.username || null,
+    }));
+
+    return { success: true, activity };
+  } catch (err) {
+    console.error("getTribeActivity catch error:", err);
+    return { success: false, activity: [] };
+  }
+},
+
 getUserById: async (userId) => {
   
   try {

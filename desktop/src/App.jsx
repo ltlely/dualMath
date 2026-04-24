@@ -224,6 +224,10 @@ const audioUnlockedRef = useRef(false);
 const pendingMusicRetryRef = useRef(false);
 const [friendsRefreshKey, setFriendsRefreshKey] = useState(0);
 const [profileRefreshKey, setProfileRefreshKey] = useState(0);
+const [incomingGameInvite, setIncomingGameInvite] = useState(null);
+const [gameInviteMessage, setGameInviteMessage] = useState("");
+const [pendingInviteUserIds, setPendingInviteUserIds] = useState({});
+const [inviteIdToUserId, setInviteIdToUserId] = useState({});
 
 const isInGameMusicState =
   view === "game" ||
@@ -408,6 +412,95 @@ useEffect(() => {
     });
   }
 }, [profileUser?.id, currentUser, onlineFriends]);
+
+useEffect(() => {
+  if (!currentUser?.id) return;
+
+  socket.emit("user:online", {
+    profileId: currentUser.id,
+    username: currentUser.username,
+  });
+}, [currentUser?.id, currentUser?.username]);
+
+useEffect(() => {
+  const handleIncomingInvite = (invite) => {
+    setIncomingGameInvite(invite);
+  };
+
+const handleInviteStatus = (status) => {
+  const invitedUserId = inviteIdToUserId[status.inviteId];
+
+  setGameInviteMessage(status.message || "");
+
+  if (invitedUserId) {
+    // Request is resolved, so button can reset.
+    setPendingInviteUserIds((prev) => {
+      const next = { ...prev };
+      delete next[invitedUserId];
+      return next;
+    });
+
+    setInviteIdToUserId((prev) => {
+      const next = { ...prev };
+      delete next[status.inviteId];
+      return next;
+    });
+  }
+
+  setTimeout(() => {
+    setGameInviteMessage("");
+  }, 3500);
+};
+
+  socket.on("gameInvite:incoming", handleIncomingInvite);
+  socket.on("gameInvite:status", handleInviteStatus);
+
+  return () => {
+    socket.off("gameInvite:incoming", handleIncomingInvite);
+    socket.off("gameInvite:status", handleInviteStatus);
+  };
+}, [inviteIdToUserId]);
+
+const handleSendGameInvite = (friend) => {
+  if (!currentUser?.id || !friend?.id) return;
+
+  if (!roomCode) {
+    setGameInviteMessage("Create or join a room before inviting friends.");
+    setTimeout(() => setGameInviteMessage(""), 3000);
+    return;
+  }
+
+  const roomPlayerCount = room?.players?.length ?? 0;
+
+  if (roomPlayerCount >= 4) {
+    setGameInviteMessage("Room is full. You cannot invite more players.");
+    setTimeout(() => setGameInviteMessage(""), 3000);
+    return;
+  }
+
+  const inviteId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  setPendingInviteUserIds((prev) => ({
+    ...prev,
+    [friend.id]: true,
+  }));
+
+  setInviteIdToUserId((prev) => ({
+    ...prev,
+    [inviteId]: friend.id,
+  }));
+
+  socket.emit("gameInvite:send", {
+    inviteId,
+    fromUser: {
+      id: currentUser.id,
+      username: currentUser.username,
+      avatarData: currentUser.avatarData || null,
+    },
+    toUserId: friend.id,
+    roomCode,
+  });
+};
 
 const handleProfileSavedGlobal = useCallback((updatedUser) => {
   if (!updatedUser?.id) return;
@@ -1385,9 +1478,260 @@ if (isMobileView) {
 </div>
     );
   };
+  
 
+const GameInvitePopup = () => {
+  const isActuallyInGame =
+    view === "game" ||
+    screen === "game" ||
+    room?.state?.phase === "playing" ||
+    !!roundInfo;
+
+  if (isActuallyInGame) return null;
+  if (!incomingGameInvite) return null;
+
+  return (
+    <>
+      <div className="gameInviteModal">
+        <div
+          className="gameInviteOverlay"
+          onClick={() => {
+            socket.emit("gameInvite:respond", {
+              inviteId: incomingGameInvite.inviteId,
+              fromUserId: incomingGameInvite.fromUser?.id,
+              toUser: {
+                id: currentUser?.id,
+                username: currentUser?.username,
+              },
+              accepted: false,
+              roomCode: incomingGameInvite.roomCode || null,
+            });
+
+            setIncomingGameInvite(null);
+          }}
+        />
+
+        <div className="gameInviteCard">
+          <div className="gameInviteMiniLabel">Game Invite</div>
+
+          <h3>
+            {incomingGameInvite.fromUser?.username || "Someone"} invited you to play
+          </h3>
+
+          <p>Do you want to join their room?</p>
+
+          <div className="gameInviteActions">
+            <button
+              type="button"
+              className="gameInviteButton decline"
+              onClick={() => {
+                socket.emit("gameInvite:respond", {
+                  inviteId: incomingGameInvite.inviteId,
+                  fromUserId: incomingGameInvite.fromUser?.id,
+                  toUser: {
+                    id: currentUser?.id,
+                    username: currentUser?.username,
+                  },
+                  accepted: false,
+                  roomCode: incomingGameInvite.roomCode || null,
+                });
+
+                setIncomingGameInvite(null);
+              }}
+            >
+              Decline
+            </button>
+
+            <button
+              type="button"
+              className="gameInviteButton accept"
+              onClick={async () => {
+                const inviteRoomCode = incomingGameInvite.roomCode;
+
+                socket.emit("gameInvite:respond", {
+                  inviteId: incomingGameInvite.inviteId,
+                  fromUserId: incomingGameInvite.fromUser?.id,
+                  toUser: {
+                    id: currentUser?.id,
+                    username: currentUser?.username,
+                  },
+                  accepted: true,
+                  roomCode: inviteRoomCode || null,
+                });
+
+                setIncomingGameInvite(null);
+
+                if (inviteRoomCode) {
+                  await actions.joinRoom({ roomCode: inviteRoomCode });
+                }
+              }}
+            >
+              Accept
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        .gameInviteModal {
+          position: fixed;
+          inset: 0;
+          z-index: 99999;
+          display: grid;
+          place-items: center;
+          padding: 24px;
+        }
+
+        .gameInviteOverlay {
+          position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(circle at top, rgba(255, 214, 120, 0.12), transparent 36%),
+            rgba(16, 14, 12, 0.72);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+        }
+
+        .gameInviteCard {
+          position: relative;
+          z-index: 1;
+          width: min(100%, 430px);
+          padding: 28px;
+          border-radius: 30px;
+          text-align: center;
+
+          background:
+            radial-gradient(circle at top left, rgba(255, 255, 255, 0.18), transparent 36%),
+            linear-gradient(180deg, rgba(58, 52, 43, 0.98), rgba(34, 28, 20, 0.98));
+
+          border: 1px solid rgba(224, 171, 63, 0.24);
+
+          box-shadow:
+            0 28px 70px rgba(0, 0, 0, 0.42),
+            0 0 30px rgba(224, 171, 63, 0.12),
+            inset 0 1px 0 rgba(255, 236, 190, 0.08);
+
+          color: #f5e7c6;
+        }
+
+        .gameInviteMiniLabel {
+          text-transform: uppercase;
+          letter-spacing: 0.18em;
+          font-size: 11px;
+          font-weight: 900;
+          color: #d9c39a;
+          margin-bottom: 10px;
+        }
+
+        .gameInviteCard h3 {
+          margin: 0 0 10px;
+          font-size: 24px;
+          line-height: 1.2;
+          font-weight: 950;
+          color: #fff1cf;
+        }
+
+        .gameInviteCard p {
+          margin: 0;
+          color: #d9c39a;
+          font-size: 14px;
+          font-weight: 700;
+        }
+
+        .gameInviteActions {
+          display: flex;
+          justify-content: center;
+          gap: 12px;
+          margin-top: 24px;
+          flex-wrap: wrap;
+        }
+
+        .gameInviteButton {
+          min-width: 120px;
+          height: 42px;
+          border-radius: 999px;
+          border: 1px solid rgba(214, 172, 95, 0.22);
+          font-size: 14px;
+          font-weight: 900;
+          cursor: pointer;
+          transition: transform 0.16s ease, filter 0.16s ease;
+        }
+
+        .gameInviteButton:hover {
+          transform: translateY(-1px);
+          filter: brightness(1.05);
+        }
+
+        .gameInviteButton.accept {
+          background: linear-gradient(180deg, #ffe9b8, #dca95a);
+          color: #5a3817;
+        }
+
+        .gameInviteButton.decline {
+          background: linear-gradient(180deg, rgba(65, 54, 37, 0.95), rgba(46, 38, 25, 0.95));
+          color: #f5e7c6;
+        }
+      `}</style>
+    </>
+  );
+};
+
+const GameInviteStatusToast = () => {
+  const isActuallyInGame =
+    view === "game" ||
+    screen === "game" ||
+    room?.state?.phase === "playing" ||
+    !!roundInfo;
+
+  if (isActuallyInGame) return null;
+  if (!gameInviteMessage) return null;
+
+  return (
+    <>
+      <div className="gameInviteStatusToast">
+        {gameInviteMessage}
+      </div>
+
+      <style>{`
+        .gameInviteStatusToast {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          z-index: 99998;
+
+          min-width: 280px;
+          max-width: min(90vw, 520px);
+          padding: 16px 22px;
+          border-radius: 22px;
+
+          text-align: center;
+          font-size: 15px;
+          font-weight: 900;
+          line-height: 1.4;
+
+          color: #fff1cf;
+          background:
+            radial-gradient(circle at top left, rgba(255,255,255,0.14), transparent 38%),
+            linear-gradient(180deg, rgba(58, 52, 43, 0.98), rgba(34, 28, 20, 0.98));
+
+          border: 1px solid rgba(224, 171, 63, 0.24);
+
+          box-shadow:
+            0 24px 60px rgba(0, 0, 0, 0.34),
+            0 0 24px rgba(224, 171, 63, 0.10),
+            inset 0 1px 0 rgba(255, 236, 190, 0.08);
+
+          pointer-events: none;
+        }
+      `}</style>
+    </>
+  );
+};
   // Force character selection for users without starterCharacter
   if (currentUser && !currentUser.avatarData && !currentUser.starterCharacter && !currentUser.ownedItems?.length) {
+
+
 
     return (
       <PickCharacter
@@ -1441,6 +1785,8 @@ if (isMobileView) {
   if (view === "friends") {
   return (
     <>
+        <GameInvitePopup />
+          <GameInviteStatusToast />
     <FriendList
       currentUser={currentUser}
       onBack={() => setView("lobby")}
@@ -1473,6 +1819,9 @@ onProfileSaved={handleProfileSavedGlobal}
     if (view === "rank") {
       return (
         <>
+            <GameInvitePopup />
+              <GameInviteStatusToast />
+
         <Rank
           currentUser={currentUser}
           onBack={() => setView("lobby")}
@@ -1499,6 +1848,8 @@ onProfileSaved={handleProfileSavedGlobal}
     return (
       <>
         <SessionErrorModal />
+        <GameInvitePopup />
+          <GameInviteStatusToast />
 
         <Lobby
           onCreate={actions.createRoom}
@@ -1568,10 +1919,14 @@ onOpenProfile={handleOpenProfile}
       setProfileOptions({});
     }}
     onProfileSaved={handleProfileSavedGlobal}
+      onInviteFriend={handleSendGameInvite}
+  gameInviteMessage={gameInviteMessage}
+  
   />
 )}
 
         {view === "store" && (
+          
           <Store
             currentUser={currentUser}
             onLoginSuccess={handleLoginSuccess}
@@ -1587,6 +1942,9 @@ onOpenProfile={handleOpenProfile}
   return (
     <>
       <SessionErrorModal />
+      <GameInvitePopup />
+        <GameInviteStatusToast />
+
       <Room
         room={room}
         selfId={selfId}
@@ -1601,6 +1959,15 @@ onOpenProfile={handleOpenProfile}
         onChatSend={actions.chatSend}
         profileRefreshKey={profileRefreshKey}
         onOpenProfile={handleOpenProfile}
+
+  friends={onlineFriends}
+  publicPlayers={onlineFriends}
+  onOpenFriends={() => setView("friends")}
+  onInviteFriend={handleSendGameInvite}
+  gameInviteMessage={gameInviteMessage}
+  setIsOnlineFriendsScrolling={setIsOnlineFriendsScrolling}
+  pendingInviteUserIds={pendingInviteUserIds}
+
       />
 
       {profileUser && (
@@ -1612,6 +1979,7 @@ onOpenProfile={handleOpenProfile}
             setProfileOptions({});
           }}
           onProfileSaved={handleProfileSavedGlobal}
+
         />
       )}
     </>
@@ -1644,3 +2012,4 @@ onOpenProfile={handleOpenProfile}
     </>
   );
 }
+

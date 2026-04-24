@@ -61,6 +61,11 @@ const [isBlocking, setIsBlocking] = useState(false);
 const [declineTarget, setDeclineTarget] = useState(null);
 const [blockSearchUsername, setBlockSearchUsername] = useState("");
 const [isBlockingByUsername, setIsBlockingByUsername] = useState(false);
+const [tribeRequests, setTribeRequests] = useState([]);
+const [tribeRequestTarget, setTribeRequestTarget] = useState(null);
+
+
+
 
 const handleBlockByUsername = async () => {
   const typedUsername = blockSearchUsername.trim();
@@ -235,11 +240,13 @@ const loadUnreadChatSummary = useCallback(async () => {
     }
 
     try {
-      const [friendsResult, requestsData, blockedData] = await Promise.all([
-  userManager.getFriends(resolvedUser.id),
-  userManager.getFriendRequests(resolvedUser.id),
-  userManager.getBlockedUsers(resolvedUser.id),
-]);
+const [friendsResult, requestsData, blockedData, tribeRequestsData] =
+  await Promise.all([
+    userManager.getFriends(resolvedUser.id),
+    userManager.getFriendRequests(resolvedUser.id),
+    userManager.getBlockedUsers(resolvedUser.id),
+    userManager.getTribeRequests(resolvedUser.id),
+  ]);
 
       const friendsData = Array.isArray(friendsResult)
         ? friendsResult
@@ -255,6 +262,7 @@ const loadUnreadChatSummary = useCallback(async () => {
       setFriends(friendsData);
       setRequests(requestsData || []);
       setBlockedUsers(blockedData || []);
+      setTribeRequests(tribeRequestsData || []);
       hasLoadedOnceRef.current = true;
       setHasLoadedOnce(true);
 
@@ -775,7 +783,66 @@ const confirmUnblockUser = async () => {
 
 const ONLINE_WINDOW_MS = 30000; // 30 sec
 
+const handleAcceptTribeRequest = async (request) => {
+  setMessage("");
+  setError("");
 
+  const resolvedUser = await getResolvedUser();
+
+  if (!resolvedUser?.id) {
+    setError("You need to be logged in to accept a tribe request.");
+    return;
+  }
+
+  const result = await userManager.acceptTribeRequest(
+    request.id,
+    resolvedUser.id
+  );
+
+  if (!result?.success) {
+    setError(result?.message || "Could not accept tribe request.");
+    await loadData(false);
+    return;
+  }
+
+  setMessage(result.message || "Joined tribe.");
+  setTribeRequests((prev) => prev.filter((r) => r.id !== request.id));
+
+  await loadData(false);
+};
+
+const handleDeclineTribeRequest = async (request) => {
+  setMessage("");
+  setError("");
+
+  const resolvedUser = await getResolvedUser();
+
+  if (!resolvedUser?.id) {
+    setError("You need to be logged in to decline a tribe request.");
+    return;
+  }
+
+  // Remove from UI immediately.
+  setTribeRequests((prev) => prev.filter((r) => r.id !== request.id));
+
+  const result = await userManager.declineTribeRequest(
+    request.id,
+    resolvedUser.id
+  );
+
+  if (!result?.success) {
+    console.error("decline tribe failed:", result);
+
+    // Reload to keep UI accurate.
+    await loadData(false);
+
+    setError(result?.message || "Could not decline tribe request.");
+    return;
+  }
+
+  setMessage(result.message || "Tribe request declined.");
+  await loadData(false);
+};
 
   return (
     <div className="friendsShell">
@@ -826,6 +893,14 @@ const ONLINE_WINDOW_MS = 30000; // 30 sec
             <span className="navLabel">Requests</span>
             <strong className="navCount">{requests.length}</strong>
           </button>
+          <button
+  type="button"
+  className={`navCard ${activeView === "tribeRequests" ? "active" : ""}`}
+  onClick={() => setActiveView("tribeRequests")}
+>
+  <span className="navLabel">Tribe Requests</span>
+  <strong className="navCount">{tribeRequests.length}</strong>
+</button>
 
 <button
   type="button"
@@ -1169,6 +1244,8 @@ alt={getDisplayRank(request)}
             </div>
           )}
 
+
+
           {activeView === "chat" && (
             <div className="friendsPanel chatFull">
               <div className="panelHeader">
@@ -1328,6 +1405,81 @@ onClick={async () => {
               {error && <div className="statusMessage error">{error}</div>}
             </div>
           )}
+        {activeView === "tribeRequests" && (
+  <div className="friendsPanel listPanel requestFull">
+    <div className="panelHeader">
+      <div>
+        <div className="miniLabel">Pending</div>
+        <h2>Tribe Requests</h2>
+      </div>
+    </div>
+
+    <div className="friendsList requestScroll">
+      {isLoading ? (
+        <div className="emptyState">Loading tribe requests...</div>
+      ) : tribeRequests.length > 0 ? (
+        tribeRequests.map((request) => (
+          <div className="friendRow" key={request.id}>
+            <div className="friendLeft">
+              <div className="friendAvatar">
+                {request.senderAvatarData ? (
+                  <img
+                    src={request.senderAvatarData}
+                    alt={request.senderUsername}
+                  />
+                ) : (
+                  <span>
+                    {request.senderUsername?.[0]?.toUpperCase() || "?"}
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <div className="friendNameRow">
+                  <div className="friendName">{request.tribeName}</div>
+                </div>
+
+                <div className="friendSub">
+                  Invited by {request.senderUsername}
+                </div>
+              </div>
+            </div>
+
+            <div className="friendActions">
+              <button
+                type="button"
+                className="acceptButton"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAcceptTribeRequest(request);
+                }}
+              >
+                Accept
+              </button>
+
+              <button
+                type="button"
+                className="declineButton"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeclineTribeRequest(request);
+                }}
+              >
+                Decline
+              </button>
+            </div>
+          </div>
+        ))
+      ) : (
+        <div className="emptyState">No pending tribe requests.</div>
+      )}
+    </div>
+
+    {message && <div className="statusMessage success">{message}</div>}
+    {error && <div className="statusMessage error">{error}</div>}
+  </div>
+)}
+        
         </main>
       </div>
 
@@ -1424,6 +1576,8 @@ onClick={async () => {
   </div>
 )}
 
+
+
 {unblockTarget && (
   <div className="confirmModal">
     <div className="confirmOverlay" onClick={() => setUnblockTarget(null)} />
@@ -1453,6 +1607,8 @@ onClick={async () => {
     </div>
   </div>
 )}
+
+
 
       <style>{`
       :root {

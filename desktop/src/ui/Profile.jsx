@@ -40,7 +40,7 @@ const DEFAULT_PROFILE_BG = "#dbdbdb";
 const DEFAULT_PROFILE_TEXT = "#5f4c79";
 const editorRef = useRef(null);
 const isPickingColorRef = useRef(false);
-
+const [profileTribe, setProfileTribe] = useState(null);
 const [bgColor, setBgColor] = useState(profileUser?.profileBgColor || DEFAULT_PROFILE_BG);
 const [textColor, setTextColor] = useState(profileUser?.profileTextColor || DEFAULT_PROFILE_TEXT);
 
@@ -65,6 +65,34 @@ useEffect(() => {
     document.removeEventListener("touchstart", handlePointerDown);
   };
 }, [isEditingStatus, statusText, bgColor, textColor, profileUser]);
+
+useEffect(() => {
+  let ignore = false;
+
+  const loadProfileTribe = async () => {
+    if (!profileUser?.id) {
+      setProfileTribe(null);
+      return;
+    }
+
+    try {
+      const result = await userManager.getUserTribeBadge(profileUser.id);
+
+      if (!ignore) {
+        setProfileTribe(result?.tribe || null);
+      }
+    } catch (err) {
+      console.error("Could not load profile tribe:", err);
+      if (!ignore) setProfileTribe(null);
+    }
+  };
+
+  loadProfileTribe();
+
+  return () => {
+    ignore = true;
+  };
+}, [profileUser?.id]);
 
 const resetThemeToDefault = () => {
   setBgColor(DEFAULT_PROFILE_BG);
@@ -360,13 +388,20 @@ style={{
   {profileUser?.username || "Unknown User"}
 </h1>
 
-            <div className="profileRankRow">
+<div className="profileRankRow">
   <img
     src={getRankImage(rank)}
     alt={rank}
     className="profileRankBadge"
   />
+
   <span className="profileRankName">{rank}</span>
+
+  {profileTribe?.name && (
+    <div className="profileTribeBadge" title={profileTribe.name}>
+      <span className="profileTribeName">{profileTribe.name}</span>
+    </div>
+  )}
 </div>
 
 {!isOwner && (
@@ -724,6 +759,38 @@ style={{
   background: linear-gradient(180deg, rgba(255, 205, 220, 0.9), rgba(235, 152, 170, 0.92));
   color: #7c3552;
   box-shadow: 0 8px 18px rgba(139, 79, 104, 0.14);
+}
+
+.profileTribeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  max-width: 180px;
+  padding: 6px 10px;
+  border-radius: 999px;
+
+  background: rgba(255, 255, 255, 0.46);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+
+  box-shadow:
+    0 8px 16px rgba(86, 72, 116, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.48);
+
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--profile-text-color) !important;
+}
+
+.profileTribeIcon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.profileTribeName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .profileActionButton:disabled {

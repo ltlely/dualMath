@@ -14,6 +14,7 @@ import Game from "./Game.jsx";
 import { getSoundSettings, saveSoundSettings, applyVolume } from "./soundSettings";
 import DailyCheck from "./DailyCheck.jsx";
 import PublicLobby from "./PublicLobby.jsx";
+import Tribe from "./Tribe.jsx";
 
 const rankImages = {
   "Novice": "/noviceApprenticeRank.png",
@@ -51,6 +52,8 @@ export default function Lobby({
   dailyCheck,
   onOpenProfile,
    profileRefreshKey,
+     onInviteFriend,
+  gameInviteMessage,
 }) {
 const [showPublicLobbyPanel, setShowPublicLobbyPanel] = useState(false);
   const [settingsTab, setSettingsTab] = useState("account");
@@ -72,13 +75,13 @@ const DEFAULT_SOUND_SETTINGS = {
   music: 70,
   effects: 85,
 };
-
+const [inviteToastUserId, setInviteToastUserId] = useState(null);
 const [soundSettings, setSoundSettings] = useState(() => getSoundSettings());
 const [savedSoundSettings, setSavedSoundSettings] = useState(() => getSoundSettings());
 const [isSavingSound, setIsSavingSound] = useState(false);
 const [showFriendsDrawer, setShowFriendsDrawer] = useState(false);
 const [publicPlayers, setPublicPlayers] = useState([]);
-   
+const [showTribeModal, setShowTribeModal] = useState(false);
 const [showDailyCheck, setShowDailyCheck] = useState(false);
 function getTodayKey() {
   const now = new Date();
@@ -584,12 +587,15 @@ const totalUsersOnline = publicPlayers.length;
       <span>{(currentUser?.coins ?? 0).toLocaleString()}</span>
     </div>
 
-    <button
-      className="settingsProfileBtn"
-      onClick={() => setShowSettings(!showSettings)}
-      title="Account Settings"
-      type="button"
-    >
+<button
+  className="settingsProfileBtn"
+  onClick={() => {
+    setShowSettings((prev) => !prev);
+    setShowTribeModal(false);
+  }}
+  title="Account Settings"
+  type="button"
+>
       <div className="settingsProfileAvatar">
         {currentUser?.avatarData ? (
           <img src={currentUser.avatarData} alt={currentUser.username || "Avatar"} />
@@ -683,6 +689,19 @@ const totalUsersOnline = publicPlayers.length;
   Profile
 </button>
 
+<button
+  type="button"
+  className="settingsTab"
+  onClick={() => {
+    setShowSettings(false);
+    setShowTribeModal(true);
+    setSettingsMessage("");
+    setSettingsError("");
+  }}
+>
+  Tribe
+</button>
+
             <button
               type="button"
               className={`settingsTab ${settingsTab === "sound" ? "active" : ""}`}
@@ -719,6 +738,8 @@ const totalUsersOnline = publicPlayers.length;
                     />
                   </div>
                 ))}
+
+
 
                 <div className="soundActions">
                   <button
@@ -768,6 +789,7 @@ const totalUsersOnline = publicPlayers.length;
                 </div>
               </div>
             )}
+
 
             {settingsTab === "password" && (
               <div className="settingsSection">
@@ -850,6 +872,20 @@ const totalUsersOnline = publicPlayers.length;
       </div>
     )}
 
+
+
+{showTribeModal && (
+  <Tribe
+    currentUser={currentUser}
+    onClose={() => setShowTribeModal(false)}
+    onUserUpdate={(updatedUser) => {
+      if (updatedUser && onLoginSuccess) {
+        onLoginSuccess(updatedUser);
+      }
+    }}
+    onOpenProfile={onOpenProfile}
+  />
+)}
  {/* <button
   type="button"
   className="topNavItem"
@@ -1156,91 +1192,116 @@ const totalUsersOnline = publicPlayers.length;
       }, 150);
     }}
   >
-    {showPublicLobbyPanel ? (
-      publicPlayers.length > 0 ? (
-  publicPlayers.map((friend) => (
-          <button
-  key={friend.id}
-  type="button"
-  className="onlineFriendRow"
-  onClick={() => {
-    const isBlockedByMe = friend?.isBlockedByMe === true;
-    const blockedMe = friend?.isBlockedByCurrentUser === true;
-    if (isBlockedByMe || blockedMe) return;
-    onOpenProfile?.(friend);
-  }}
->
-            <div className="onlineFriendLeft">
-              <div className="onlineFriendAvatar">
-                {friend.avatarData ? (
-                  <img src={friend.avatarData} alt={friend.username} />
-                ) : (
-                  <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
-                )}
-              </div>
+  {showPublicLobbyPanel ? (
+  publicPlayers.length > 0 ? (
+    publicPlayers.map((friend) => (
+      <div
+        key={friend.id}
+        role="button"
+        tabIndex={0}
+        className="onlineFriendRow"
+        onClick={() => {
+          const isBlockedByMe = friend?.isBlockedByMe === true;
+          const blockedMe = friend?.isBlockedByCurrentUser === true;
+          if (isBlockedByMe || blockedMe) return;
+          onOpenProfile?.(friend);
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
 
-              <div className="onlineFriendMeta">
-                <div className="onlineFriendNameRow">
-                  <span className={`connectionDot ${getComputedStatus(friend)}`} />
-                  <span className="onlineFriendName">{friend.username}</span>
-                  <img
-                    className="onlineFriendRankBadge"
-                    src={getRankImage(userManager.getUserRank(friend))}
-                    alt={userManager.getUserRank(friend)}
-                  />
-                </div>
-                <div className="onlineFriendSub">
-                  {friend.rankPoints ?? 0} RP
-                </div>
-              </div>
-            </div>
-          </button>
-        ))
-      ) : (
-        <div className="onlineFriendsEmpty">No players online right now.</div>
-      )
-    ) : visibleOnlineFriends.length > 0 ? (
-      visibleOnlineFriends.slice(0, 4).map((friend) => (
-<button
-  key={friend.id}
-  type="button"
-  className="onlineFriendRow"
-  onClick={() => {
-    const isBlockedByMe = friend?.isBlockedByMe === true;
-    const blockedMe = friend?.isBlockedByCurrentUser === true;
-    if (isBlockedByMe || blockedMe) return;
-    onOpenProfile?.(friend);
-  }}
->
-          <div className="onlineFriendLeft">
-            <div className="onlineFriendAvatar">
-              {friend.avatarData ? (
-                <img src={friend.avatarData} alt={friend.username} />
-              ) : (
-                <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
-              )}
+          const isBlockedByMe = friend?.isBlockedByMe === true;
+          const blockedMe = friend?.isBlockedByCurrentUser === true;
+          if (isBlockedByMe || blockedMe) return;
+          onOpenProfile?.(friend);
+        }}
+      >
+        <div className="onlineFriendLeft">
+          <div className="onlineFriendAvatar">
+            {friend.avatarData ? (
+              <img src={friend.avatarData} alt={friend.username} />
+            ) : (
+              <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
+            )}
+          </div>
+
+          <div className="onlineFriendMeta">
+            <div className="onlineFriendNameRow">
+              <span className={`connectionDot ${getComputedStatus(friend)}`} />
+              <span className="onlineFriendName">{friend.username}</span>
+              <img
+                className="onlineFriendRankBadge"
+                src={getRankImage(userManager.getUserRank(friend))}
+                alt={userManager.getUserRank(friend)}
+              />
             </div>
 
-            <div className="onlineFriendMeta">
-              <div className="onlineFriendNameRow">
-                <span className={`connectionDot ${getComputedStatus(friend)}`} />
-                <span className="onlineFriendName">{friend.username}</span>
-                <img
-                  className="onlineFriendRankBadge"
-                  src={getRankImage(userManager.getUserRank(friend))}
-                  alt={userManager.getUserRank(friend)}
-                />
-              </div>
-              <div className="onlineFriendSub">
-                {friend.rankPoints ?? 0} RP
-              </div>
+            <div className="onlineFriendSub">
+              {friend.rankPoints ?? 0} RP
             </div>
           </div>
-        </button>
-      ))
-    ) : (
-      <div className="onlineFriendsEmpty">No friends online right now.</div>
-    )}
+        </div>
+      </div>
+    ))
+  ) : (
+    <div className="onlineFriendsEmpty">No players online right now.</div>
+  )
+) : visibleOnlineFriends.length > 0 ? (
+  visibleOnlineFriends.slice(0, 4).map((friend) => (
+    <div
+      key={friend.id}
+      role="button"
+      tabIndex={0}
+      className="onlineFriendRow"
+      onClick={() => {
+        const isBlockedByMe = friend?.isBlockedByMe === true;
+        const blockedMe = friend?.isBlockedByCurrentUser === true;
+        if (isBlockedByMe || blockedMe) return;
+        onOpenProfile?.(friend);
+      }}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+
+        const isBlockedByMe = friend?.isBlockedByMe === true;
+        const blockedMe = friend?.isBlockedByCurrentUser === true;
+        if (isBlockedByMe || blockedMe) return;
+        onOpenProfile?.(friend);
+      }}
+    >
+      <div className="onlineFriendLeft">
+        <div className="onlineFriendAvatar">
+          {friend.avatarData ? (
+            <img src={friend.avatarData} alt={friend.username} />
+          ) : (
+            <span>{friend.username?.[0]?.toUpperCase() || "?"}</span>
+          )}
+        </div>
+
+        <div className="onlineFriendMeta">
+          <div className="onlineFriendNameRow">
+            <span className={`connectionDot ${getComputedStatus(friend)}`} />
+            <span className="onlineFriendName">{friend.username}</span>
+            <img
+              className="onlineFriendRankBadge"
+              src={getRankImage(userManager.getUserRank(friend))}
+              alt={userManager.getUserRank(friend)}
+            />
+          </div>
+
+          <div className="onlineFriendSub">
+            {friend.rankPoints ?? 0} RP
+          </div>
+        </div>
+      </div>
+
+     
+
+    </div>
+  ))
+) : (
+  <div className="onlineFriendsEmpty">No friends online right now.</div>
+)}
   </div>
 </div>
       </div>
@@ -2455,6 +2516,34 @@ const totalUsersOnline = publicPlayers.length;
   color: #4b3217;
 }
 
+.onlineFriendRow {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+.gameInviteToastInRow {
+  position: absolute !important;
+  right: 8px !important;
+  bottom: 36px !important;
+  z-index: 20 !important;
+
+  max-width: 230px !important;
+  padding: 7px 10px !important;
+  border-radius: 12px !important;
+
+  background: rgba(255, 248, 232, 0.98) !important;
+  border: 1px solid rgba(224, 171, 63, 0.34) !important;
+  color: #6b4520 !important;
+
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1.25 !important;
+  text-align: center !important;
+
+  box-shadow: 0 10px 22px rgba(91, 63, 42, 0.22) !important;
+  pointer-events: none !important;
+}
+
 .rpIndicator {
   display: flex;
   align-items: center;
@@ -2918,6 +3007,39 @@ const totalUsersOnline = publicPlayers.length;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--brown-dark);
+}
+
+.gameInviteToast {
+  position: fixed;
+  top: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7000;
+
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(255, 248, 232, 0.94);
+  border: 1px solid rgba(224, 171, 63, 0.34);
+  color: #6b4520;
+  font-weight: 900;
+  box-shadow: 0 12px 28px rgba(91, 63, 42, 0.18);
+}
+
+.onlineFriendInviteBtn {
+  border: 1px solid rgba(107, 79, 52, 0.14);
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: linear-gradient(180deg, #ffe9b8, #dca95a);
+  color: #6b4520;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.onlineFriendInviteBtn:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
 }
 
 .soundRow {
@@ -4213,6 +4335,68 @@ const totalUsersOnline = publicPlayers.length;
   font-size: 12px;
   font-weight: 700;
   color: var(--muted);
+}
+
+.onlineFriendRow {
+  position: relative !important;
+  min-height: 88px !important;
+  padding: 12px 14px 30px 14px !important;
+  box-sizing: border-box !important;
+}
+
+.onlineFriendLeft {
+  width: 100% !important;
+  padding-right: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.onlineFriendMeta {
+  flex: 1 !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+.onlineFriendNameRow {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.onlineFriendName {
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  white-space: nowrap !important;
+}
+
+.onlineFriendInviteBtn {
+  position: absolute !important;
+  right: 10px !important;
+  bottom: 7px !important;
+
+  height: 23px !important;
+  padding: 3px 8px !important;
+  border-radius: 999px !important;
+
+  font-size: 11px !important;
+  line-height: 1 !important;
+  z-index: 2 !important;
+}
+
+.onlineFriendAvatar {
+  width: 54px !important;
+  height: 54px !important;
+  flex-shrink: 0 !important;
+}
+
+.onlineFriendAvatar img {
+  width: 54px !important;
+  height: 54px !important;
+  object-fit: contain !important;
+}
+
+.onlineFriendInviteBtn:hover {
+  filter: brightness(1.05) !important;
+  transform: translateY(-1px) !important;
 }
       `}</style>
     </div>
