@@ -89,6 +89,7 @@ const io = new Server(server, {
 });
 
 const rooms = new Map(); // roomCode -> { hostId, players: Map(socketId -> player), state }
+const onlineUsers = new Map();
 
 function makeRoomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -531,6 +532,60 @@ function assignNextHost(room) {
 }
 
 io.on("connection", (socket) => {
+
+  socket.on("user:online", ({ profileId, username }) => {
+  if (!profileId) return;
+
+  socket.profileId = profileId;
+  socket.username = username;
+  onlineUsers.set(String(profileId), socket.id);
+});
+
+socket.on("gameInvite:send", (payload) => {
+  const { inviteId, fromUser, toUserId, roomCode = null } = payload || {};
+
+  const receiverSocketId = onlineUsers.get(String(toUserId));
+
+  if (!receiverSocketId) {
+    socket.emit("gameInvite:status", {
+      inviteId,
+      accepted: false,
+      message: "User is offline or unavailable.",
+    });
+    return;
+  }
+
+  io.to(receiverSocketId).emit("gameInvite:incoming", {
+    inviteId,
+    fromUser,
+    toUserId,
+    roomCode,
+  });
+});
+
+socket.on("gameInvite:respond", (payload) => {
+  const {
+    inviteId,
+    fromUserId,
+    toUser,
+    accepted,
+    roomCode = null,
+  } = payload || {};
+
+  const senderSocketId = onlineUsers.get(String(fromUserId));
+
+  if (!senderSocketId) return;
+
+  io.to(senderSocketId).emit("gameInvite:status", {
+    inviteId,
+    accepted,
+    roomCode,
+    message: accepted
+      ? `${toUser?.username || "User"} accepted your game invite.`
+      : `${toUser?.username || "User"} declined your game invite.`,
+  });
+});
+
   socket.on("game:forfeit", ({ roomCode }) => {
     const code = String(roomCode || "").trim().toUpperCase();
     const room = rooms.get(code);
@@ -545,6 +600,10 @@ io.on("connection", (socket) => {
   });
 
 socket.on("disconnect", () => {
+  if (socket.profileId) {
+  onlineUsers.delete(String(socket.profileId));
+}
+
   try {
     for (const [roomCode, room] of rooms.entries()) {
       if (!room.players.has(socket.id)) continue;
