@@ -27,6 +27,7 @@ export default function Profile({
   currentUser,
   onClose,
   onProfileSaved,
+   onInviteToTribe,
 }) {
   const [statusText, setStatusText] = useState(profileUser?.profileStatus || "");
   const [isSavingStatus, setIsSavingStatus] = useState(false);
@@ -43,6 +44,9 @@ const isPickingColorRef = useRef(false);
 const [profileTribe, setProfileTribe] = useState(null);
 const [bgColor, setBgColor] = useState(profileUser?.profileBgColor || DEFAULT_PROFILE_BG);
 const [textColor, setTextColor] = useState(profileUser?.profileTextColor || DEFAULT_PROFILE_TEXT);
+const [isInvitingTribe, setIsInvitingTribe] = useState(false);
+const [currentUserTribe, setCurrentUserTribe] = useState(null);
+const [currentUserTribeRole, setCurrentUserTribeRole] = useState(null);
 
 useEffect(() => {
   if (!isEditingStatus) return;
@@ -98,6 +102,60 @@ const resetThemeToDefault = () => {
   setBgColor(DEFAULT_PROFILE_BG);
   setTextColor(DEFAULT_PROFILE_TEXT);
 };
+
+useEffect(() => {
+  let ignore = false;
+
+  const loadCurrentUserTribe = async () => {
+    if (!currentUser?.id) {
+      setCurrentUserTribe(null);
+      setCurrentUserTribeRole(null);
+      return;
+    }
+
+    try {
+      const result = await userManager.getMyTribe(currentUser.id);
+
+      const tribe =
+        result?.tribe ||
+        result?.data?.tribe ||
+        result?.myTribe ||
+        null;
+
+      const members =
+        result?.members ||
+        result?.data?.members ||
+        tribe?.members ||
+        [];
+
+      const myMember = members.find((member) => {
+        const memberUserId =
+          member?.user_id ||
+          member?.userId ||
+          member?.id;
+
+        return String(memberUserId) === String(currentUser.id);
+      });
+
+      if (!ignore) {
+        setCurrentUserTribe(tribe);
+        setCurrentUserTribeRole(myMember?.role || tribe?.role || null);
+      }
+    } catch (err) {
+      console.error("Could not load current user tribe:", err);
+      if (!ignore) {
+        setCurrentUserTribe(null);
+        setCurrentUserTribeRole(null);
+      }
+    }
+  };
+
+  loadCurrentUserTribe();
+
+  return () => {
+    ignore = true;
+  };
+}, [currentUser?.id]);
 
   useEffect(() => {
   if (!message) return;
@@ -178,7 +236,41 @@ const isOwner = useMemo(() => {
   return !!currentUser?.id && currentUser.id === profileUser?.id;
 }, [currentUser?.id, profileUser?.id]);
 
+const targetTribeName =
+  profileTribe?.name ||
+  profileUser?.tribeName ||
+  profileUser?.tribe_name ||
+  profileUser?.tribe?.name ||
+  "";
+
+const targetTribeLabel = targetTribeName || "No Tribe";
+const targetHasNoTribe = !targetTribeName;
+
+const targetAlreadyInTribe = Boolean(targetTribeName);
+
+const canCurrentUserInviteToTribe =
+  Boolean(currentUserTribe?.id) &&
+  (currentUserTribeRole === "owner" || currentUserTribeRole === "officer");
+
+const tribeInviteButtonText = !currentUserTribe?.id
+  ? "Need Tribe"
+  : !canCurrentUserInviteToTribe
+  ? "No Permission"
+  : isInvitingTribe
+  ? "Inviting..."
+  : "Invite to Tribe";
+
   if (!profileUser) return null;
+
+const tribeInviteButtonTitle = targetAlreadyInTribe
+  ? `${profileUser?.username || "User"} is already in ${targetTribeName}`
+  : !currentUserTribe?.id
+  ? "You need to be in a tribe first"
+  : !canCurrentUserInviteToTribe
+  ? "Only owner or officers can invite users"
+  : "Invite to tribe";
+
+  
 
   const wins = profileUser?.wins ?? 0;
   const losses = profileUser?.losses ?? 0;
@@ -256,6 +348,30 @@ if (onProfileSaved) {
 
   setIsFriend(friendsData.some((user) => String(user.id) === String(profileUser.id)));
   setIsBlocked(blockedData.some((user) => String(user.id) === String(profileUser.id)));
+};
+
+const handleInviteToTribe = async () => {
+  if (!currentUser?.id || !profileUser?.id || isOwner) return;
+
+  setMessage("");
+  setError("");
+  setIsInvitingTribe(true);
+
+  try {
+    const result = await onInviteToTribe?.(profileUser);
+
+    if (!result?.success) {
+      setError(result?.message || "Could not send tribe invite.");
+      return;
+    }
+
+    setMessage(result.message || `Tribe invite sent to ${profileUser.username}.`);
+  } catch (err) {
+    console.error("handleInviteToTribe error:", err);
+    setError("Could not send tribe invite.");
+  } finally {
+    setIsInvitingTribe(false);
+  }
 };
 
 const handleToggleFriend = async () => {
@@ -397,11 +513,11 @@ style={{
 
   <span className="profileRankName">{rank}</span>
 
-  {profileTribe?.name && (
-    <div className="profileTribeBadge" title={profileTribe.name}>
-      <span className="profileTribeName">{profileTribe.name}</span>
-    </div>
-  )}
+{targetTribeName && (
+  <div className="profileTribeBadge" title={targetTribeName}>
+    <span className="profileTribeName">{targetTribeName}</span>
+  </div>
+)}
 </div>
 
 {!isOwner && (
@@ -414,6 +530,35 @@ style={{
     >
       {isFriend ? "Remove Friend" : "Add Friend"}
     </button>
+
+{!targetAlreadyInTribe && (
+  <button
+    type="button"
+    className="profileActionButton tribe"
+    onClick={handleInviteToTribe}
+    disabled={
+      isActionLoading ||
+      isBlocked ||
+      isInvitingTribe ||
+      !canCurrentUserInviteToTribe
+    }
+    title={
+      !currentUserTribe?.id
+        ? "You need to be in a tribe first"
+        : !canCurrentUserInviteToTribe
+        ? "Only owner or officers can invite users"
+        : "Invite to tribe"
+    }
+  >
+    {!currentUserTribe?.id
+      ? "Need Tribe"
+      : !canCurrentUserInviteToTribe
+      ? "No Permission"
+      : isInvitingTribe
+      ? "Inviting..."
+      : "Invite to Tribe"}
+  </button>
+)}
 
     <button
       type="button"
@@ -584,6 +729,18 @@ style={{
 
      <style>{`
 
+ .profileActionButton.tribe {
+  background: linear-gradient(180deg, #ffe9b8, #dca95a);
+  color: #5a3817;
+  border: 1px solid rgba(224, 171, 63, 0.34);
+}
+
+.profileActionButton.tribe:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  filter: grayscale(0.15);
+}    
+
 .profileThemeInlineRow {
   display: flex;
   align-items: center;
@@ -602,6 +759,12 @@ style={{
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.profileTribeBadge.noTribe {
+  background: rgba(255, 255, 255, 0.34);
+  border: 1px dashed rgba(255, 255, 255, 0.48);
+  opacity: 0.82;
 }
 
 .profileThemeInlineText {

@@ -1049,16 +1049,18 @@ async getUserTribeBadge(userId) {
       return { success: false, tribe: null };
     }
 
-    const { data: membership, error: membershipError } = await supabase
+    const { data: membershipRows, error: membershipError } = await supabase
       .from("tribe_members")
       .select("tribe_id, role")
       .eq("user_id", userId)
-      .maybeSingle();
+      .limit(1);
 
     if (membershipError) {
       console.error("getUserTribeBadge membership error:", membershipError);
-      return { success: false, tribe: null };
+      return { success: false, tribe: null, message: membershipError.message };
     }
+
+    const membership = membershipRows?.[0];
 
     if (!membership?.tribe_id) {
       return { success: true, tribe: null };
@@ -1072,7 +1074,7 @@ async getUserTribeBadge(userId) {
 
     if (tribeError) {
       console.error("getUserTribeBadge tribe error:", tribeError);
-      return { success: false, tribe: null };
+      return { success: false, tribe: null, message: tribeError.message };
     }
 
     return {

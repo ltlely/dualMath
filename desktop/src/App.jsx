@@ -576,6 +576,68 @@ const handleSendGameInvite = async (friend) => {
   }, 20000);
 };
 
+const handleInviteToTribe = async (targetUser) => {
+  if (!currentUser?.id || !targetUser?.id) {
+    return { success: false, message: "Missing user information." };
+  }
+
+  if (String(currentUser.id) === String(targetUser.id)) {
+    return { success: false, message: "You cannot invite yourself." };
+  }
+
+  try {
+    const tribeResult = await userManager.getMyTribe(currentUser.id);
+
+    if (!tribeResult?.success || !tribeResult?.tribe?.id) {
+      return {
+        success: false,
+        message: "Create or join a tribe before inviting users.",
+      };
+    }
+
+    const myMember = (tribeResult.members || []).find(
+      (member) => String(member.user_id) === String(currentUser.id)
+    );
+
+    const canInvite =
+      myMember?.role === "owner" || myMember?.role === "officer";
+
+    if (!canInvite) {
+      return {
+        success: false,
+        message: "Only the tribe owner or officers can invite users.",
+      };
+    }
+
+    const result = await userManager.sendTribeRequestByUsername({
+      tribeId: tribeResult.tribe.id,
+      senderId: currentUser.id,
+      username: targetUser.username,
+    });
+
+    if (!result?.success) {
+      return {
+        success: false,
+        message: result?.message || "Could not send tribe invite.",
+      };
+    }
+
+    setFriendsRefreshKey((prev) => prev + 1);
+    setProfileRefreshKey((prev) => prev + 1);
+
+    return {
+      success: true,
+      message: `Tribe invite sent to ${targetUser.username}.`,
+    };
+  } catch (err) {
+    console.error("handleInviteToTribe error:", err);
+    return {
+      success: false,
+      message: "Could not send tribe invite.",
+    };
+  }
+};
+
 const handleProfileSavedGlobal = useCallback((updatedUser) => {
   if (!updatedUser?.id) return;
 
@@ -1866,7 +1928,7 @@ const GameInviteStatusToast = () => {
   <Profile
     profileUser={profileUser}
     currentUser={currentUser}
-    
+    onInviteToTribe={handleInviteToTribe}
     onClose={() => {
       setProfileUser(null);
       setProfileOptions({});
@@ -1902,6 +1964,7 @@ onProfileSaved={handleProfileSavedGlobal}
       setProfileOptions({});
     }}
     onProfileSaved={handleProfileSavedGlobal}
+    onInviteToTribe={handleInviteToTribe}
   />
 )}
     </>
@@ -1985,7 +2048,7 @@ onOpenProfile={handleOpenProfile}
     onProfileSaved={handleProfileSavedGlobal}
       onInviteFriend={handleSendGameInvite}
   gameInviteMessage={gameInviteMessage}
-  
+  onInviteToTribe={handleInviteToTribe}
   />
 )}
 
@@ -2043,7 +2106,7 @@ onOpenProfile={handleOpenProfile}
             setProfileOptions({});
           }}
           onProfileSaved={handleProfileSavedGlobal}
-
+          onInviteToTribe={handleInviteToTribe}
         />
       )}
     </>
