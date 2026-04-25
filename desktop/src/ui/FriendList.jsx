@@ -31,10 +31,13 @@ function getDisplayRank(user) {
 }
 
 export default function FriendList({ currentUser, onBack, 
-  onUnreadCountChange,refreshUnreadCount,  
-  onOnlineFriendsChange, onOpenProfile,  refreshKey, 
+  onUnreadCountChange, refreshUnreadCount,
+  onNotificationCountsChange,
+  onOnlineFriendsChange, onOpenProfile, refreshKey, 
   profileRefreshKey,
-   preloadedFriendData,
+  preloadedFriendData,
+   profileMessageTarget,
+  onProfileMessageTargetUsed,
 }) {
   const [blockTarget, setBlockTarget] = useState(null);
 const [unblockTarget, setUnblockTarget] = useState(null);
@@ -71,6 +74,19 @@ const [isPreloadingFriends, setIsPreloadingFriends] = useState(false);
 const [isLoading, setIsLoading] = useState(!preloadedFriendData);
 const [hasLoadedOnce, setHasLoadedOnce] = useState(Boolean(preloadedFriendData));
 const hasLoadedOnceRef = useRef(Boolean(preloadedFriendData));
+const [messageRequestTarget, setMessageRequestTarget] = useState(null);
+useEffect(() => {
+  onNotificationCountsChange?.({
+    friendRequests: requests.length,
+    tribeRequests: tribeRequests.length,
+    chat: unreadChatCount,
+  });
+}, [
+  requests.length,
+  tribeRequests.length,
+  unreadChatCount,
+  onNotificationCountsChange,
+]);
 
 useEffect(() => {
   if (!preloadedFriendData) return;
@@ -206,10 +222,22 @@ const loadUnreadChatSummary = useCallback(async () => {
   const result = await userManager.getUnreadChatSummary(resolvedUser.id);
   const senders = result?.unreadSenders || [];
 
-  setUnreadSenders(senders);
-  setUnreadChatCount(senders.length);
-  onUnreadCountChange?.(senders.length);
-}, [getResolvedUser, onUnreadCountChange]);
+setUnreadSenders(senders);
+setUnreadChatCount(senders.length);
+onUnreadCountChange?.(senders.length);
+
+onNotificationCountsChange?.({
+  friendRequests: requests.length,
+  tribeRequests: tribeRequests.length,
+  chat: senders.length,
+});
+}, [
+  getResolvedUser,
+  onUnreadCountChange,
+  onNotificationCountsChange,
+  requests.length,
+  tribeRequests.length,
+]);
 
   const loadFriendMessageMeta = useCallback(async () => {
     if (!currentUser?.id || !friends.length) {
@@ -679,6 +707,21 @@ const openChat = async (friend) => {
 };
 
 useEffect(() => {
+  if (!profileMessageTarget?.id) return;
+
+  const target =
+    friends.find((friend) => String(friend.id) === String(profileMessageTarget.id)) ||
+    profileMessageTarget;
+
+  openChat(target);
+  onProfileMessageTargetUsed?.();
+}, [
+  profileMessageTarget?.id,
+  friends,
+  onProfileMessageTargetUsed,
+]);
+
+useEffect(() => {
   userManager.deleteExpiredMessages();
 }, []);
 
@@ -907,21 +950,13 @@ const handleDeclineTribeRequest = async (request) => {
             <strong className="navCount">{friends.length}</strong>
           </button>
 
-          <button
-            type="button"
-            className={`navCard ${activeView === "requests" ? "active" : ""}`}
-            onClick={() => setActiveView("requests")}
-          >
-            <span className="navLabel">Requests</span>
-            <strong className="navCount">{requests.length}</strong>
-          </button>
-          <button
+<button
   type="button"
-  className={`navCard ${activeView === "tribeRequests" ? "active" : ""}`}
-  onClick={() => setActiveView("tribeRequests")}
+  className={`navCard ${activeView === "requests" ? "active" : ""}`}
+  onClick={() => setActiveView("requests")}
 >
-  <span className="navLabel">Tribe Requests</span>
-  <strong className="navCount">{tribeRequests.length}</strong>
+  <span className="navLabel">Requests</span>
+  <strong className="navCount">{requests.length + tribeRequests.length}</strong>
 </button>
 
 <button
@@ -1024,6 +1059,7 @@ const handleDeclineTribeRequest = async (request) => {
                 <div className="friendSub">
                   {blocked.totalGames} games • {blocked.rankPoints} RP
                 </div>
+
               </div>
             </div>
 
@@ -1186,80 +1222,161 @@ alt={getDisplayRank(friend)}
             <div className="friendsPanel listPanel requestFull">
               <div className="panelHeader">
                 <div>
-                  <div className="miniLabel">Pending</div>
-                  <h2>Friend Requests</h2>
+<div className="miniLabel">Pending</div>
+<h2>Requests</h2>
                 </div>
               </div>
 
-              <div className="friendsList requestScroll">
-      {isLoading && !hasLoadedOnce ? (
-  <div className="emptyState">Loading requests...</div>
-) : requests.length > 0 ? (
-                   requests
-                  .map((request) => (
-<div className="friendRow" key={request.id}>
-                      <div className="friendLeft">
-<button
-  type="button"
-  className="friendAvatar profileAvatarButton"
-  onClick={(e) => handleOpenProfileSafe(e, request)}
-  title={
-    canOpenProfile(request)
-      ? `View ${request.username}'s profile`
-      : "Profile unavailable"
-  }
->
-  {request.avatarData ? (
-    <img src={request.avatarData} alt={request.username} />
-  ) : (
-    <span>{request.username?.[0]?.toUpperCase() || "?"}</span>
-  )}
-</button>
+<div className="friendsList requestScroll">
+  {isLoading && !hasLoadedOnce ? (
+    <div className="emptyState">Loading requests...</div>
+  ) : requests.length > 0 || tribeRequests.length > 0 ? (
+    <>
+      {requests.length > 0 && (
+        <div className="requestSectionLabel">Friend & Message Requests</div>
+      )}
 
-                        <div>
-                          <div className="friendNameRow">
-  <div className="friendName">{request.username}</div>
-                          <img
-  className="friendRankBadge"
-  src={getRankImage(getDisplayRank(request))}
-alt={getDisplayRank(request)}
-/>
-</div>
-                          <div className="friendSub">
-                            {request.wins} wins • {request.winRate}% WR
-                          </div>
-                        </div>
-                      </div>
+      {requests.map((request) => (
+        <div className="friendRow" key={`friend-${request.id}`}>
+          <div className="friendLeft">
+            <button
+              type="button"
+              className="friendAvatar profileAvatarButton"
+              onClick={(e) => handleOpenProfileSafe(e, request)}
+              title={
+                canOpenProfile(request)
+                  ? `View ${request.username}'s profile`
+                  : "Profile unavailable"
+              }
+            >
+              {request.avatarData ? (
+                <img src={request.avatarData} alt={request.username} />
+              ) : (
+                <span>{request.username?.[0]?.toUpperCase() || "?"}</span>
+              )}
+            </button>
 
-                      <div className="friendActions">
-                        <button
-  type="button"
-  className="acceptButton"
-  onClick={(e) => {
-    e.stopPropagation();
-    handleAccept(request);
-  }}
->
-  Accept
-</button>
-
-<button
-  type="button"
-  className="declineButton"
-  onClick={(e) => {
-    e.stopPropagation();
-    handleDecline(request);
-  }}
->
-  Decline
-</button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="emptyState">No pending requests.</div>
-                )}
+            <div>
+              <div className="friendNameRow">
+                <div className="friendName">{request.username}</div>
+                <img
+                  className="friendRankBadge"
+                  src={getRankImage(getDisplayRank(request))}
+                  alt={getDisplayRank(request)}
+                />
               </div>
+
+              <div className="friendSub">
+                {request.wins} wins • {request.winRate}% WR
+              </div>
+
+{request.requestMessage && (
+  <button
+    type="button"
+    className="requestMessagePreview requestMessagePreviewButton"
+    onClick={(e) => {
+      e.stopPropagation();
+      setMessageRequestTarget(request);
+    }}
+    title="View full message"
+  >
+    <span className="requestMessageLabel">Message:</span>
+    “{request.requestMessage.length > 80
+      ? `${request.requestMessage.slice(0, 80)}...`
+      : request.requestMessage}”
+  </button>
+)}
+            </div>
+          </div>
+
+          <div className="friendActions">
+            <button
+              type="button"
+              className="acceptButton"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAccept(request);
+              }}
+            >
+              Accept
+            </button>
+
+            <button
+              type="button"
+              className="declineButton"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDecline(request);
+              }}
+            >
+              Decline
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {tribeRequests.length > 0 && (
+        <div className="requestSectionLabel">Tribe Requests</div>
+      )}
+
+      {tribeRequests.map((request) => (
+        <div className="friendRow" key={`tribe-${request.id}`}>
+          <div className="friendLeft">
+            <div className="friendAvatar">
+              {request.senderAvatarData ? (
+                <img
+                  src={request.senderAvatarData}
+                  alt={request.senderUsername}
+                />
+              ) : (
+                <span>
+                  {request.senderUsername?.[0]?.toUpperCase() || "?"}
+                </span>
+              )}
+            </div>
+
+            <div>
+              <div className="friendNameRow">
+                <div className="friendName">{request.tribeName}</div>
+                
+              </div>
+
+              <div className="friendSub">
+                Invited by {request.senderUsername}
+              </div>
+            </div>
+          </div>
+
+          <div className="friendActions">
+            <button
+              type="button"
+              className="acceptButton"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAcceptTribeRequest(request);
+              }}
+            >
+              Accept
+            </button>
+
+            <button
+              type="button"
+              className="declineButton"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeclineTribeRequest(request);
+              }}
+            >
+              Decline
+            </button>
+          </div>
+        </div>
+      ))}
+    </>
+  ) : (
+    <div className="emptyState">No pending requests.</div>
+  )}
+</div>
 
               {message && <div className="statusMessage success">{message}</div>}
               {error && <div className="statusMessage error">{error}</div>}
@@ -1427,83 +1544,51 @@ onClick={async () => {
               {error && <div className="statusMessage error">{error}</div>}
             </div>
           )}
-        {activeView === "tribeRequests" && (
-  <div className="friendsPanel listPanel requestFull">
-    <div className="panelHeader">
-      <div>
-        <div className="miniLabel">Pending</div>
-        <h2>Tribe Requests</h2>
-      </div>
-    </div>
 
-    <div className="friendsList requestScroll">
-    {isLoading && !hasLoadedOnce ? (
-  <div className="emptyState">Loading tribe requests...</div>
-) : tribeRequests.length > 0 ? (
-        tribeRequests.map((request) => (
-          <div className="friendRow" key={request.id}>
-            <div className="friendLeft">
-              <div className="friendAvatar">
-                {request.senderAvatarData ? (
-                  <img
-                    src={request.senderAvatarData}
-                    alt={request.senderUsername}
-                  />
-                ) : (
-                  <span>
-                    {request.senderUsername?.[0]?.toUpperCase() || "?"}
-                  </span>
-                )}
-              </div>
-
-              <div>
-                <div className="friendNameRow">
-                  <div className="friendName">{request.tribeName}</div>
-                </div>
-
-                <div className="friendSub">
-                  Invited by {request.senderUsername}
-                </div>
-              </div>
-            </div>
-
-            <div className="friendActions">
-              <button
-                type="button"
-                className="acceptButton"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleAcceptTribeRequest(request);
-                }}
-              >
-                Accept
-              </button>
-
-              <button
-                type="button"
-                className="declineButton"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeclineTribeRequest(request);
-                }}
-              >
-                Decline
-              </button>
-            </div>
-          </div>
-        ))
-      ) : (
-        <div className="emptyState">No pending tribe requests.</div>
-      )}
-    </div>
-
-    {message && <div className="statusMessage success">{message}</div>}
-    {error && <div className="statusMessage error">{error}</div>}
-  </div>
-)}
         
         </main>
       </div>
+
+      {messageRequestTarget && (
+  <div className="confirmModal">
+    <div
+      className="confirmOverlay"
+      onClick={() => setMessageRequestTarget(null)}
+    />
+
+    <div className="confirmCard messageRequestFullCard">
+      <div className="miniLabel">Message Request</div>
+
+      <h3>{messageRequestTarget.username}</h3>
+
+      <div className="messageRequestFullText">
+        {messageRequestTarget.requestMessage}
+      </div>
+
+      <div className="confirmActions">
+        <button
+          type="button"
+          className="declineButton"
+          onClick={() => setMessageRequestTarget(null)}
+        >
+          Close
+        </button>
+
+        <button
+          type="button"
+          className="acceptButton"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleAccept(messageRequestTarget);
+            setMessageRequestTarget(null);
+          }}
+        >
+          Accept
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {declineTarget && (
   <div className="confirmModal">
@@ -1715,6 +1800,63 @@ onClick={async () => {
   color: #fff2d2 !important;
 }
 
+.requestSectionLabel {
+  margin: 6px 2px 2px;
+  padding: 6px 10px;
+  width: fit-content;
+  border-radius: 999px;
+  background: rgba(224, 171, 63, 0.14);
+  border: 1px solid rgba(224, 171, 63, 0.22);
+  color: #e0ab3f;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.requestTypePill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(143, 199, 255, 0.16);
+  border: 1px solid rgba(143, 199, 255, 0.28);
+  color: #b8d9ff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.requestMessagePreviewButton {
+  display: block;
+  width: fit-content;
+  max-width: 440px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.requestMessagePreviewButton:hover {
+  transform: translateY(-1px);
+  border-color: rgba(224, 171, 63, 0.42);
+  background: rgba(255, 242, 196, 0.18);
+}
+
+.messageRequestFullCard {
+  max-width: 520px;
+}
+
+.messageRequestFullText {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 242, 196, 0.12);
+  border: 1px solid rgba(214, 168, 79, 0.24);
+  color: #f5e7c6;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .searchInput {
   background: rgba(28, 24, 18, 0.88) !important;
   color: #f5e7c6 !important;
@@ -1744,6 +1886,28 @@ onClick={async () => {
 .backButton {
   background: linear-gradient(180deg, rgba(112, 83, 36, 0.95), rgba(82, 61, 27, 0.95)) !important;
   color: #fff2d2 !important;
+}
+
+.requestMessagePreview {
+  margin-top: 8px;
+  max-width: 440px;
+  padding: 9px 11px;
+  border-radius: 13px;
+  background: rgba(255, 242, 196, 0.12);
+  border: 1px solid rgba(214, 168, 79, 0.24);
+  color: #f5e7c6;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 8px 18px rgba(0, 0, 0, 0.08);
+}
+
+.requestMessageLabel {
+  display: inline-block;
+  margin-right: 6px;
+  font-weight: 900;
+  color: #e0ab3f;
 }
 
 .declineButton,

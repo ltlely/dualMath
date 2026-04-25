@@ -44,6 +44,7 @@ const [tribeTab, setTribeTab] = useState("main");
 const [tribeActivity, setTribeActivity] = useState([]);
 const [kickTarget, setKickTarget] = useState(null);
 const [leaveTarget, setLeaveTarget] = useState(null);
+const CREATE_TRIBE_COST = 500;
 
 const loadTribeActivity = async (tribeId) => {
   if (!tribeId) {
@@ -193,47 +194,66 @@ if (nextTribe?.id) {
     loadTribe();
   }, [currentUser?.id]);
 
-  const handleCreateTribe = async () => {
-    clearStatus();
+const handleCreateTribe = async () => {
+  clearStatus();
 
-    const cleanName = tribeName.trim();
+  const cleanName = tribeName.trim();
+  const currentCoins = Number(currentUser?.coins ?? 0);
 
-    if (!cleanName) {
-      setError("Enter a tribe name.");
+  if (!cleanName) {
+    setError("Enter a tribe name.");
+    return;
+  }
+
+  if (cleanName.length < 3) {
+    setError("Tribe name must be at least 3 characters.");
+    return;
+  }
+
+  if (currentCoins < CREATE_TRIBE_COST) {
+    setError(`You need ${CREATE_TRIBE_COST} coins to create a tribe.`);
+    return;
+  }
+
+  try {
+    setCreating(true);
+
+    const result = await userManager.createTribe({
+      ownerId: currentUser.id,
+      name: cleanName,
+    });
+
+    if (!result?.success) {
+      setError(result?.message || "Could not create tribe.");
       return;
     }
 
-    if (cleanName.length < 3) {
-      setError("Tribe name must be at least 3 characters.");
-      return;
+    const updatedUser = {
+      ...currentUser,
+      coins: currentCoins - CREATE_TRIBE_COST,
+    };
+
+    const saveResult = await userManager.saveUser(updatedUser);
+
+    if (!saveResult?.success) {
+      setError("Tribe created, but coins could not be updated.");
+    } else {
+      onUserUpdate?.(saveResult.user || updatedUser);
     }
 
-    try {
-      setCreating(true);
+    setTribeName("");
+    setMessage(`Tribe created. ${CREATE_TRIBE_COST} coins spent.`);
+    await loadTribe();
 
-      const result = await userManager.createTribe({
-        ownerId: currentUser.id,
-        name: cleanName,
-      });
-
-      if (!result?.success) {
-        setError(result?.message || "Could not create tribe.");
-        return;
-      }
-
-      setTribeName("");
-      setMessage("Tribe created.");
-      await loadTribe();
-
-      const freshUser = await userManager.getCurrentUser?.();
-      if (freshUser) onUserUpdate?.(freshUser);
-    } catch (err) {
-      console.error("createTribe error:", err);
-      setError("Could not create tribe.");
-    } finally {
-      setCreating(false);
-    }
-  };
+    const freshUser = await userManager.getCurrentUser?.();
+    if (freshUser) onUserUpdate?.(freshUser);
+  } catch (err) {
+    console.error("createTribe error:", err);
+    setError("Could not create tribe.");
+  } finally {
+    setCreating(false);
+  }
+};
 
 const handleAddMember = async () => {
   clearStatus();
@@ -471,6 +491,26 @@ const confirmLeaveTribe = async () => {
   });
 };
 
+function formatTrackRecordTime(value) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  const datePart = date.toLocaleDateString([], {
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const timePart = date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  return `${datePart}, ${timePart}`;
+}
+
 function formatTribeActivity(item) {
   const action = String(item?.action || "");
   const actor = item?.actorUsername || "Someone";
@@ -517,6 +557,73 @@ function formatTribeActivity(item) {
   return item?.details || `${actor} ${action.replaceAll("_", " ")}`;
 }
 
+function getMemberStatus(member) {
+  const rawStatus = String(member?.status || "").toLowerCase();
+
+  if (rawStatus === "in_match") return "in_match";
+  if (rawStatus === "in_room") return "in_room";
+
+  const lastSeenValue =
+    member?.last_active ||
+    member?.lastActive;
+
+  if (!lastSeenValue) return "offline";
+
+  const diff = Date.now() - new Date(lastSeenValue).getTime();
+
+  if (diff < 45000) return "online";
+
+  return "offline";
+}
+
+function getMemberStatusLabel(member) {
+  const status = getMemberStatus(member);
+
+  if (status === "in_match") return "In Match";
+  if (status === "in_room") return "In Room";
+  if (status === "online") return "Online";
+
+  return "Offline";
+}
+
+function getMemberStatusPriority(member) {
+  const status = getMemberStatus(member);
+
+  if (status === "online") return 4;
+  if (status === "in_room") return 3;
+  if (status === "in_match") return 2;
+
+  return 0;
+}
+
+const sortedMembers = [...members].sort((a, b) => {
+  const aIsSelf = String(a.user_id) === String(currentUser?.id);
+  const bIsSelf = String(b.user_id) === String(currentUser?.id);
+
+  // Keep yourself at the very top.
+  if (aIsSelf && !bIsSelf) return -1;
+  if (!aIsSelf && bIsSelf) return 1;
+
+  // Then online / in-room / in-match members.
+  const statusDiff = getMemberStatusPriority(b) - getMemberStatusPriority(a);
+  if (statusDiff !== 0) return statusDiff;
+
+  // Then owner/officer/member.
+  const rolePriority = {
+    owner: 3,
+    officer: 2,
+    member: 1,
+  };
+
+  const roleDiff =
+    (rolePriority[b.role] || 0) - (rolePriority[a.role] || 0);
+
+  if (roleDiff !== 0) return roleDiff;
+
+  // Then alphabetically.
+  return String(a.username || "").localeCompare(String(b.username || ""));
+});
+
   return (
     <div className="tribeModalOverlay">
       <div className="tribeModalBackdrop" onClick={onClose} />
@@ -562,8 +669,20 @@ function formatTribeActivity(item) {
                 onClick={handleCreateTribe}
                 disabled={creating}
               >
-                {creating ? "Creating..." : "Create Tribe"}
+               {creating ? (
+  "Creating..."
+) : (
+  <span className="tribeCreateCostLabel">
+    Create Tribe requires
+    <img className="tribeCoinIcon" src="/coin.png" alt="Coins" />
+    {CREATE_TRIBE_COST}
+  </span>
+)}
               </button>
+
+              {message && <div className="statusMessage success createTribeStatus">{message}</div>}
+{error && <div className="statusMessage error createTribeStatus">{error}</div>}
+
             </div>
           ) : (
 <>
@@ -576,6 +695,7 @@ function formatTribeActivity(item) {
         {isOwner ? "Owner" : isOfficer ? "Officer" : "Member"}
       </p>
     </div>
+ 
   </div>
 
   <div className="tribeTabs">
@@ -603,7 +723,7 @@ function formatTribeActivity(item) {
     </div>
 
     <div className="tribeMemberList tribeMemberListTall">
-      {members.map((member) => {
+{sortedMembers.map((member) => {
         const memberIsOwner = member.role === "owner";
         const memberIsSelf =
           String(member.user_id) === String(currentUser.id);
@@ -631,6 +751,11 @@ function formatTribeActivity(item) {
   onClick={() => openMemberProfile(member)}
   title={`View ${member.username || "user"}'s profile`}
 >
+  <span
+    className={`tribeStatusDot ${getMemberStatus(member)}`}
+    title={getMemberStatusLabel(member)}
+  />
+
   <span>{member.username || "Unknown"}</span>
 
   <img
@@ -643,9 +768,9 @@ function formatTribeActivity(item) {
   {memberIsSelf && <span className="tribeSelfTag">You</span>}
 </button>
 
-                <div className="tribeMemberSub">
-                  {member.role || "member"} • {member.rankPoints ?? 0} RP
-                </div>
+<div className="tribeMemberSub">
+  {member.role || "member"} • {member.rankPoints ?? 0} RP 
+</div>
               </div>
             </div>
 
@@ -801,11 +926,9 @@ function formatTribeActivity(item) {
   {formatTribeActivity(item)}
 </div>
 
-            <div className="tribeHistoryTime">
-              {item.createdAt
-                ? new Date(item.createdAt).toLocaleString()
-                : ""}
-            </div>
+<div className="tribeHistoryTime">
+  {formatTrackRecordTime(item.createdAt)}
+</div>
           </div>
         ))
       ) : (
@@ -893,13 +1016,17 @@ function formatTribeActivity(item) {
   </div>
 )}
 
-          {message && <div className="statusMessage success">{message}</div>}
-          {error && <div className="statusMessage error">{error}</div>}
         </div>
       </div>
 
       <style>{`
 
+.createTribeStatus {
+  margin: 10px auto 0 !important;
+  width: fit-content !important;
+  max-width: min(100%, 420px) !important;
+  text-align: center !important;
+}
 
       .tribeActionsBottom {
   display: flex;
@@ -939,6 +1066,19 @@ function formatTribeActivity(item) {
   background: rgba(22, 17, 12, 0.48);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+}
+
+.tribeCreateCostText {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.tribeCoinIcon.small {
+  width: 16px;
+  height: 16px;
 }
 
 .tribeConfirmCard {
@@ -1016,6 +1156,23 @@ function formatTribeActivity(item) {
 .tribeCreateCard .heroMuted {
   text-align: center;
   width: 100%;
+}
+
+.tribeCreateCostLabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.tribeCoinIcon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  display: inline-block;
+  filter:
+    drop-shadow(0 0 3px rgba(255, 219, 120, 0.75))
+    drop-shadow(0 0 4px rgba(255, 184, 59, 0.35));
 }
 
 .tribeCreateCard .heroMuted {
@@ -1141,6 +1298,54 @@ function formatTribeActivity(item) {
   max-height: none;
   overflow-y: auto;
   padding-right: 4px;
+}
+
+.tribeStatusDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  display: inline-block;
+}
+
+.tribeStatusDot.online {
+  background: #62c96f;
+  box-shadow: 0 0 10px rgba(98, 201, 111, 0.7);
+}
+
+.tribeStatusDot.in_room {
+  background: #e0ab3f;
+  box-shadow: 0 0 10px rgba(224, 171, 63, 0.65);
+}
+
+.tribeStatusDot.in_match {
+  background: #d96a6a;
+  box-shadow: 0 0 10px rgba(217, 106, 106, 0.65);
+}
+
+.tribeStatusDot.offline {
+  background: #b9aa93;
+  box-shadow: none;
+}
+
+.tribeStatusText {
+  font-weight: 900;
+}
+
+.tribeStatusText.online {
+  color: #2f8f48;
+}
+
+.tribeStatusText.in_room {
+  color: #9b6a17;
+}
+
+.tribeStatusText.in_match {
+  color: #a34444;
+}
+
+.tribeStatusText.offline {
+  color: #8a684b;
 }
 
 .tribeRightPanelCard {
@@ -2672,6 +2877,14 @@ function formatTribeActivity(item) {
 
 .tribeHistoryRow {
   flex: 0 0 auto !important;
+}
+
+.tribeMemberRow:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.42) !important;
+}
+
+.tribeMemberRow:nth-child(even) {
+  background: rgba(255, 244, 218, 0.52) !important;
 }
 
       `}</style>

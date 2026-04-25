@@ -28,19 +28,27 @@ export default function Profile({
   onClose,
   onProfileSaved,
    onInviteToTribe,
+   onMessageUser,
 }) {
   const [statusText, setStatusText] = useState(profileUser?.profileStatus || "");
   const [isSavingStatus, setIsSavingStatus] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isEditingStatus, setIsEditingStatus] = useState(false);
-const [isFriend, setIsFriend] = useState(profileUser?.isFriend === true);
+const [isFriend, setIsFriend] = useState(
+  typeof profileUser?.isFriend === "boolean" ? profileUser.isFriend : false
+);
 const [friendRequestSent, setFriendRequestSent] = useState(
   profileUser?.friendRequestSent === true
 );
 const [isBlocked, setIsBlocked] = useState(
   profileUser?.isBlocked === true || profileUser?.isBlockedByMe === true
 );
+const [isRelationshipLoading, setIsRelationshipLoading] = useState(false);
+const [messageButtonState, setMessageButtonState] = useState("");
+const [showMessageRequestPopup, setShowMessageRequestPopup] = useState(false);
+const [messageRequestText, setMessageRequestText] = useState("");
+const [isSendingMessageRequest, setIsSendingMessageRequest] = useState(false);
 const [isActionLoading, setIsActionLoading] = useState(false);
 const DEFAULT_PROFILE_BG = "#dbdbdb";
 const DEFAULT_PROFILE_TEXT = "#5f4c79";
@@ -64,20 +72,37 @@ const [currentUserTribeRole, setCurrentUserTribeRole] = useState(
   profileUser?.currentUserTribeRole || null
 );
 
+
 const [isLoadingCurrentUserTribe, setIsLoadingCurrentUserTribe] = useState(
   !profileUser?.currentUserTribe && !profileUser?.currentUserTribeRole
 );
 
+const isOwner = useMemo(() => {
+  return !!currentUser?.id && currentUser.id === profileUser?.id;
+}, [currentUser?.id, profileUser?.id]);
+
 useEffect(() => {
-  setProfileTribe(profileUser?.profileTribe || null);
-  setCurrentUserTribe(profileUser?.currentUserTribe || null);
-  setCurrentUserTribeRole(profileUser?.currentUserTribeRole || null);
   setTribeInviteSent(profileUser?.tribeInviteSent === true);
+
+  // Only overwrite currentUserTribe if Profile was actually given tribe data.
+  // Do NOT reset it to null while getMyTribe() is still loading.
+  if (profileUser?.currentUserTribe) {
+    setCurrentUserTribe(profileUser.currentUserTribe);
+  }
+
+  if (profileUser?.currentUserTribeRole) {
+    setCurrentUserTribeRole(profileUser.currentUserTribeRole);
+  }
+
+  if (!isOwner) {
+    setProfileTribe(profileUser?.profileTribe || null);
+  }
 
   if (profileUser?.currentUserTribe || profileUser?.currentUserTribeRole) {
     setIsLoadingCurrentUserTribe(false);
   }
 }, [
+  isOwner,
   profileUser?.id,
   profileUser?.profileTribe,
   profileUser?.currentUserTribe,
@@ -85,13 +110,96 @@ useEffect(() => {
   profileUser?.tribeInviteSent,
 ]);
 
-useEffect(() => {
-  const nextIsFriend = profileUser?.isFriend === true;
+const handleSendMessageRequest = async () => {
+  if (!currentUser?.id || !profileUser?.username || isOwner || isBlocked) return;
 
-  setIsFriend(nextIsFriend);
-  setFriendRequestSent(
-    nextIsFriend ? false : profileUser?.friendRequestSent === true
-  );
+  const trimmed = messageRequestText.trim();
+
+  if (!trimmed) {
+    setError("Write a message before sending.");
+    return;
+  }
+
+  setIsSendingMessageRequest(true);
+  setMessage("");
+  setError("");
+
+  try {
+    const result = await userManager.sendFriendRequest(
+      currentUser.id,
+      profileUser.username,
+      trimmed
+    );
+
+    if (!result?.success) {
+      setError(result?.message || "Could not send message request.");
+      return;
+    }
+
+    setFriendRequestSent(true);
+    setMessageButtonState("requested");
+    setShowMessageRequestPopup(false);
+    setMessageRequestText("");
+    setMessage("Message request sent.");
+
+    onProfileSaved?.({
+      ...profileUser,
+      friendRequestSent: true,
+    });
+  } catch (err) {
+    console.error("handleSendMessageRequest error:", err);
+    setError("Could not send message request.");
+  } finally {
+    setIsSendingMessageRequest(false);
+  }
+};
+
+const handleMessageButton = () => {
+  if (!currentUser?.id || !profileUser?.id || isOwner || isBlocked) return;
+
+  setMessage("");
+  setError("");
+
+  // If already friends, open normal FriendList chat
+  if (isFriend) {
+    setMessageButtonState("sent");
+    onMessageUser?.(profileUser);
+
+    setTimeout(() => {
+      onClose?.();
+    }, 300);
+
+    return;
+  }
+
+  // If request already sent, do NOT open popup again
+  if (friendRequestSent || messageButtonState === "requested") {
+    setMessageButtonState("requested");
+    setMessage("Message request already sent.");
+    return;
+  }
+
+  // Non-friend default behavior: open popup first
+  setShowMessageRequestPopup(true);
+};
+
+
+
+useEffect(() => {
+  // Only trust profileUser.isFriend if App actually passed a real boolean.
+  // Do not force false when it is undefined, because that causes Remove Friend -> Add Friend glitch.
+  if (typeof profileUser?.isFriend === "boolean") {
+    setIsFriend(profileUser.isFriend);
+
+    if (profileUser.isFriend) {
+      setFriendRequestSent(false);
+    } else {
+      setFriendRequestSent(profileUser?.friendRequestSent === true);
+    }
+  } else if (profileUser?.friendRequestSent === true) {
+    setFriendRequestSent(true);
+  }
+
   setIsBlocked(
     profileUser?.isBlocked === true || profileUser?.isBlockedByMe === true
   );
@@ -102,6 +210,9 @@ useEffect(() => {
   profileUser?.isBlocked,
   profileUser?.isBlockedByMe,
 ]);
+
+
+
 
 useEffect(() => {
   if (!isEditingStatus) return;
@@ -210,6 +321,12 @@ useEffect(() => {
       return;
     }
 
+    // For my own profile, do not fetch/set profileTribe here.
+    // The badge will use currentUserTribe directly.
+    if (isOwner) {
+      return;
+    }
+
     if (profileUser?.profileTribe) {
       if (!ignore) setProfileTribe(profileUser.profileTribe);
       return;
@@ -219,7 +336,7 @@ useEffect(() => {
       const result = await userManager.getUserTribeBadge(profileUser.id);
 
       if (!ignore) {
-        setProfileTribe((prev) => prev || result?.tribe || null);
+        setProfileTribe(result?.tribe || null);
       }
     } catch (err) {
       console.error("Could not load profile tribe:", err);
@@ -232,7 +349,13 @@ useEffect(() => {
   return () => {
     ignore = true;
   };
-}, [profileUser?.id, profileUser?.profileTribe]);
+}, [
+  isOwner,
+  profileUser?.id,
+  profileUser?.profileTribe,
+]);
+
+
 
 const resetThemeToDefault = () => {
   setBgColor(DEFAULT_PROFILE_BG);
@@ -267,13 +390,17 @@ useEffect(() => {
   const loadRelationshipState = async () => {
     if (!currentUser?.id || !profileUser?.id || currentUser.id === profileUser.id) {
       if (!ignore) {
-        setIsFriend(false);
+        setIsRelationshipLoading(false);
         setIsBlocked(false);
       }
       return;
     }
 
-    try {
+try {
+  if (!ignore && typeof profileUser?.isFriend !== "boolean") {
+    setIsRelationshipLoading(true);
+  }
+
       const [friendsResult, blockedResult] = await Promise.all([
         userManager.getFriends(currentUser.id),
         userManager.getBlockedUsers(currentUser.id),
@@ -281,32 +408,36 @@ useEffect(() => {
 
       const friendsData = Array.isArray(friendsResult)
         ? friendsResult
-        : (friendsResult?.data || []);
+        : friendsResult?.data || [];
 
       const blockedData = blockedResult || [];
 
+      const nextIsFriend = friendsData.some(
+        (user) => String(user.id) === String(profileUser.id)
+      );
+
+      const nextIsBlocked = blockedData.some(
+        (user) => String(user.id) === String(profileUser.id)
+      );
+
       if (!ignore) {
-const nextIsFriend = friendsData.some(
-  (user) => String(user.id) === String(profileUser.id)
-);
-
-setIsFriend(nextIsFriend);
-if (nextIsFriend) setFriendRequestSent(false);
-
-setIsBlocked(
-  blockedData.some((user) => String(user.id) === String(profileUser.id))
-);
+        setIsFriend(nextIsFriend);
+        setFriendRequestSent(nextIsFriend ? false : profileUser?.friendRequestSent === true);
+        setIsBlocked(nextIsBlocked);
       }
     } catch (err) {
       console.error("Failed to load relationship state:", err);
+    } finally {
+      if (!ignore) setIsRelationshipLoading(false);
     }
   };
 
   loadRelationshipState();
+
   return () => {
     ignore = true;
   };
-}, [currentUser?.id, profileUser?.id]);
+}, [currentUser?.id, profileUser?.id, profileUser?.friendRequestSent]);
 
 
 useEffect(() => {
@@ -316,10 +447,13 @@ useEffect(() => {
   setBgColor(profileUser?.profileBgColor || DEFAULT_PROFILE_BG);
   setTextColor(profileUser?.profileTextColor || DEFAULT_PROFILE_TEXT);
 
-  // Only reset editing when switching to a different profile
   setIsEditingStatus(false);
   setMessage("");
   setError("");
+  setMessageButtonState("");
+  setShowMessageRequestPopup(false);
+  setMessageRequestText("");
+  setIsSendingMessageRequest(false);
 }, [
   profileUser?.id,
   profileUser?.profileStatus,
@@ -327,15 +461,15 @@ useEffect(() => {
   profileUser?.profileTextColor,
 ]);
 
-const isOwner = useMemo(() => {
-  return !!currentUser?.id && currentUser.id === profileUser?.id;
-}, [currentUser?.id, profileUser?.id]);
+
+const displayedTribe = isOwner
+  ? currentUserTribe || profileUser?.profileTribe || profileUser?.tribe || null
+  : profileTribe || profileUser?.profileTribe || profileUser?.tribe || null;
 
 const targetTribeName =
-  profileTribe?.name ||
+  displayedTribe?.name ||
   profileUser?.tribeName ||
   profileUser?.tribe_name ||
-  profileUser?.tribe?.name ||
   "";
 
 const targetTribeLabel = targetTribeName || "No Tribe";
@@ -479,6 +613,8 @@ const handleInviteToTribe = async () => {
   }
 };
 
+
+
 const handleToggleFriend = async () => {
   if (!currentUser?.id || !profileUser?.id || currentUser.id === profileUser.id) return;
 
@@ -488,46 +624,48 @@ const handleToggleFriend = async () => {
   setError("");
   setIsActionLoading(true);
 
-  // Update UI immediately
-  setIsFriend(!wasFriend);
-
   try {
     if (wasFriend) {
+      setIsFriend(false);
+      setFriendRequestSent(false);
+
       const result = await userManager.removeFriend(currentUser.id, profileUser.id);
 
       if (!result?.success) {
-        setIsFriend(wasFriend);
+        setIsFriend(true);
         setError(result?.message || "Could not remove friend.");
         return;
       }
 
       setMessage(`${profileUser.username} removed from friends.`);
-    } else {
-      const result = await userManager.sendFriendRequest(
-        currentUser.id,
-        profileUser.username
-      );
 
-      if (!result?.success) {
-        setIsFriend(wasFriend);
-        setError(result?.message || "Could not send friend request.");
-        return;
-      }
+      onProfileSaved?.({
+        ...profileUser,
+        isFriend: false,
+        friendRequestSent: false,
+      });
 
-      // If this is only a request, keep button as Add Friend unless your backend instantly creates friendship.
-      setIsFriend(false);
-setFriendRequestSent(true);
-setMessage(result.message || "Friend request sent.");
+      return;
     }
 
-    // Sync parent/list after action, but don't block button feedback
+    const result = await userManager.sendFriendRequest(
+      currentUser.id,
+      profileUser.username
+    );
+
+    if (!result?.success) {
+      setError(result?.message || "Could not send friend request.");
+      return;
+    }
+
+    setIsFriend(false);
+    setFriendRequestSent(true);
+    setMessage(result.message || "Friend request sent.");
+
     onProfileSaved?.({
       ...profileUser,
-      isFriend: wasFriend ? false : isFriend,
-    });
-
-    refreshProfileRelationship().catch((err) => {
-      console.error("refreshProfileRelationship after friend toggle failed:", err);
+      isFriend: false,
+      friendRequestSent: true,
     });
   } catch (err) {
     console.error("handleToggleFriend error:", err);
@@ -639,22 +777,74 @@ style={{
 
   <span className="profileRankName">{rank}</span>
 
-{targetTribeName && (
-  <div className="profileTribeBadge" title={targetTribeName}>
-    <span className="profileTribeName">{targetTribeName}</span>
-  </div>
-)}
+  {!isOwner && (
+    <button
+      type="button"
+      className={`profileMessageIconButton ${
+        messageButtonState === "sent" ? "messageSentState" : ""
+      } ${
+        messageButtonState === "requested" || friendRequestSent
+          ? "messageRequestedState"
+          : ""
+      }`}
+      onClick={handleMessageButton}
+      disabled={
+        isActionLoading ||
+        isBlocked ||
+        messageButtonState === "sent" ||
+        messageButtonState === "requested" ||
+        friendRequestSent
+      }
+      title={
+        messageButtonState === "sent"
+          ? "Sent"
+          : messageButtonState === "requested" || friendRequestSent
+          ? "Requested"
+          : "Message"
+      }
+    >
+      <img
+        src="/messageIcon.png"
+        alt={
+          messageButtonState === "sent"
+            ? "Sent"
+            : messageButtonState === "requested" || friendRequestSent
+            ? "Requested"
+            : "Message"
+        }
+        className="profileMessageIconImg"
+      />
+    </button>
+  )}
+
+  {targetTribeName && (
+    <div className="profileTribeBadge" title={targetTribeName}>
+      <span className="profileTribeName">{targetTribeName}</span>
+    </div>
+  )}
 </div>
 
 {!isOwner && (
   <div className="profileActionRow">
+
 <button
   type="button"
   className="profileActionButton friend"
   onClick={handleToggleFriend}
-  disabled={isActionLoading || isBlocked || (!isFriend && friendRequestSent)}
+  disabled={
+    isRelationshipLoading ||
+    isActionLoading ||
+    isBlocked ||
+    (!isFriend && friendRequestSent)
+  }
 >
-  {isFriend ? "Remove Friend" : friendRequestSent ? "Request Sent" : "Add Friend"}
+  {isRelationshipLoading
+    ? "Checking..."
+    : isFriend
+    ? "Remove Friend"
+    : friendRequestSent
+    ? "Request Sent"
+    : "Add Friend"}
 </button>
 {!targetAlreadyInTribe && !isLoadingCurrentUserTribe && canCurrentUserInviteToTribe && (
   <button
@@ -813,7 +1003,8 @@ style={{
     {shownStatus}
   </div>
 )}
-    
+
+
 </div>
           </div>
         </div>
@@ -843,13 +1034,153 @@ style={{
   </div>
 </div>
       </div>
+{showMessageRequestPopup && (
+  <div
+    className="messageRequestOverlay"
+    onClick={() => setShowMessageRequestPopup(false)}
+  >
+    <div
+      className="messageRequestModal"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="miniLabel">Message Request</div>
 
+      <h3>Send a message to {profileUser?.username}</h3>
+
+      <p>
+        You are not friends yet. Send a short message with your friend request.
+      </p>
+
+      <textarea
+        className="messageRequestTextarea"
+        value={messageRequestText}
+        maxLength={180}
+        placeholder="Write a quick message..."
+        onChange={(e) => setMessageRequestText(e.target.value)}
+      />
+
+      <div className="messageRequestCount">
+        {messageRequestText.length}/180
+      </div>
+
+      <div className="messageRequestActions">
+        <button
+          type="button"
+          className="declineButton"
+          onClick={() => {
+            setShowMessageRequestPopup(false);
+            setMessageRequestText("");
+          }}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          className="acceptButton"
+          onClick={handleSendMessageRequest}
+          disabled={isSendingMessageRequest || !messageRequestText.trim()}
+        >
+          {isSendingMessageRequest ? "Sending..." : "Send"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
      <style>{`
+.profileActionButton.message.messageSentState,
+.profileActionButton.message.messageSentState:disabled {
+  color: rgba(61, 42, 18, 0.55) !important;
+  opacity: 0.8 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  filter: grayscale(0.15) !important;
+}
+
+.profileActionButton.message.messageRequestedState,
+.profileActionButton.message.messageRequestedState:disabled {
+  background: linear-gradient(180deg, #8fc7ff, #3f8fe8) !important;
+  color: rgba(8, 39, 80, 0.72) !important;
+  border: 1px solid rgba(40, 103, 178, 0.34) !important;
+  box-shadow:
+    0 10px 22px rgba(63, 143, 232, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.38) !important;
+  opacity: 0.8 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  filter: grayscale(0.15) !important;
+}
+
+.profileActionButton.message.messageSentState:hover,
+.profileActionButton.message.messageSentState:disabled:hover,
+.profileActionButton.message.messageRequestedState:hover,
+.profileActionButton.message.messageRequestedState:disabled:hover {
+  transform: none !important;
+  filter: grayscale(0.15) !important;
+}
+
+.messageRequestModal {
+  width: min(420px, calc(100vw - 32px));
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(255, 253, 244, 0.94);
+  border: 1px solid rgba(143, 106, 45, 0.25);
+  box-shadow: 0 24px 70px rgba(61, 42, 18, 0.28);
+}
+
+.messageRequestModal h3 {
+  margin: 6px 0 8px;
+  color: #3d2a12;
+}
+
+.messageRequestModal p {
+  margin: 0 0 14px;
+  color: rgba(61, 42, 18, 0.72);
+  font-size: 0.92rem;
+}
+
+.messageRequestTextarea {
+  width: 100%;
+  min-height: 110px;
+  resize: none;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(143, 106, 45, 0.28);
+  background: rgba(255, 255, 255, 0.72);
+  color: #3d2a12;
+  outline: none;
+}
+
+.messageRequestTextarea:focus {
+  border-color: rgba(214, 168, 79, 0.8);
+  box-shadow: 0 0 0 4px rgba(214, 168, 79, 0.16);
+}
+
+.messageRequestCount {
+  margin-top: 6px;
+  text-align: right;
+  font-size: 0.78rem;
+  color: rgba(61, 42, 18, 0.55);
+}
+
+.messageRequestActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
 
  .profileActionButton.tribe {
   background: linear-gradient(180deg, #ffe9b8, #dca95a);
   color: #5a3817;
   border: 1px solid rgba(224, 171, 63, 0.34);
+}
+
+.profileActionButton.message:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+  filter: grayscale(0.12);
 }
 
 .profileActionButton.tribe:disabled {
@@ -876,6 +1207,149 @@ style={{
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.profileMessageIconButton {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 5px 5.76px 5px 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(122, 87, 30, 0.25);
+  background: linear-gradient(180deg, #8fc7ff, #627fa0);
+  cursor: pointer;
+  box-shadow:
+    0 8px 18px rgba(214, 168, 79, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition:
+    transform 0.16s ease,
+    filter 0.16s ease,
+    box-shadow 0.16s ease;
+}
+.messageRequestActions .declineButton,
+.messageRequestActions .acceptButton {
+  min-width: 112px;
+  height: 42px;
+  border-radius: 999px;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  transition:
+    transform 0.16s ease,
+    filter 0.16s ease,
+    box-shadow 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.messageRequestActions .declineButton {
+  background: rgba(255, 255, 255, 0.78);
+  color: #6b4a22;
+  border: 1px solid rgba(143, 106, 45, 0.24);
+  box-shadow:
+    0 8px 18px rgba(61, 42, 18, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.messageRequestActions .acceptButton {
+  background: linear-gradient(180deg, #ffe9b8, #dca95a);
+  color: #4a2d0f;
+  border: 1px solid rgba(224, 171, 63, 0.34);
+  box-shadow:
+    0 10px 22px rgba(214, 168, 79, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.messageRequestActions .declineButton:hover:not(:disabled),
+.messageRequestActions .acceptButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+
+.messageRequestActions .declineButton:active:not(:disabled),
+.messageRequestActions .acceptButton:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.messageRequestActions .acceptButton:disabled,
+.messageRequestActions .declineButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  filter: grayscale(0.15);
+}
+
+.messageRequestOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(16, 14, 24, 0.58);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.messageRequestModal {
+  position: relative;
+  z-index: 100000;
+  width: min(420px, calc(100vw - 32px));
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(255, 253, 244, 0.96);
+  border: 1px solid rgba(143, 106, 45, 0.25);
+  box-shadow: 0 24px 70px rgba(61, 42, 18, 0.34);
+}
+
+.profileMessageIconButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow:
+    0 10px 22px rgba(214, 168, 79, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.profileMessageIconButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.8;
+  transform: none;
+  filter: none;
+}
+
+.profileMessageIconButton:disabled .profileMessageIconImg {
+  filter: brightness(0) saturate(100%);
+}
+
+.profileMessageIconImg {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  filter: brightness(100%) saturate(10%) !important;
+}
+
+.profileMessageIconButton.messageRequestedState,
+.profileMessageIconButton.messageRequestedState:disabled {
+  background: linear-gradient(180deg, #8fc7ff, #3f8fe8) !important;
+  border: 1px solid rgba(40, 103, 178, 0.34) !important;
+  filter: none !important;
+}
+
+.profileMessageIconButton.messageRequestedState,
+.profileMessageIconButton.messageRequestedState:disabled {
+  background: linear-gradient(180deg, #8ab7e8, #4f8fce) !important;
+}
+
+.profileActionButton.message:disabled {
+  opacity: 0.8;
+  cursor: not-allowed;
+}
+
+.profileActionButton.message {
+  min-width: 120px;
 }
 
 .profileTribeBadge.noTribe {
@@ -1026,6 +1500,16 @@ style={{
 }
 
 .profileActionButton:hover {
+  transform: translateY(-1px);
+}
+
+.profileActionButton.message {
+  background: linear-gradient(135deg, #fff2c4, #d6a84f);
+  color: #3d2a12;
+  border: 1px solid rgba(122, 87, 30, 0.25);
+}
+
+.profileActionButton.message:hover:not(:disabled) {
   transform: translateY(-1px);
 }
 

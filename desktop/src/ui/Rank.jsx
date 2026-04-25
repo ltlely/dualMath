@@ -65,7 +65,10 @@ wins,
 }
 
 export default function Rank({ currentUser, onBack, onOpenProfile,  preloadedRankData, }) {
-const [players, setPlayers] = useState(() =>
+const [rankTab, setRankTab] = useState("players");
+const [tribes, setTribes] = useState([]);
+const [isTribeLoading, setIsTribeLoading] = useState(false);
+  const [players, setPlayers] = useState(() =>
   (preloadedRankData?.players || []).map(normalizePlayer)
 );
 
@@ -336,6 +339,60 @@ if (!fromLeaderboard) {
   };
 }, [currentUser, normalizedPlayers]);
 
+useEffect(() => {
+  let isMounted = true;
+
+  const loadTribeLeaderboard = async () => {
+    try {
+      setIsTribeLoading(true);
+
+      if (typeof userManager.getTribeLeaderboard !== "function") {
+        console.warn("getTribeLeaderboard is missing from userManager");
+        setTribes([]);
+        return;
+      }
+
+      const result = await userManager.getTribeLeaderboard(currentUser?.id);
+
+      if (!isMounted) return;
+
+      if (!result?.success) {
+        setTribes([]);
+        return;
+      }
+
+      setTribes(result.tribes || []);
+    } catch (err) {
+      console.error("Failed to load tribe leaderboard:", err);
+      if (isMounted) setTribes([]);
+    } finally {
+      if (isMounted) setIsTribeLoading(false);
+    }
+  };
+
+  loadTribeLeaderboard();
+
+  return () => {
+    isMounted = false;
+  };
+}, [currentUser?.id]);
+
+const tribeLeaderboard = useMemo(() => {
+  return [...tribes]
+    .filter((tribe) => Number(tribe.totalGames || 0) >= MIN_GAMES_FOR_RATIO)
+    .sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+      if (b.rankPoints !== a.rankPoints) return b.rankPoints - a.rankPoints;
+      return b.totalGames - a.totalGames;
+    })
+    .slice(0, 10);
+}, [tribes]);
+
+const myTribe = useMemo(() => {
+  return tribes.find((tribe) => tribe.isMyTribe) || null;
+}, [tribes]);
+
   return (
     <div className="rankShell">
       <div className="rankTopbar">
@@ -349,7 +406,25 @@ if (!fromLeaderboard) {
         </button>
       </div>
 
-      {me && (
+<div className="rankTabs">
+  <button
+    type="button"
+    className={`rankTab ${rankTab === "players" ? "active" : ""}`}
+    onClick={() => setRankTab("players")}
+  >
+    Players
+  </button>
+
+  <button
+    type="button"
+    className={`rankTab ${rankTab === "tribes" ? "active" : ""}`}
+    onClick={() => setRankTab("tribes")}
+  >
+    Tribes
+  </button>
+</div>
+
+      {rankTab === "players" && me && (
         <section className="mePanel">
           <div className="miniLabel">Your Stats</div>
           <div
@@ -369,114 +444,204 @@ if (!fromLeaderboard) {
               <div>
                 <div className="meName">{me.username}</div>
                 <div className="meSub">
-                  {me.wins} wins • {me.losses} losses • {me.winRate}% WR
+                  {me.wins} wins • {me.losses} losses
                 </div>
               </div>
             </div>
 
             <div className="meStats">
               <div className="statPill">
-                <span>Wins</span>
-                <strong>{me.wins}</strong>
-              </div>
-              <div className="statPill">
                 <span>Win Rate</span>
                 <strong>{me.winRate}%</strong>
               </div>
-              <div className="statPill">
-                <span>RP</span>
-                <strong>{me.rankPoints}</strong>
-              </div>
+             
             </div>
           </div>
         </section>
       )}
 
-      <div className="rankGrid singleColumn">
-        <section className="rankPanel">
-          <div className="panelHeader">
-            <div className="miniLabel">Leaderboard</div>
-            <h2>Top Players</h2>
+      {rankTab === "tribes" && myTribe && (
+  <section className="mePanel tribeMePanel">
+    <div className="miniLabel">Your Tribe</div>
+
+    <div className="meCard tribeMeCard">
+      <div className="meIdentity">
+        <div className="tribeLeaderAvatar tribeMeAvatar">
+          {myTribe.name?.[0]?.toUpperCase() || "?"}
+        </div>
+
+        <div>
+          <div className="meName">{myTribe.name}</div>
+          <div className="meSub">
+            {myTribe.memberCount} members
           </div>
+        </div>
+      </div>
 
-          <div className="leaderList">
-            {isLoading ? (
-              <div className="emptyState">Loading leaderboard...</div>
-            ) : leaderboard.length > 0 ? (
-              leaderboard.map((player, index) => (
-<div
-  className="leaderRow"
-  key={`leader-${player.id}`}
->
-  <div className="leaderLeft">
-    <div className="leaderPlace">#{index + 1}</div>
+      <div className="meStats">
+        
 
-    <button
-      type="button"
-      className={`leaderAvatar profileAvatarButton ${
-        !canOpenProfile(player) ? "leaderAvatarBlocked" : ""
-      }`}
-      onClick={(e) => handleOpenProfileSafe(e, player)}
-      disabled={!canOpenProfile(player)}
-      title={
-        canOpenProfile(player)
-          ? `View ${player.username}'s profile`
-          : "Profile unavailable"
-      }
-    >
-      {player.avatarData ? (
-        <img src={player.avatarData} alt={player.username} />
-      ) : (
-        <span>{player.username?.[0]?.toUpperCase() || "?"}</span>
-      )}
-    </button>
+        <div className="statPill">
+          <span>Win Rate</span>
+          <strong>{myTribe.winRate}%</strong>
+        </div>
 
-                    <div>
-                      <div className="leaderNameRow">
-                        <div className="leaderName">{player.username}</div>
+        <div className="statPill">
+          <span>Games</span>
+          <strong>{myTribe.totalGames}</strong>
+        </div>
 
-                        <img
-                          className="leaderRankIcon"
-                          src={getRankImage(userManager.getUserRank(player))}
-                          alt={userManager.getUserRank(player)}
-                        />
+      </div>
+    </div>
+  </section>
+)}
 
-                        {String(player.id) !== String(currentUser?.id) &&
-                          friendIds.includes(String(player.id)) && (
-                            <div className="friendBadge">Friend</div>
-                          )}
+{rankTab === "tribes" && !myTribe && !isTribeLoading && (
+  <section className="mePanel tribeMePanel">
+    <div className="miniLabel">Your Tribe</div>
+    <div className="meCard tribeMeCard">
+      <div className="emptyState smallEmptyState">
+        You are not in a tribe yet.
+      </div>
+    </div>
+  </section>
+)}
 
-                            {blockedUsers.some((blocked) => String(blocked.id) === String(player.id)) && (
-    <div className="blockedBadge">Blocked</div>
-  )}
-                      </div>
+<div className="rankGrid singleColumn">
+  {rankTab === "players" ? (
+    <section className="rankPanel">
+      <div className="panelHeader">
+        <div className="miniLabel">Leaderboard</div>
+        <h2>Top Players</h2>
+      </div>
 
-                      <div className="leaderSub">
-                        {player.totalGames} games • {player.rankPoints} RP
-                      </div>
-                    </div>
+      <div className="leaderList">
+        {isLoading ? (
+          <div className="emptyState">Loading leaderboard...</div>
+        ) : leaderboard.length > 0 ? (
+          leaderboard.map((player, index) => (
+            <div className="leaderRow" key={`leader-${player.id}`}>
+              <div className="leaderLeft">
+                <div className="leaderPlace">#{index + 1}</div>
+
+                <button
+                  type="button"
+                  className={`leaderAvatar profileAvatarButton ${
+                    !canOpenProfile(player) ? "leaderAvatarBlocked" : ""
+                  }`}
+                  onClick={(e) => handleOpenProfileSafe(e, player)}
+                  disabled={!canOpenProfile(player)}
+                  title={
+                    canOpenProfile(player)
+                      ? `View ${player.username}'s profile`
+                      : "Profile unavailable"
+                  }
+                >
+                  {player.avatarData ? (
+                    <img src={player.avatarData} alt={player.username} />
+                  ) : (
+                    <span>{player.username?.[0]?.toUpperCase() || "?"}</span>
+                  )}
+                </button>
+
+                <div>
+                  <div className="leaderNameRow">
+                    <div className="leaderName">{player.username}</div>
+
+                    <img
+                      className="leaderRankIcon"
+                      src={getRankImage(userManager.getUserRank(player))}
+                      alt={userManager.getUserRank(player)}
+                    />
+
+                    {String(player.id) !== String(currentUser?.id) &&
+                      friendIds.includes(String(player.id)) && (
+                        <div className="friendBadge">Friend</div>
+                      )}
+
+                    {blockedUsers.some(
+                      (blocked) => String(blocked.id) === String(player.id)
+                    ) && <div className="blockedBadge">Blocked</div>}
                   </div>
 
-                  <div className="leaderStats">
-                    <div className="leaderStatBox">
-                      <span>Wins</span>
-                      <strong>{player.wins}</strong>
-                    </div>
-                    <div className="leaderStatBox">
-                      <span>WR</span>
-                      <strong>{player.winRate}%</strong>
-                    </div>
+                  <div className="leaderSub">
+                    {player.totalGames} games 
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="emptyState">
-                No players with at least {MIN_GAMES_FOR_RATIO} games yet.
               </div>
-            )}
+
+              <div className="leaderStats">
+                
+                <div className="leaderStatBox">
+                  <span>WR</span>
+                  <strong>{player.winRate}%</strong>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="emptyState">
+            No players with at least {MIN_GAMES_FOR_RATIO} games yet.
           </div>
-        </section>
+        )}
       </div>
+    </section>
+  ) : (
+    <section className="rankPanel">
+      <div className="panelHeader">
+        <div className="miniLabel">Leaderboard</div>
+        <h2>Top Tribes</h2>
+      </div>
+
+      <div className="leaderList">
+        {isTribeLoading ? (
+          <div className="emptyState">Loading tribe leaderboard...</div>
+        ) : tribeLeaderboard.length > 0 ? (
+          tribeLeaderboard.map((tribe, index) => (
+            <div className="leaderRow tribeLeaderRow" key={`tribe-${tribe.id}`}>
+              <div className="leaderLeft">
+                <div className="leaderPlace">#{index + 1}</div>
+
+                <div className="tribeLeaderAvatar">
+                  {tribe.name?.[0]?.toUpperCase() || "?"}
+                </div>
+
+                <div>
+                  <div className="leaderNameRow">
+                    <div className="leaderName">{tribe.name}</div>
+
+                    {tribe.isMyTribe && (
+                      <div className="friendBadge">Your Tribe</div>
+                    )}
+                  </div>
+
+                  <div className="leaderSub">
+                    {tribe.memberCount} members • {tribe.totalGames} games 
+                  </div>
+                </div>
+              </div>
+
+              <div className="leaderStats">
+             
+
+                <div className="leaderStatBox">
+                  <span>WR</span>
+                  <strong>{tribe.winRate}%</strong>
+                </div>
+
+                
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="emptyState">
+            No tribes with at least {MIN_GAMES_FOR_RATIO} total games yet.
+          </div>
+        )}
+      </div>
+    </section>
+  )}
+</div>
 
       {error && <div className="statusMessage error">{error}</div>}
 
@@ -498,6 +663,105 @@ if (!fromLeaderboard) {
   --ink:#5a3817;
   --muted:#9d754c;
   --card-border:#d2a75c;
+}
+
+.smallEmptyState {
+  min-height: 72px !important;
+  width: 100%;
+}
+
+.tribeMePanel {
+  margin-bottom: 18px;
+}
+
+.tribeMeCard {
+  background: linear-gradient(
+    180deg,
+    rgba(209, 158, 71, 0.42),
+    rgba(209, 158, 71, 0.42)
+  ) !important;
+}
+
+.tribeMeAvatar {
+  width: 68px !important;
+  height: 68px !important;
+  border-radius: 18px !important;
+  font-size: 26px !important;
+}
+
+.rankTabs {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 14px;
+  flex-wrap: wrap;
+}
+
+.rankTab {
+  border: 1px solid rgba(214, 172, 95, 0.18);
+  border-radius: 999px;
+  padding: 10px 18px;
+  background: rgba(61, 50, 32, 0.76);
+  color: #f6e7c3;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 236, 190, 0.04);
+}
+
+.rankTab.active {
+  background: linear-gradient(
+    180deg,
+    rgba(112, 83, 36, 0.95),
+    rgba(82, 61, 27, 0.95)
+  );
+  color: #fff2d2;
+  border-color: rgba(237, 187, 87, 0.28);
+}
+
+.tribeLeaderRow {
+  align-items: flex-start !important;
+}
+
+.tribeLeaderRow .leaderLeft {
+  align-items: flex-start !important;
+}
+
+.tribeLeaderRow .leaderNameRow {
+  align-items: flex-start !important;
+  margin-top: 2px;
+}
+
+.tribeLeaderRow .tribeLeaderAvatar,
+.tribeLeaderRow .leaderPlace {
+  margin-top: 2px;
+}
+  
+.tribeLeaderAvatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.18), transparent 38%),
+    linear-gradient(180deg, rgba(224, 171, 63, 0.42), rgba(122, 83, 44, 0.86));
+
+  border: 1px solid rgba(224, 171, 63, 0.24);
+  color: #fff1cf;
+  font-weight: 950;
+  font-size: 20px;
+
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 236, 190, 0.12);
+}
+
+.tribeLeaderRow .leaderStats {
+  gap: 8px;
 }
 
 .leaderRankIcon {
@@ -1063,6 +1327,60 @@ if (!fromLeaderboard) {
   font-size: 11px;
   font-weight: 800;
   box-shadow: 0 4px 10px rgba(183, 143, 90, 0.12);
+}
+
+.tribeLeaderRow {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: flex-start !important;
+  gap: 12px !important;
+  padding: 12px 14px !important;
+  border-radius: 18px !important;
+}
+
+.tribeLeaderRow .leaderLeft {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 12px !important;
+  min-width: 0 !important;
+}
+
+.tribeLeaderRow .leaderNameRow {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+  margin-top: 0 !important;
+}
+
+.tribeLeaderRow .leaderStats {
+  display: flex !important;
+  gap: 10px !important;
+  align-items: flex-start !important;
+  align-self: flex-start !important;
+  flex-shrink: 0 !important;
+}
+
+.tribeLeaderRow .leaderPlace,
+.tribeLeaderRow .tribeLeaderAvatar {
+  margin-top: 0 !important;
+}
+
+/* Do not stretch the tribe list when there are only a few tribe rows */
+.rankPanel .leaderList {
+  flex: 0 0 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  align-content: start !important;
+}
+
+/* Keep tribe rows tight */
+.leaderRow.tribeLeaderRow {
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  padding: 10px 14px !important;
+  align-items: center !important;
 }
       `}</style>
     </div>

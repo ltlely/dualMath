@@ -137,7 +137,7 @@ deleteExpiredMessages: async () => {
   }
 },
 
-sendFriendRequest: async (_senderId, username) => {
+sendFriendRequest: async (_senderId, username, requestMessage = "") => {
   try {
     const { data: userData, error: userError } = await supabase.auth.getUser();
     const authUser = userData?.user;
@@ -192,7 +192,7 @@ if ((existingFriendRows || []).length > 0) {
 
 const { data: existingRequestRows, error: existingRequestError } = await supabase
   .from("friend_requests")
-  .select("id, sender_id, receiver_id, status")
+  .select("id, sender_id, receiver_id, status, request_message")
   .or(
     `and(sender_id.eq.${senderId},receiver_id.eq.${receiver.id}),and(sender_id.eq.${receiver.id},receiver_id.eq.${senderId})`
   );
@@ -244,6 +244,7 @@ if (oldResolvedRows.length > 0) {
         sender_id: senderId,
         receiver_id: receiver.id,
         status: "pending",
+        request_message: requestMessage.trim().slice(0, 180),
       });
 
     if (insertError) {
@@ -272,6 +273,7 @@ getFriendRequests: async (userId) => {
           sender_id,
           receiver_id,
           status,
+          request_message,
           created_at,
           sender:profiles!friend_requests_sender_id_fkey (
             id,
@@ -337,6 +339,7 @@ profile_text_color
           avatarData: sender?.avatar_data || null,
           wins,
           losses,
+          requestMessage: row.request_message || "",
           totalGames,
           rankPoints: sender?.rank_points || 0,
           winRate,
@@ -996,7 +999,9 @@ profiles:user_id (
   total_games,
   profile_status,
   profile_bg_color,
-  profile_text_color
+  profile_text_color,
+  status,
+  last_active
 )
       `)
       .eq("tribe_id", myMembership.tribe_id)
@@ -1029,6 +1034,10 @@ const members = (memberRows || []).map((row) => {
     profileStatus: profile?.profile_status || "",
     profileBgColor: profile?.profile_bg_color || "#dbdbdb",
     profileTextColor: profile?.profile_text_color || "#5f4c79",
+
+status: profile?.status || "offline",
+last_active: profile?.last_active || null,
+lastActive: profile?.last_active || null,
   };
 });
 
@@ -1040,6 +1049,108 @@ const members = (memberRows || []).map((row) => {
   } catch (err) {
     console.error("getMyTribe catch error:", err);
     return { success: false, message: "Could not load tribe." };
+  }
+},
+
+getTribeLeaderboard: async (currentUserId = null) => {
+  try {
+    const { data: tribes, error: tribesError } = await supabase
+      .from("tribes")
+      .select("id, name, owner_id, created_at")
+      .order("created_at", { ascending: true });
+
+    if (tribesError) {
+      console.error("getTribeLeaderboard tribes error:", tribesError);
+      return { success: false, tribes: [] };
+    }
+
+    const { data: memberRows, error: membersError } = await supabase
+      .from("tribe_members")
+      .select(`
+        tribe_id,
+        user_id,
+        role,
+        profiles:user_id (
+          id,
+          username,
+          wins,
+          losses,
+          total_games,
+          rank_points
+        )
+      `);
+
+    if (membersError) {
+      console.error("getTribeLeaderboard members error:", membersError);
+      return { success: false, tribes: [] };
+    }
+
+    const membersByTribe = new Map();
+
+    (memberRows || []).forEach((row) => {
+      const profile = Array.isArray(row.profiles)
+        ? row.profiles[0]
+        : row.profiles;
+
+      if (!membersByTribe.has(row.tribe_id)) {
+        membersByTribe.set(row.tribe_id, []);
+      }
+
+      membersByTribe.get(row.tribe_id).push({
+        userId: row.user_id,
+        role: row.role,
+        wins: Number(profile?.wins || 0),
+        losses: Number(profile?.losses || 0),
+        totalGames: Number(profile?.total_games || 0),
+        rankPoints: Number(profile?.rank_points || 0),
+      });
+    });
+
+    const mapped = (tribes || []).map((tribe) => {
+      const members = membersByTribe.get(tribe.id) || [];
+
+      const wins = members.reduce((sum, member) => sum + member.wins, 0);
+      const losses = members.reduce((sum, member) => sum + member.losses, 0);
+
+      const totalGamesFromProfile = members.reduce(
+        (sum, member) => sum + member.totalGames,
+        0
+      );
+
+      const totalGames = totalGamesFromProfile || wins + losses;
+
+      const rankPoints = members.reduce(
+        (sum, member) => sum + member.rankPoints,
+        0
+      );
+
+      const winRate =
+        totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
+
+      const isMyTribe = currentUserId
+        ? members.some((member) => String(member.userId) === String(currentUserId))
+        : false;
+
+      return {
+        id: tribe.id,
+        name: tribe.name || "Unnamed Tribe",
+        ownerId: tribe.owner_id,
+        createdAt: tribe.created_at,
+
+        memberCount: members.length,
+        wins,
+        losses,
+        totalGames,
+        rankPoints,
+        winRate,
+        isMyTribe,
+      };
+    });
+
+    return { success: true, tribes: mapped };
+  } catch (error) {
+    console.error("getTribeLeaderboard error:", error);
+    return { success: false, tribes: [] };
   }
 },
 

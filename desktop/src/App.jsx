@@ -230,12 +230,36 @@ const [pendingInviteUserIds, setPendingInviteUserIds] = useState({});
 const [inviteIdToUserId, setInviteIdToUserId] = useState({});
 const [preloadedRankData, setPreloadedRankData] = useState(null);
 const [preloadedFriendData, setPreloadedFriendData] = useState(null);
-const friendRequestCount = preloadedFriendData?.requests?.length || 0;
-const tribeRequestCount = preloadedFriendData?.tribeRequests?.length || 0;
-const chatNotificationCount = unreadChatCount || 0;
+const [friendPanelCounts, setFriendPanelCounts] = useState(null);
+const [profileMessageTarget, setProfileMessageTarget] = useState(null);
+
+const friendRequestCount =
+  friendPanelCounts?.friendRequests ??
+  preloadedFriendData?.requests?.length ??
+  0;
+
+const tribeRequestCount =
+  friendPanelCounts?.tribeRequests ??
+  preloadedFriendData?.tribeRequests?.length ??
+  0;
+
+const chatNotificationCount =
+  friendPanelCounts?.chat ?? unreadChatCount ?? 0;
 
 const friendsLobbyNotificationCount =
   friendRequestCount + tribeRequestCount + chatNotificationCount;
+
+const handleMessageUserFromProfile = async (user) => {
+  if (!user?.id) return;
+
+  setProfileMessageTarget(user);
+  setProfileUser(null);
+  setProfileOptions({});
+  setScreen("lobby");
+  setView("friends");
+
+  setFriendsRefreshKey((prev) => prev + 1);
+};
 
 const isInGameMusicState =
   view === "game" ||
@@ -305,12 +329,28 @@ const handleOpenProfile = async (user, options = {}) => {
 
   let relationshipState = {};
 
-  if (currentUser?.id && String(currentUser.id) !== String(user.id)) {
-    relationshipState = await userManager.getProfileRelationshipState(
-      currentUser.id,
-      user.id
-    );
-  } else if (currentUser?.id && String(currentUser.id) === String(user.id)) {
+if (currentUser?.id && String(currentUser.id) !== String(user.id)) {
+  const [relationshipResult, friendsResult] = await Promise.all([
+    userManager.getProfileRelationshipState(currentUser.id, user.id),
+    userManager.getFriends(currentUser.id),
+  ]);
+
+  const friendsData = Array.isArray(friendsResult)
+    ? friendsResult
+    : friendsResult?.data || [];
+
+  const preloadedIsFriend = friendsData.some(
+    (friend) => String(friend.id) === String(user.id)
+  );
+
+  relationshipState = {
+    ...relationshipResult,
+    isFriend: preloadedIsFriend,
+    friendRequestSent: preloadedIsFriend
+      ? false
+      : relationshipResult?.friendRequestSent === true,
+  };
+} else if (currentUser?.id && String(currentUser.id) === String(user.id)) {
     const myTribeResult = await userManager.getMyTribe(currentUser.id);
 
     relationshipState = {
@@ -387,6 +427,82 @@ const preloadFriendData = async () => {
     return null;
   }
 };
+
+const refreshFriendPanelCounts = useCallback(async () => {
+  if (!currentUser?.id) {
+    setFriendPanelCounts({
+      friendRequests: 0,
+      tribeRequests: 0,
+      chat: 0,
+    });
+    return;
+  }
+
+  try {
+    const [requestsData, tribeRequestsData, unreadResult] = await Promise.all([
+      userManager.getFriendRequests(currentUser.id),
+      userManager.getTribeRequests(currentUser.id),
+      userManager.getUnreadChatSummary(currentUser.id),
+    ]);
+
+    const chatCount = unreadResult?.unreadSenders?.length || 0;
+
+    setUnreadChatCount(chatCount);
+
+    setFriendPanelCounts({
+      friendRequests: requestsData?.length || 0,
+      tribeRequests: tribeRequestsData?.length || 0,
+      chat: chatCount,
+    });
+
+    setPreloadedFriendData((prev) => ({
+      ...(prev || {}),
+      requests: requestsData || [],
+      tribeRequests: tribeRequestsData || [],
+      loadedAt: Date.now(),
+    }));
+  } catch (err) {
+    console.error("refreshFriendPanelCounts error:", err);
+  }
+}, [currentUser?.id]);
+
+useEffect(() => {
+  if (!currentUser?.id) {
+    setFriendPanelCounts(null);
+    return;
+  }
+
+  refreshFriendPanelCounts();
+
+  const interval = setInterval(() => {
+    refreshFriendPanelCounts();
+  }, 3000);
+
+  return () => clearInterval(interval);
+}, [currentUser?.id, refreshFriendPanelCounts]);
+
+const handleFriendNotificationCountsChange = useCallback((counts) => {
+  setFriendPanelCounts((prev) => ({
+    friendRequests:
+      counts?.friendRequests ?? prev?.friendRequests ?? 0,
+    tribeRequests:
+      counts?.tribeRequests ?? prev?.tribeRequests ?? 0,
+    chat:
+      counts?.chat ?? prev?.chat ?? 0,
+  }));
+}, []);
+
+useEffect(() => {
+  setFriendPanelCounts((prev) => {
+    if (!prev) return prev;
+
+    return {
+      ...prev,
+      chat: unreadChatCount || 0,
+    };
+  });
+}, [unreadChatCount]);
+
 useEffect(() => {
   if (!currentUser?.id) return;
   preloadFriendData();
@@ -652,8 +768,10 @@ const handleSendGameInvite = async (friend) => {
     )
   );
 
-  setFriendsRefreshKey((prev) => prev + 1);
-  setProfileRefreshKey((prev) => prev + 1);
+setFriendsRefreshKey((prev) => prev + 1);
+setProfileRefreshKey((prev) => prev + 1);
+await refreshFriendPanelCounts();
+await preloadFriendData();
 
   return;
   }
@@ -758,7 +876,7 @@ const handleInviteToTribe = async (targetUser) => {
   }
 };
 
-const handleProfileSavedGlobal = useCallback((updatedUser) => {
+const handleProfileSavedGlobal = useCallback(async (updatedUser) => {
   if (!updatedUser?.id) return;
 
   setProfileUser((prev) =>
@@ -780,8 +898,9 @@ const handleProfileSavedGlobal = useCallback((updatedUser) => {
     )
   );
 
-  setFriendsRefreshKey((prev) => prev + 1);
-    setProfileRefreshKey((prev) => prev + 1);
+setFriendsRefreshKey((prev) => prev + 1);
+setProfileRefreshKey((prev) => prev + 1);
+preloadFriendData?.();
 
 
   if (profileOptions?.onProfileSaved) {
@@ -2041,18 +2160,21 @@ const GameInviteStatusToast = () => {
   return (
     <>
         <GameInvitePopup />
-          <GameInviteStatusToast />
-    <FriendList
-      currentUser={currentUser}
-      onBack={() => setView("lobby")}
-      onUnreadCountChange={setUnreadChatCount}
-      refreshUnreadCount={loadUnreadChatCount}
-      onOnlineFriendsChange={setOnlineFriends}
-       onOpenProfile={handleOpenProfile}
-       refreshKey={friendsRefreshKey}
-       profileRefreshKey={profileRefreshKey}
-         preloadedFriendData={preloadedFriendData}
-    />
+        <GameInviteStatusToast />
+        <FriendList
+          currentUser={currentUser}
+          onBack={() => setView("lobby")}
+          onUnreadCountChange={setUnreadChatCount}
+          refreshUnreadCount={loadUnreadChatCount}
+          onNotificationCountsChange={handleFriendNotificationCountsChange}
+          onOnlineFriendsChange={setOnlineFriends}
+          onOpenProfile={handleOpenProfile}
+          refreshKey={friendsRefreshKey}
+          profileRefreshKey={profileRefreshKey}
+          preloadedFriendData={preloadedFriendData}
+          profileMessageTarget={profileMessageTarget}
+          onProfileMessageTargetUsed={() => setProfileMessageTarget(null)}
+        />
 
  {profileUser && (
   <Profile
@@ -2064,6 +2186,7 @@ const GameInviteStatusToast = () => {
       setProfileOptions({});
     }}
 onProfileSaved={handleProfileSavedGlobal}
+onMessageUser={handleMessageUserFromProfile}
   />
 )}
 </>
@@ -2096,6 +2219,7 @@ onProfileSaved={handleProfileSavedGlobal}
     }}
     onProfileSaved={handleProfileSavedGlobal}
     onInviteToTribe={handleInviteToTribe}
+    onMessageUser={handleMessageUserFromProfile}
   />
 )}
     </>
@@ -2181,6 +2305,7 @@ onOpenProfile={handleOpenProfile}
       onInviteFriend={handleSendGameInvite}
   gameInviteMessage={gameInviteMessage}
   onInviteToTribe={handleInviteToTribe}
+  onMessageUser={handleMessageUserFromProfile}
   />
 )}
 
@@ -2239,6 +2364,7 @@ onOpenProfile={handleOpenProfile}
           }}
           onProfileSaved={handleProfileSavedGlobal}
           onInviteToTribe={handleInviteToTribe}
+          onMessageUser={handleMessageUserFromProfile}
         />
       )}
     </>
