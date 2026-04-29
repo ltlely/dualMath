@@ -412,7 +412,9 @@ getFriends: async (userId) => {
           status,
           last_seen,
           profile_bg_color,
-profile_text_color
+profile_text_color,
+profile_banner,
+profile_banner_url
         )
       `)
       .eq("user_id", userId)
@@ -488,6 +490,10 @@ profile_text_color
         isBlockedByCurrentUser: blockedMeSet.has(friend?.id),
         profileBgColor: friend?.profile_bg_color || "#dbdbdb",
 profileTextColor: friend?.profile_text_color || "#5f4c79",
+profileBanner: friend?.profile_banner || "dreamyBlue",
+profile_banner: friend?.profile_banner || "dreamyBlue",
+profileBannerUrl: friend?.profile_banner_url || "",
+profile_banner_url: friend?.profile_banner_url || "",
       };
     });
 
@@ -538,7 +544,9 @@ getLeaderboard: async (currentUserId) => {
   rank_points,
   profile_status,
   profile_bg_color,
-profile_text_color
+profile_text_color,
+profile_banner,
+profile_banner_url
 `)
 
     const blockedByMePromise = currentUserId
@@ -601,6 +609,10 @@ return (data || []).map((player) => ({
   isBlockedByCurrentUser: blockedMeSet.has(String(player.id)),
   profileBgColor: player.profile_bg_color || "#dbdbdb",
 profileTextColor: player.profile_text_color || "#5f4c79",
+profileBanner: player.profile_banner || "dreamyBlue",
+profile_banner: player.profile_banner || "dreamyBlue",
+profileBannerUrl: player.profile_banner_url || "",
+profile_banner_url: player.profile_banner_url || "",
 }));
   } catch (error) {
     console.error("getLeaderboard catch error:", error);
@@ -684,6 +696,10 @@ dailyRewardLastClaimDate: profile?.daily_reward_last_claim_date || null,
 dailyRewardClaimedDays: profile?.daily_reward_claimed_days || [],
 profileBgColor: profile?.profile_bg_color || "#dbdbdb",
 profileTextColor: profile?.profile_text_color || "#5f4c79",
+profileBanner: profile?.profile_banner || "dreamyBlue",
+profile_banner: profile?.profile_banner || "dreamyBlue",
+profileBannerUrl: profile?.profile_banner_url || "",
+profile_banner_url: profile?.profile_banner_url || "",
 };
 
       // Cache locally for quick access
@@ -695,6 +711,41 @@ profileTextColor: profile?.profile_text_color || "#5f4c79",
       return null;
     }
   },
+
+async updateProfileBannerDefault(profileId) {
+  if (!profileId) {
+    return {
+      success: false,
+      error: "Missing profile id.",
+    };
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      profile_banner: "dreamyBlue",
+      profile_banner_url: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", profileId);
+
+  if (error) {
+    console.error("updateProfileBannerDefault error:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+
+  return {
+    success: true,
+    profile: {
+      id: profileId,
+      profile_banner: "dreamyBlue",
+      profile_banner_url: null,
+    },
+  };
+},
 
   // Synchronous version for immediate UI (uses cached data)
   getCurrentUserSync: () => {
@@ -1152,6 +1203,86 @@ getTribeLeaderboard: async (currentUserId = null) => {
     console.error("getTribeLeaderboard error:", error);
     return { success: false, tribes: [] };
   }
+},
+
+async updateProfileBanner(profileId, bannerId) {
+  if (!profileId || !bannerId) {
+    return {
+      success: false,
+      error: "Missing profile id or banner id.",
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      profile_banner: bannerId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", profileId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("updateProfileBanner error:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+
+  return {
+    success: true,
+    profile: data,
+  };
+},
+
+async uploadProfileBanner(profileId, file) {
+  if (!profileId || !file) {
+    return { success: false, error: "Missing profile id or file." };
+  }
+
+  const fileExt = file.name.split(".").pop();
+  const fileName = `${profileId}-${Date.now()}.${fileExt}`;
+  const filePath = `${profileId}/${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("profile-banners")
+    .upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: true,
+    });
+
+  if (uploadError) {
+    console.error("uploadProfileBanner uploadError:", uploadError);
+    return { success: false, error: uploadError.message };
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from("profile-banners")
+    .getPublicUrl(filePath);
+
+  const bannerUrl = publicUrlData?.publicUrl;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      profile_banner_url: bannerUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", profileId)
+    .select()
+    .single();
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return {
+    success: true,
+    profile: data,
+    bannerUrl,
+  };
 },
 
 getProfileRelationshipState: async (currentUserId, targetUserId) => {
@@ -2151,7 +2282,9 @@ getUserById: async (userId) => {
         status,
         last_seen,
         profile_bg_color,
-profile_text_color
+profile_text_color,
+profile_banner,
+profile_banner_url
       `)
       .eq("id", userId)
       .single();
@@ -2174,6 +2307,10 @@ profile_text_color
       last_seen: data.last_seen || null,
       profileBgColor: data.profile_bg_color || "#dbdbdb",
 profileTextColor: data.profile_text_color || "#5f4c79",
+  profileBanner: data.profile_banner || "dreamyBlue",
+  profile_banner: data.profile_banner || "dreamyBlue",
+  profileBannerUrl: data.profile_banner_url || "",
+  profile_banner_url: data.profile_banner_url || "",
     };
   } catch (error) {
     console.error("getUserById catch error:", error);

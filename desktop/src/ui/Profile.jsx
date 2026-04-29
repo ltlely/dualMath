@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { userManager } from "../userManagerSupabase.js";
+import ProfileBanner from "./ProfileBanner.jsx";
 
 const rankImages = {
   "Novice": "/noviceApprenticeRank.png",
@@ -35,6 +36,14 @@ export default function Profile({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isEditingStatus, setIsEditingStatus] = useState(false);
+  const [profileBannerUrl, setProfileBannerUrl] = useState(
+  profileUser?.profile_banner_url || profileUser?.profileBannerUrl || ""
+);
+useEffect(() => {
+  setProfileBannerUrl(
+    profileUser?.profile_banner_url || profileUser?.profileBannerUrl || ""
+  );
+}, [profileUser?.id, profileUser?.profile_banner_url, profileUser?.profileBannerUrl]);
 const [isFriend, setIsFriend] = useState(
   typeof profileUser?.isFriend === "boolean" ? profileUser.isFriend : false
 );
@@ -44,6 +53,16 @@ const [friendRequestSent, setFriendRequestSent] = useState(
 const [isBlocked, setIsBlocked] = useState(
   profileUser?.isBlocked === true || profileUser?.isBlockedByMe === true
 );
+const [profileBanner, setProfileBanner] = useState(
+  profileUser?.profile_banner || profileUser?.profileBanner || "dreamyBlue"
+);
+
+useEffect(() => {
+  setProfileBanner(
+    profileUser?.profile_banner || profileUser?.profileBanner || "dreamyBlue"
+  );
+}, [profileUser?.id, profileUser?.profile_banner, profileUser?.profileBanner]);
+
 const [isRelationshipLoading, setIsRelationshipLoading] = useState(false);
 const [messageButtonState, setMessageButtonState] = useState("");
 const [showMessageRequestPopup, setShowMessageRequestPopup] = useState(false);
@@ -72,14 +91,68 @@ const [currentUserTribeRole, setCurrentUserTribeRole] = useState(
   profileUser?.currentUserTribeRole || null
 );
 
-
+const [confirmAction, setConfirmAction] = useState(null);
 const [isLoadingCurrentUserTribe, setIsLoadingCurrentUserTribe] = useState(
   !profileUser?.currentUserTribe && !profileUser?.currentUserTribeRole
 );
 
+const handleUploadBannerImage = async (file) => {
+  if (!isOwner || !file) return;
+
+  setMessage("");
+  setError("");
+
+  const result = await userManager.uploadProfileBanner(currentUser?.id, file);
+
+  if (!result?.success) {
+    setError(result?.error || "Could not upload banner image.");
+    return;
+  }
+
+  setProfileBannerUrl(result.bannerUrl);
+  setMessage("Profile banner updated.");
+
+  onProfileSaved?.({
+    ...profileUser,
+    profile_banner_url: result.bannerUrl,
+    profileBannerUrl: result.bannerUrl,
+  });
+};
+
+const handleChangeBanner = async (bannerId) => {
+  if (!isOwner) return;
+
+  const previousBanner = profileBanner;
+
+  setProfileBanner(bannerId);
+  setMessage("");
+  setError("");
+
+  const result = await userManager.updateProfileBanner(
+    currentUser?.id,
+    bannerId
+  );
+
+  if (!result?.success) {
+    setProfileBanner(previousBanner);
+    setError(result?.error || result?.message || "Could not update profile banner.");
+    return;
+  }
+
+  setMessage("Profile banner updated.");
+
+  onProfileSaved?.({
+    ...profileUser,
+    profile_banner: bannerId,
+    profileBanner: bannerId,
+  });
+};
+
 const isOwner = useMemo(() => {
   return !!currentUser?.id && currentUser.id === profileUser?.id;
 }, [currentUser?.id, profileUser?.id]);
+
+
 
 useEffect(() => {
   setTribeInviteSent(profileUser?.tribeInviteSent === true);
@@ -715,6 +788,65 @@ const handleToggleBlock = async () => {
   }
 };
 
+const openConfirmAddFriend = () => {
+  setConfirmAction({
+    type: "addFriend",
+    title: "Add Friend?",
+    message: `Are you sure you want to add ${profileUser?.username || "this user"} as a friend?`,
+    confirmText: "Add Friend",
+  });
+};
+
+const openConfirmBlock = () => {
+  setConfirmAction({
+    type: "block",
+    title: "Block User?",
+    message: `Are you sure you want to block ${profileUser?.username || "this user"}?`,
+    confirmText: "Block",
+  });
+};
+
+const handleConfirmAction = async () => {
+  if (!confirmAction) return;
+
+  const actionType = confirmAction.type;
+  setConfirmAction(null);
+
+  if (actionType === "addFriend") {
+    await handleToggleFriend();
+    return;
+  }
+
+  if (actionType === "block") {
+    await handleToggleBlock();
+  }
+};
+const handleResetDefaultBanner = async () => {
+  if (!isOwner) return;
+
+  setProfileBanner("dreamyBlue");
+  setProfileBannerUrl("");
+  setMessage("");
+  setError("");
+
+  const result = await userManager.updateProfileBannerDefault(currentUser?.id);
+
+  if (!result?.success) {
+    setError(result?.error || "Could not reset banner.");
+    return;
+  }
+
+  setMessage("Profile banner reset.");
+
+  onProfileSaved?.({
+    ...profileUser,
+    profile_banner: "dreamyBlue",
+    profileBanner: "dreamyBlue",
+    profile_banner_url: "",
+    profileBannerUrl: "",
+  });
+};
+
   return (
     <div className="profileModalRoot">
       <div
@@ -739,147 +871,150 @@ style={{
           ✕
         </button>
 
-        <div className="profileSparkle profileSparkleOne">✦</div>
-        <div className="profileSparkle profileSparkleTwo">✧</div>
+        
 
-        <div className="profileHero">
-          <div className="profileAvatarColumn">
-            <div className="profileAvatarGlow" />
-            <div className="profileAvatarWrap">
-              {profileUser?.avatarData ? (
-                <img
-                  src={profileUser.avatarData}
-                  alt={profileUser.username || "User"}
-                  className="profileAvatar"
-                />
-              ) : (
-                <div className="profileAvatarFallback">
-                  {profileUser?.username?.[0]?.toUpperCase() || "?"}
-                </div>
-              )}
-            </div>
-          </div>
+<div className="profileTopRow">
+  <div className="profileTopBannerWrap">
+<ProfileBanner
+  bannerId={profileBanner}
+  bannerUrl={profileBannerUrl}
+  avatarSrc={profileUser?.avatarData}
+  username={profileUser?.username || "Unknown User"}
+  rank={rank}
+  rankIcon={getRankImage(rank)}
+  tribeName={targetTribeName}
+  isOwner={isOwner}
+  
+  onChangeBanner={handleResetDefaultBanner}
+  onUploadBannerImage={handleUploadBannerImage}
+  textColor={
+    isEditingStatus
+      ? textColor
+      : profileUser?.profileTextColor || DEFAULT_PROFILE_TEXT
+  }
+  actions={
+    !isOwner ? (
+      <>
+        <button
+          type="button"
+          className="profileActionButton friend"
+onClick={(e) => {
+  e.stopPropagation();
 
-          <div className="profileIdentity">
-            <div className="profileMiniLabel">Profile</div>
-<h1
-  className="profileName"
->
-  {profileUser?.username || "Unknown User"}
-</h1>
+  if (isFriend) {
+    handleToggleFriend();
+    return;
+  }
 
-<div className="profileRankRow">
-  <img
-    src={getRankImage(rank)}
-    alt={rank}
-    className="profileRankBadge"
-  />
+  openConfirmAddFriend();
+}}
+          disabled={
+            isRelationshipLoading ||
+            isActionLoading ||
+            isBlocked ||
+            (!isFriend && friendRequestSent)
+          }
+        >
+          {isRelationshipLoading
+            ? "Checking..."
+            : isFriend
+            ? "Remove Friend"
+            : friendRequestSent
+            ? "Request Sent"
+            : "Add Friend"}
+        </button>
 
-  <span className="profileRankName">{rank}</span>
+        {!targetAlreadyInTribe &&
+          !isLoadingCurrentUserTribe &&
+          canCurrentUserInviteToTribe && (
+            <button
+              type="button"
+              className="profileActionButton tribe"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleInviteToTribe();
+              }}
+              disabled={
+                isActionLoading ||
+                isBlocked ||
+                isInvitingTribe ||
+                tribeInviteSent
+              }
+            >
+              {tribeInviteSent
+                ? "Invite Sent"
+                : isInvitingTribe
+                ? "Inviting..."
+                : "Invite to Tribe"}
+            </button>
+          )}
 
-  {!isOwner && (
-    <button
-      type="button"
-      className={`profileMessageIconButton ${
-        messageButtonState === "sent" ? "messageSentState" : ""
-      } ${
-        messageButtonState === "requested" || friendRequestSent
-          ? "messageRequestedState"
-          : ""
-      }`}
-      onClick={handleMessageButton}
-      disabled={
-        isActionLoading ||
-        isBlocked ||
-        messageButtonState === "sent" ||
-        messageButtonState === "requested" ||
-        friendRequestSent
-      }
-      title={
-        messageButtonState === "sent"
-          ? "Sent"
-          : messageButtonState === "requested" || friendRequestSent
-          ? "Requested"
-          : "Message"
-      }
-    >
-      <img
-        src="/messageIcon.png"
-        alt={
-          messageButtonState === "sent"
-            ? "Sent"
-            : messageButtonState === "requested" || friendRequestSent
-            ? "Requested"
-            : "Message"
-        }
-        className="profileMessageIconImg"
-      />
-    </button>
-  )}
+        <button
+          type="button"
+          className="profileActionButton block"
+onClick={(e) => {
+  e.stopPropagation();
 
-  {targetTribeName && (
-    <div className="profileTribeBadge" title={targetTribeName}>
-      <span className="profileTribeName">{targetTribeName}</span>
-    </div>
-  )}
+  if (isBlocked) {
+    handleToggleBlock();
+    return;
+  }
+
+  openConfirmBlock();
+}}
+          disabled={isActionLoading}
+        >
+          {isBlocked ? "Unblock" : "Block"}
+        </button>
+
+        <button
+          type="button"
+          className={`profileMessageIconButton ${
+            messageButtonState === "sent" ? "messageSentState" : ""
+          } ${
+            messageButtonState === "requested" || friendRequestSent
+              ? "messageRequestedState"
+              : ""
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleMessageButton();
+          }}
+          disabled={
+            isActionLoading ||
+            isBlocked ||
+            messageButtonState === "sent" ||
+            messageButtonState === "requested" ||
+            friendRequestSent
+          }
+          title={
+            messageButtonState === "sent"
+              ? "Sent"
+              : messageButtonState === "requested" || friendRequestSent
+              ? "Requested"
+              : "Message"
+          }
+        >
+          <img
+            src="/messageIcon.png"
+            alt="Message"
+            className="profileMessageIconImg"
+          />
+        </button>
+      </>
+    ) : null
+  }
+/>
+  </div>
+
+
 </div>
 
-{!isOwner && (
-  <div className="profileActionRow">
+<div className="profileIdentityBelow">
+ 
 
-<button
-  type="button"
-  className="profileActionButton friend"
-  onClick={handleToggleFriend}
-  disabled={
-    isRelationshipLoading ||
-    isActionLoading ||
-    isBlocked ||
-    (!isFriend && friendRequestSent)
-  }
->
-  {isRelationshipLoading
-    ? "Checking..."
-    : isFriend
-    ? "Remove Friend"
-    : friendRequestSent
-    ? "Request Sent"
-    : "Add Friend"}
-</button>
-{!targetAlreadyInTribe && !isLoadingCurrentUserTribe && canCurrentUserInviteToTribe && (
-  <button
-    type="button"
-    className="profileActionButton tribe"
-    onClick={handleInviteToTribe}
-    disabled={
-      isActionLoading ||
-      isBlocked ||
-      isInvitingTribe ||
-      tribeInviteSent
-    }
-    title={tribeInviteSent ? "Tribe invite already sent" : "Invite to tribe"}
-  >
-    {tribeInviteSent
-      ? "Invite Sent"
-      : isInvitingTribe
-      ? "Inviting..."
-      : "Invite to Tribe"}
-  </button>
-)}
-
-    <button
-      type="button"
-      className="profileActionButton block"
-      onClick={handleToggleBlock}
-      disabled={isActionLoading}
-    >
-      {isBlocked ? "Unblock" : "Block"}
-    </button>
-  </div>
-)}
-
- {message && <div className="profileMessage success">{message}</div>}
-              {error && <div className="profileMessage error">{error}</div>}
+  {message && <div className="profileMessage success">{message}</div>}
+  {error && <div className="profileMessage error">{error}</div>}
 
 <div className="profileStatusCard">
   <div className="profileStatusHeader">
@@ -1006,8 +1141,8 @@ style={{
 
 
 </div>
-          </div>
-        </div>
+</div>
+
 <div className="profileStatsGrid">
   <div className="profileStatCard">
     <img className="profileStatIcon" src="/trophy.png" alt="Wins" />
@@ -1087,7 +1222,115 @@ style={{
     </div>
   </div>
 )}
+
+{confirmAction && (
+  <div
+    className="confirmActionOverlay"
+    onClick={() => setConfirmAction(null)}
+  >
+    <div
+      className="confirmActionModal"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="miniLabel">Confirm</div>
+
+      <h3>{confirmAction.title}</h3>
+
+      <p>{confirmAction.message}</p>
+
+      <div className="confirmActionButtons">
+        <button
+          type="button"
+          className="confirmCancelButton"
+          onClick={() => setConfirmAction(null)}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          className={`confirmYesButton ${
+            confirmAction.type === "block" ? "danger" : ""
+          }`}
+          onClick={handleConfirmAction}
+        >
+          {confirmAction.confirmText}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
      <style>{`
+
+     .confirmActionOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(16, 14, 24, 0.58);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.confirmActionModal {
+  width: min(420px, calc(100vw - 32px));
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(255, 253, 244, 0.96);
+  border: 1px solid rgba(143, 106, 45, 0.25);
+  box-shadow: 0 24px 70px rgba(61, 42, 18, 0.34);
+}
+
+.confirmActionModal h3 {
+  margin: 6px 0 8px;
+  color: #3d2a12;
+}
+
+.confirmActionModal p {
+  margin: 0;
+  color: rgba(61, 42, 18, 0.72);
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+
+.confirmActionButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.confirmCancelButton,
+.confirmYesButton {
+  min-width: 112px;
+  height: 42px;
+  border-radius: 999px;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  border: none;
+}
+
+.confirmCancelButton {
+  background: rgba(255, 255, 255, 0.78);
+  color: #6b4a22;
+  border: 1px solid rgba(143, 106, 45, 0.24);
+}
+
+.confirmYesButton {
+  background: hotpink;
+  color: white;
+  box-shadow: 0 10px 22px rgba(255, 105, 180, 0.28);
+}
+
+.confirmYesButton.danger {
+  background: red;
+  color: white;
+  box-shadow: 0 10px 22px rgba(255, 0, 0, 0.22);
+}
 .profileActionButton.message.messageSentState,
 .profileActionButton.message.messageSentState:disabled {
   color: rgba(61, 42, 18, 0.55) !important;
@@ -1183,6 +1426,27 @@ style={{
   filter: grayscale(0.12);
 }
 
+
+.profileStatusSideCard .profileStatusTitle {
+  margin-bottom: 14px;
+}
+
+.profileStatusSideCard p,
+.profileStatusSideCard textarea,
+.profileStatusSideCard .profileStatusText {
+  margin-top: 0;
+}
+
+@media (max-width: 900px) {
+  .profileTopRow {
+    grid-template-columns: 1fr;
+  }
+
+  .profileStatusSideCard {
+    min-height: unset;
+  }
+}
+
 .profileActionButton.tribe:disabled {
   opacity: 0.65;
   cursor: not-allowed;
@@ -1208,6 +1472,7 @@ style={{
   align-items: center;
   gap: 6px;
 }
+  
 
 .profileMessageIconButton {
   width: 36px;
@@ -1428,7 +1693,31 @@ style={{
 }
 
 
+.profileIdentityBelow {
+  position: relative;
+  z-index: 20;
+}
 
+.profileActionRow {
+  position: relative;
+  z-index: 30;
+}
+
+.profileActionButton,
+.profileMessageIconButton {
+  position: relative;
+  z-index: 31;
+}
+
+.profileStatusCard {
+  position: relative;
+  z-index: 25;
+}
+
+.profileStatsGrid {
+  position: relative;
+  z-index: 25;
+}
 
 
 .profileThemePickerWrap {
@@ -1593,6 +1882,14 @@ style={{
     drop-shadow(0 4px 5px rgba(255, 184, 59, 0.28));
 }
 
+.profileHeroBanner {
+  margin-bottom: 22px;
+}
+
+.profileIdentityBelow {
+  margin-bottom: 20px;
+}
+
   .profileModalRoot {
     position: fixed;
     inset: 0;
@@ -1617,8 +1914,8 @@ style={{
     position: relative;
     z-index: 1;
     width: min(960px, 94vw);
-    max-height: 90dvh;
-    overflow-y: auto;
+  max-height: none;
+  overflow: visible;
     border-radius: 34px;
     padding: 30px;
     background:
@@ -1633,41 +1930,23 @@ style={{
     color: #58476b;
   }
 
-  .profileModalClose {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: 1px solid rgba(255,255,255,0.4);
-    background: rgba(255,255,255,0.48);
-    color: #6a5a82;
-    font-weight: 900;
-    cursor: pointer;
-    box-shadow: 0 8px 18px rgba(69, 58, 94, 0.14);
-  }
+.profileModalClose {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 9999;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.48);
+  color: #6a5a82;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(69, 58, 94, 0.14);
+}
 
-  .profileSparkle {
-    position: absolute;
-    color: rgba(255, 255, 255, 0.95);
-    pointer-events: none;
-    font-size: 22px;
-    text-shadow:
-      0 0 10px rgba(255,255,255,0.7),
-      0 0 18px rgba(255, 214, 243, 0.48);
-  }
-
-  .profileSparkleOne {
-    top: 18px;
-    right: 70px;
-  }
-
-  .profileSparkleTwo {
-    top: 54px;
-    right: 38px;
-  }
-
+ 
   .profileHero {
     display: grid;
     grid-template-columns: 180px 1fr;
@@ -1771,6 +2050,7 @@ style={{
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,0.34),
       0 10px 24px rgba(86, 72, 116, 0.08);
+   
   }
 
   .profileStatusHeader {
